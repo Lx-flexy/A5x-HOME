@@ -1,0 +1,9 @@
+{
+  "name": "A5x Home",
+  "short_name": "A5x",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050510",
+  "theme_color": "#050510"
+}
