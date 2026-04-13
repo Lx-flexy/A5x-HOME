@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="manifest.json">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0a0a1a" />
@@ -1483,12 +1484,7 @@ icons: [
       
     };
 
-    const mBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-    const mUrl = URL.createObjectURL(mBlob);
-    const link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = mUrl;
-    document.head.appendChild(link);
+ 
   </script>
 
 </body>
