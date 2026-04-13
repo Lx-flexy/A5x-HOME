@@ -1467,19 +1467,20 @@ if (val === 0 || val === 1) {
     // Inline Web App Manifest
     const manifest = {
       name: "A5x Home",
-      short_name: "A5x",
-      description: "Smart Home Dashboard",
-      start_url: "/",
-      display: "standalone",
-      background_color: "#050510",
-      theme_color: "#0a0a1e",
-      icons: [
-        {
-          src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='90' fill='%230a0a1e'/><text y='340' font-size='300' text-anchor='middle' x='256'>💡</text></svg>",
-          sizes: "512x512",
-          type: "image/svg+xml"
-        }
-      ]
+  short_name: "A5x",
+  start_url: "index.html",   // 👈 NO slash, NO ./ 
+  scope: ".",
+  display: "standalone",
+  background_color: "#050510",
+  theme_color: "#050510",
+icons: [
+  {
+    src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23050510'/></svg>",
+    sizes: "512x512",
+    type: "image/svg+xml"
+  }
+]
+      
     };
 
     const mBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
