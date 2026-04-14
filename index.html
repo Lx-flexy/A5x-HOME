@@ -9,872 +9,248 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>A5x HOME</title>
-
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
   <style>
-    /* ===========================
-       CSS VARIABLES & RESET
-    =========================== */
     :root {
       --bg-primary: #050510;
       --bg-secondary: #0a0a1e;
-      --glass-bg: rgba(255, 255, 255, 0.04);
-      --glass-border: rgba(255, 255, 255, 0.1);
-      --glass-hover: rgba(255, 255, 255, 0.08);
-
+      --glass-bg: rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.1);
+      --glass-hover: rgba(255,255,255,0.08);
       --neon-blue: #00d4ff;
       --neon-purple: #bf00ff;
       --neon-cyan: #00ffee;
       --neon-pink: #ff00aa;
       --neon-green: #00ff88;
-
       --text-primary: #ffffff;
-      --text-secondary: rgba(255, 255, 255, 0.6);
-      --text-muted: rgba(255, 255, 255, 0.3);
-
-      --glow-blue: 0 0 20px rgba(0, 212, 255, 0.4), 0 0 40px rgba(0, 212, 255, 0.2);
-      --glow-purple: 0 0 20px rgba(191, 0, 255, 0.4), 0 0 40px rgba(191, 0, 255, 0.2);
-      --glow-pink: 0 0 20px rgba(255, 0, 170, 0.4), 0 0 40px rgba(255, 0, 170, 0.2);
-      --glow-cyan: 0 0 20px rgba(0, 255, 238, 0.4), 0 0 40px rgba(0, 255, 238, 0.2);
-
-      --radius-sm: 12px;
-      --radius-md: 18px;
-      --radius-lg: 24px;
-      --radius-xl: 32px;
-
-      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      --transition-slow: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      --text-secondary: rgba(255,255,255,0.6);
+      --text-muted: rgba(255,255,255,0.3);
+      --glow-blue: 0 0 20px rgba(0,212,255,0.4), 0 0 40px rgba(0,212,255,0.2);
+      --glow-purple: 0 0 20px rgba(191,0,255,0.4), 0 0 40px rgba(191,0,255,0.2);
+      --glow-pink: 0 0 20px rgba(255,0,170,0.4), 0 0 40px rgba(255,0,170,0.2);
+      --glow-cyan: 0 0 20px rgba(0,255,238,0.4), 0 0 40px rgba(0,255,238,0.2);
+      --radius-sm: 12px; --radius-md: 18px; --radius-lg: 24px; --radius-xl: 32px;
+      --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+      --transition-slow: all 0.6s cubic-bezier(0.4,0,0.2,1);
     }
-
-    /* LIGHT MODE */
     .light-mode {
-      --bg-primary: #e8eaf6;
-      --bg-secondary: #f0f2ff;
-      --glass-bg: rgba(255, 255, 255, 0.35);
-      --glass-border: rgba(255, 255, 255, 0.6);
-      --glass-hover: rgba(255, 255, 255, 0.55);
-      --text-primary: #1a1a2e;
-      --text-secondary: rgba(26, 26, 46, 0.7);
-      --text-muted: rgba(26, 26, 46, 0.4);
-      --neon-blue: #0099cc;
-      --neon-purple: #8800cc;
-      --neon-cyan: #00aacc;
-      --neon-pink: #cc0077;
-      --neon-green: #00aa66;
-      --glow-blue: 0 0 15px rgba(0, 153, 204, 0.3), 0 0 30px rgba(0, 153, 204, 0.1);
-      --glow-purple: 0 0 15px rgba(136, 0, 204, 0.3), 0 0 30px rgba(136, 0, 204, 0.1);
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Rajdhani', sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      min-height: 100vh;
-      overflow-x: hidden;
-      transition: var(--transition-slow);
-      cursor: default;
-    }
-
-    /* ===========================
-       BACKGROUND ANIMATION
-    =========================== */
-    #bg-canvas {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 0;
-      pointer-events: none;
-    }
-
-    .gradient-orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(100px);
-      opacity: 0.15;
-      z-index: 0;
-      pointer-events: none;
-      animation: orbFloat 8s ease-in-out infinite;
-    }
-    .orb-1 { width: 500px; height: 500px; background: var(--neon-purple); top: -200px; right: -100px; animation-delay: 0s; }
-    .orb-2 { width: 400px; height: 400px; background: var(--neon-blue); bottom: -100px; left: -100px; animation-delay: 3s; }
-    .orb-3 { width: 300px; height: 300px; background: var(--neon-pink); top: 50%; left: 50%; animation-delay: 6s; }
-
-    @keyframes orbFloat {
-      0%, 100% { transform: translateY(0) scale(1); }
-      50% { transform: translateY(-30px) scale(1.05); }
-    }
-
-    /* ===========================
-       LAYOUT
-    =========================== */
-    .app-wrapper {
-      position: relative;
-      z-index: 1;
-      min-height: 100vh;
-      padding: 0 16px 120px;
-      max-width: 480px;
-      margin: 0 auto;
-    }
-
-    /* ===========================
-       HEADER
-    =========================== */
-    header {
-      padding: 40px 0 24px;
-      text-align: center;
-      position: relative;
-    }
-
-    .header-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .logo-section {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    h1.app-title {
-      font-family: 'Orbitron', monospace;
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: 4px;
-      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple), var(--neon-pink));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-shadow: none;
-      filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
-      animation: titlePulse 3s ease-in-out infinite;
-    }
-
-    @keyframes titlePulse {
-      0%, 100% { filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5)); }
-      50% { filter: drop-shadow(0 0 16px rgba(191, 0, 255, 0.7)); }
-    }
-
-    .app-subtitle {
-      font-size: 11px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    /* STATUS INDICATOR */
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: 20px;
-      backdrop-filter: blur(10px);
-      font-size: 11px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      transition: var(--transition);
-    }
-
-    .status-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: #555;
-      transition: var(--transition);
-    }
-
-    .status-dot.connected {
-      background: var(--neon-green);
-      box-shadow: 0 0 8px var(--neon-green), 0 0 16px rgba(0, 255, 136, 0.4);
-      animation: dotPulse 2s ease-in-out infinite;
-    }
-
-    .status-dot.offline {
-      background: var(--neon-pink);
-      box-shadow: 0 0 8px var(--neon-pink);
-    }
-
-    @keyframes dotPulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    /* THEME TOGGLE */
-    .theme-btn {
-      width: 40px; height: 40px;
-      border-radius: 50%;
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(10px);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      transition: var(--transition);
-      color: var(--text-primary);
-    }
-
-    .theme-btn:hover {
-      background: var(--glass-hover);
-      box-shadow: var(--glow-blue);
-      transform: scale(1.1) rotate(15deg);
-    }
-
-    /* GREETING SECTION */
-    .greeting {
-      margin: 24px 0 8px;
-      font-size: 13px;
-      color: var(--text-muted);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-    }
-
-    .time-display {
-      font-family: 'Orbitron', monospace;
-      font-size: 42px;
-      font-weight: 800;
-      color: var(--text-primary);
-      letter-spacing: 2px;
-      line-height: 1;
-    }
-
-    .date-display {
-      font-size: 13px;
-      color: var(--text-secondary);
-      margin-top: 4px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-    }
-
-    /* ===========================
-       SECTION TITLES
-    =========================== */
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 28px 0 14px;
-    }
-
-    .section-title {
-      font-family: 'Orbitron', monospace;
-      font-size: 12px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-    }
-
-    .section-count {
-      font-size: 11px;
-      color: var(--neon-blue);
-      letter-spacing: 1px;
-    }
-
-    /* ===========================
-       SUMMARY STATS
-    =========================== */
-    .stats-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-
-    .stat-card {
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(20px);
-      border-radius: var(--radius-md);
-      padding: 14px 10px;
-      text-align: center;
-      transition: var(--transition);
-    }
-
-    .stat-card:hover {
-      transform: translateY(-2px);
-      background: var(--glass-hover);
-    }
-
-    .stat-number {
-      font-family: 'Orbitron', monospace;
-      font-size: 22px;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .stat-label {
-      font-size: 10px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    /* ===========================
-       DEVICE CARDS
-    =========================== */
-    #devices-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .device-card {
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(20px);
-      border-radius: var(--radius-lg);
-      padding: 20px 16px;
-      cursor: pointer;
-      transition: var(--transition);
-      position: relative;
-      overflow: hidden;
-      user-select: none;
-    }
-
-    .device-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.03));
-      pointer-events: none;
-    }
-
-    .device-card:hover {
-      transform: translateY(-4px) scale(1.02);
-      background: var(--glass-hover);
-      border-color: rgba(255,255,255,0.2);
-    }
-
-    .device-card.on {
-      border-color: rgba(0, 212, 255, 0.4);
-    }
-
-    .device-card.on .device-glow {
-      opacity: 1;
-    }
-
-    /* per-device accent colors */
-    .device-card[data-color="blue"].on { border-color: rgba(0, 212, 255, 0.5); box-shadow: 0 0 30px rgba(0, 212, 255, 0.15); }
-    .device-card[data-color="purple"].on { border-color: rgba(191, 0, 255, 0.5); box-shadow: 0 0 30px rgba(191, 0, 255, 0.15); }
-    .device-card[data-color="pink"].on { border-color: rgba(255, 0, 170, 0.5); box-shadow: 0 0 30px rgba(255, 0, 170, 0.15); }
-    .device-card[data-color="cyan"].on { border-color: rgba(0, 255, 238, 0.5); box-shadow: 0 0 30px rgba(0, 255, 238, 0.15); }
-
-    .device-glow {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      border-radius: 2px;
-      opacity: 0;
-      transition: var(--transition);
-    }
-
-    .device-card[data-color="blue"] .device-glow { background: linear-gradient(90deg, transparent, var(--neon-blue), transparent); }
-    .device-card[data-color="purple"] .device-glow { background: linear-gradient(90deg, transparent, var(--neon-purple), transparent); }
-    .device-card[data-color="pink"] .device-glow { background: linear-gradient(90deg, transparent, var(--neon-pink), transparent); }
-    .device-card[data-color="cyan"] .device-glow { background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent); }
-
-    .device-icon-wrap {
-      width: 44px; height: 44px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      margin-bottom: 14px;
-      transition: var(--transition);
-      background: rgba(255,255,255,0.06);
-    }
-
-    .device-card.on[data-color="blue"] .device-icon-wrap { background: rgba(0, 212, 255, 0.15); box-shadow: 0 0 16px rgba(0, 212, 255, 0.3); }
-    .device-card.on[data-color="purple"] .device-icon-wrap { background: rgba(191, 0, 255, 0.15); box-shadow: 0 0 16px rgba(191, 0, 255, 0.3); }
-    .device-card.on[data-color="pink"] .device-icon-wrap { background: rgba(255, 0, 170, 0.15); box-shadow: 0 0 16px rgba(255, 0, 170, 0.3); }
-    .device-card.on[data-color="cyan"] .device-icon-wrap { background: rgba(0, 255, 238, 0.15); box-shadow: 0 0 16px rgba(0, 255, 238, 0.3); }
-
-    .device-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-primary);
-      letter-spacing: 0.5px;
-      margin-bottom: 2px;
-    }
-
-    .device-location {
-      font-size: 10px;
-      color: var(--text-muted);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      margin-bottom: 14px;
-    }
-
-    /* Toggle Switch */
-    .toggle-wrap {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .toggle-status {
-      font-size: 10px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      transition: var(--transition);
-    }
-
-    .device-card.on .toggle-status { color: var(--neon-green); }
-
-    .toggle-switch {
-      width: 40px; height: 22px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 11px;
-      position: relative;
-      cursor: pointer;
-      transition: var(--transition);
-      flex-shrink: 0;
-    }
-
-    .device-card.on[data-color="blue"] .toggle-switch { background: rgba(0, 212, 255, 0.4); box-shadow: 0 0 10px rgba(0, 212, 255, 0.4); }
-    .device-card.on[data-color="purple"] .toggle-switch { background: rgba(191, 0, 255, 0.4); box-shadow: 0 0 10px rgba(191, 0, 255, 0.4); }
-    .device-card.on[data-color="pink"] .toggle-switch { background: rgba(255, 0, 170, 0.4); box-shadow: 0 0 10px rgba(255, 0, 170, 0.4); }
-    .device-card.on[data-color="cyan"] .toggle-switch { background: rgba(0, 255, 238, 0.4); box-shadow: 0 0 10px rgba(0, 255, 238, 0.4); }
-
-    .toggle-thumb {
-      width: 16px; height: 16px;
-      background: #fff;
-      border-radius: 50%;
-      position: absolute;
-      top: 3px; left: 3px;
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    .device-card.on .toggle-thumb { transform: translateX(18px); }
-
-    /* Ripple effect */
-    .ripple {
-      position: absolute;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.2);
-      transform: scale(0);
-      animation: rippleAnim 0.6s ease-out;
-      pointer-events: none;
-    }
-
-    @keyframes rippleAnim {
-      to { transform: scale(4); opacity: 0; }
-    }
-
-    /* ===========================
-       FLOATING ADD BUTTON
-    =========================== */
-    #add-btn {
-      position: fixed;
-      bottom: 32px;
-      right: 24px;
-      width: 60px; height: 60px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      color: #fff;
-      box-shadow: 0 0 20px rgba(0, 212, 255, 0.5), 0 0 40px rgba(191, 0, 255, 0.3), 0 8px 32px rgba(0,0,0,0.4);
-      transition: var(--transition);
-      z-index: 100;
-      animation: fabFloat 3s ease-in-out infinite;
-    }
-
-    @keyframes fabFloat {
-      0%, 100% { transform: translateY(0); box-shadow: 0 0 20px rgba(0, 212, 255, 0.5), 0 0 40px rgba(191, 0, 255, 0.3), 0 8px 32px rgba(0,0,0,0.4); }
-      50% { transform: translateY(-4px); box-shadow: 0 0 30px rgba(0, 212, 255, 0.7), 0 0 60px rgba(191, 0, 255, 0.4), 0 16px 40px rgba(0,0,0,0.5); }
-    }
-
-    #add-btn:hover {
-      transform: scale(1.1) rotate(90deg) !important;
-      animation: none;
-    }
-
-    #add-btn:active { transform: scale(0.95) !important; }
-
-    /* Install button */
-    #install-btn {
-      position: fixed;
-      bottom: 32px;
-      left: 24px;
-      padding: 12px 18px;
-      border-radius: 30px;
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(20px);
-      cursor: pointer;
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 12px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      display: none;
-      z-index: 100;
-      transition: var(--transition);
-      align-items: center;
-      gap: 8px;
-    }
-
-    #install-btn:hover {
-      background: var(--glass-hover);
-      box-shadow: var(--glow-blue);
-      color: var(--neon-blue);
-    }
-
-    #install-btn.visible { display: flex; }
-
-    /* ===========================
-       MODAL
-    =========================== */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(8px);
-      z-index: 200;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-
-    .modal-overlay.open {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    .modal {
-      background: #0d0d1e;
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-      padding: 28px 24px 40px;
-      width: 100%;
-      max-width: 480px;
-      transform: translateY(100%);
-      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .light-mode .modal { background: #f0f2ff; }
-
-    .modal-overlay.open .modal { transform: translateY(0); }
-
-    .modal-handle {
-      width: 40px; height: 4px;
-      background: rgba(255,255,255,0.2);
-      border-radius: 2px;
-      margin: 0 auto 24px;
-    }
-
-    .modal-title {
-      font-family: 'Orbitron', monospace;
-      font-size: 16px;
-      letter-spacing: 2px;
-      margin-bottom: 24px;
-      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .form-group { margin-bottom: 16px; }
-
-    .form-label {
-      display: block;
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 12px 16px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm);
-      color: var(--text-primary);
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 15px;
-      outline: none;
-      transition: var(--transition);
-    }
-
-    .light-mode .form-input { background: rgba(0,0,0,0.06); color: #1a1a2e; }
-
-    .form-input:focus {
-      border-color: var(--neon-blue);
-      box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
-    }
-
-    .color-picker {
-      display: flex;
-      gap: 10px;
-    }
-
-    .color-option {
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: var(--transition);
-    }
-
-    .color-option.selected { border-color: #fff; transform: scale(1.2); }
-    .color-option[data-val="blue"] { background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); }
-    .color-option[data-val="purple"] { background: var(--neon-purple); box-shadow: 0 0 10px var(--neon-purple); }
-    .color-option[data-val="pink"] { background: var(--neon-pink); box-shadow: 0 0 10px var(--neon-pink); }
-    .color-option[data-val="cyan"] { background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); }
-
-    .emoji-picker {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .emoji-option {
-      width: 40px; height: 40px;
-      border-radius: 10px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid var(--glass-border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .emoji-option.selected,
-    .emoji-option:hover {
-      background: rgba(0, 212, 255, 0.15);
-      border-color: var(--neon-blue);
-      transform: scale(1.1);
-    }
-
-    .modal-actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 24px;
-    }
-
-    .btn-cancel, .btn-add {
-      flex: 1;
-      padding: 14px;
-      border-radius: var(--radius-sm);
-      border: none;
-      cursor: pointer;
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      transition: var(--transition);
-    }
-
-    .btn-cancel {
-      background: rgba(255,255,255,0.06);
-      color: var(--text-secondary);
-      border: 1px solid var(--glass-border);
-    }
-
-    .btn-cancel:hover { background: rgba(255,255,255,0.1); }
-
-    .btn-add {
-      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
-      color: #fff;
-      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
-    }
-
-    .btn-add:hover { box-shadow: 0 0 30px rgba(0, 212, 255, 0.5), 0 0 60px rgba(191, 0, 255, 0.3); transform: translateY(-1px); }
-
-    /* ===========================
-       LOADING SCREEN
-    =========================== */
-    #loading-screen {
-      position: fixed;
-      inset: 0;
-      background: #050510;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      transition: opacity 0.6s ease;
-    }
-
-    #loading-screen.fade-out { opacity: 0; pointer-events: none; }
-
-    .loader-title {
-      font-family: 'Orbitron', monospace;
-      font-size: 30px;
-      font-weight: 900;
-      letter-spacing: 6px;
-      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple), var(--neon-pink));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      animation: titlePulse 2s ease-in-out infinite;
-    }
-
-    .loader-bar-wrap {
-      width: 160px; height: 3px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    .loader-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple));
-      border-radius: 3px;
-      animation: loadBar 1.5s ease-out forwards;
-      box-shadow: 0 0 8px var(--neon-blue);
-    }
-
-    @keyframes loadBar { to { width: 100%; } }
-
-    .loader-text {
-      font-size: 11px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      animation: blink 1.2s ease-in-out infinite;
-    }
-
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-    /* ===========================
-       TOAST NOTIFICATION
-    =========================== */
-    .toast {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-80px);
-      background: rgba(10,10,30,0.95);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(20px);
-      border-radius: 30px;
-      padding: 12px 20px;
-      font-size: 13px;
-      letter-spacing: 1px;
-      color: var(--text-secondary);
-      z-index: 1000;
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      white-space: nowrap;
-    }
-
-    .light-mode .toast { background: rgba(240,242,255,0.95); }
-
-    .toast.show { transform: translateX(-50%) translateY(0); }
-
-    /* ===========================
-       QUICK SCENE BUTTONS
-    =========================== */
-    .scenes-row {
-      display: flex;
-      gap: 10px;
-      overflow-x: auto;
-      scrollbar-width: none;
-      padding-bottom: 4px;
-      margin-bottom: 8px;
-    }
-
-    .scenes-row::-webkit-scrollbar { display: none; }
-
-    .scene-btn {
-      flex-shrink: 0;
-      padding: 10px 16px;
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(10px);
-      border-radius: 20px;
-      cursor: pointer;
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 12px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text-secondary);
-      transition: var(--transition);
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .scene-btn:hover {
-      background: var(--glass-hover);
-      color: var(--neon-blue);
-      border-color: rgba(0, 212, 255, 0.3);
-      box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
-    }
-
-    /* ===========================
-       CARD ENTER ANIMATION
-    =========================== */
-    @keyframes cardEnter {
-      from { opacity: 0; transform: translateY(20px) scale(0.95); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-
-    .device-card { animation: cardEnter 0.4s ease-out both; }
-
-    /* stagger */
-    .device-card:nth-child(1) { animation-delay: 0.05s; }
-    .device-card:nth-child(2) { animation-delay: 0.1s; }
-    .device-card:nth-child(3) { animation-delay: 0.15s; }
-    .device-card:nth-child(4) { animation-delay: 0.2s; }
-
-    /* ===========================
-       RESPONSIVE
-    =========================== */
-    @media (max-width: 360px) {
-      .time-display { font-size: 34px; }
-      h1.app-title { font-size: 22px; }
-    }
+      --bg-primary: #e8eaf6; --bg-secondary: #f0f2ff;
+      --glass-bg: rgba(255,255,255,0.35); --glass-border: rgba(255,255,255,0.6); --glass-hover: rgba(255,255,255,0.55);
+      --text-primary: #1a1a2e; --text-secondary: rgba(26,26,46,0.7); --text-muted: rgba(26,26,46,0.4);
+      --neon-blue: #0099cc; --neon-purple: #8800cc; --neon-cyan: #00aacc; --neon-pink: #cc0077; --neon-green: #00aa66;
+      --glow-blue: 0 0 15px rgba(0,153,204,0.3),0 0 30px rgba(0,153,204,0.1);
+      --glow-purple: 0 0 15px rgba(136,0,204,0.3),0 0 30px rgba(136,0,204,0.1);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Rajdhani',sans-serif;background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow-x:hidden;transition:var(--transition-slow)}
+
+    /* ORBS */
+    .gradient-orb{position:fixed;border-radius:50%;filter:blur(100px);opacity:0.15;z-index:0;pointer-events:none;animation:orbFloat 8s ease-in-out infinite}
+    .orb-1{width:500px;height:500px;background:var(--neon-purple);top:-200px;right:-100px;animation-delay:0s}
+    .orb-2{width:400px;height:400px;background:var(--neon-blue);bottom:-100px;left:-100px;animation-delay:3s}
+    .orb-3{width:300px;height:300px;background:var(--neon-pink);top:50%;left:50%;animation-delay:6s}
+    @keyframes orbFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-30px) scale(1.05)}}
+
+    /* LOADING */
+    #loading-screen{position:fixed;inset:0;background:#050510;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .6s ease}
+    #loading-screen.fade-out{opacity:0;pointer-events:none}
+    .loader-title{font-family:'Orbitron',monospace;font-size:30px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:titlePulse 2s ease-in-out infinite}
+    .loader-bar-wrap{width:160px;height:3px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}
+    .loader-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--neon-blue),var(--neon-purple));border-radius:3px;animation:loadBar 1.5s ease-out forwards;box-shadow:0 0 8px var(--neon-blue)}
+    @keyframes loadBar{to{width:100%}}
+    .loader-text{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);animation:blink 1.2s ease-in-out infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+    /* TOAST */
+    .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:rgba(10,10,30,0.95);border:1px solid var(--glass-border);backdrop-filter:blur(20px);border-radius:30px;padding:12px 20px;font-size:13px;letter-spacing:1px;color:var(--text-secondary);z-index:9000;transition:transform .3s cubic-bezier(0.4,0,0.2,1);white-space:nowrap}
+    .light-mode .toast{background:rgba(240,242,255,0.95)}
+    .toast.show{transform:translateX(-50%) translateY(0)}
+
+    /* ===================== AUTH SCREEN ===================== */
+    #auth-screen{display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+    #auth-screen.visible{display:flex}
+
+    .auth-card{background:rgba(10,10,30,0.88);border:1px solid var(--glass-border);backdrop-filter:blur(30px);border-radius:var(--radius-xl);padding:36px 28px 32px;width:100%;max-width:400px;position:relative;z-index:1;animation:authCardIn .5s cubic-bezier(0.4,0,0.2,1) both;margin:auto}
+    .light-mode .auth-card{background:rgba(240,242,255,0.9)}
+    @keyframes authCardIn{from{opacity:0;transform:translateY(30px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .auth-card::before{content:'';position:absolute;top:0;left:20%;right:20%;height:2px;background:linear-gradient(90deg,transparent,var(--neon-blue),var(--neon-purple),transparent);border-radius:2px}
+
+    .auth-logo{text-align:center;margin-bottom:8px}
+    .auth-logo-title{font-family:'Orbitron',monospace;font-size:24px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(0,212,255,0.4));animation:titlePulse 3s ease-in-out infinite}
+    @keyframes titlePulse{0%,100%{filter:drop-shadow(0 0 8px rgba(0,212,255,0.5))}50%{filter:drop-shadow(0 0 16px rgba(191,0,255,0.7))}}
+    .auth-logo-sub{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);margin-top:2px}
+
+    /* Tabs */
+    .auth-tabs{display:flex;background:rgba(255,255,255,0.05);border-radius:10px;padding:4px;margin:22px 0 20px;gap:4px}
+    .auth-tab{flex:1;padding:9px;border-radius:8px;border:none;background:transparent;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);transition:var(--transition)}
+    .auth-tab.active{background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(191,0,255,0.2));color:var(--neon-blue);box-shadow:0 0 12px rgba(0,212,255,0.15)}
+
+    /* Panels */
+    .auth-panel{display:none} .auth-panel.active{display:block}
+
+    .auth-form-group{margin-bottom:14px}
+    .auth-label{display:block;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:7px}
+    .auth-input-wrap{position:relative}
+    .auth-input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
+    .auth-input{width:100%;padding:12px 16px 12px 40px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Rajdhani',sans-serif;font-size:15px;outline:none;transition:var(--transition)}
+    .light-mode .auth-input{background:rgba(0,0,0,0.06);color:#1a1a2e}
+    .auth-input:focus{border-color:var(--neon-blue);box-shadow:0 0 0 2px rgba(0,212,255,0.15),0 0 12px rgba(0,212,255,0.1)}
+    .auth-input::placeholder{color:var(--text-muted)}
+    .pass-toggle{position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:14px;color:var(--text-muted);transition:var(--transition);background:none;border:none;padding:0;line-height:1}
+    .pass-toggle:hover{color:var(--neon-blue)}
+
+    .auth-error{font-size:12px;color:var(--neon-pink);letter-spacing:.5px;margin-top:-6px;margin-bottom:10px;min-height:18px}
+
+    .auth-forgot{text-align:right;margin-top:-4px;margin-bottom:14px}
+    .auth-forgot a{font-size:11px;letter-spacing:1px;color:var(--neon-blue);text-decoration:none;opacity:.7;transition:var(--transition)}
+    .auth-forgot a:hover{opacity:1}
+
+    .auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0}
+    .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--glass-border)}
+    .auth-divider span{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted)}
+
+    .auth-btn-primary{width:100%;padding:14px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));color:#fff;box-shadow:0 0 20px rgba(0,212,255,0.3);transition:var(--transition);position:relative;overflow:hidden}
+    .auth-btn-primary:hover{box-shadow:0 0 30px rgba(0,212,255,0.5),0 0 60px rgba(191,0,255,0.3);transform:translateY(-1px)}
+    .auth-btn-primary:active{transform:scale(0.98)}
+    .auth-btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+    .auth-btn-google{width:100%;padding:12px;border-radius:var(--radius-sm);border:1px solid var(--glass-border);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:rgba(255,255,255,0.05);color:var(--text-secondary);transition:var(--transition);display:flex;align-items:center;justify-content:center;gap:8px}
+    .auth-btn-google:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.25);color:var(--text-primary)}
+    .google-icon{width:16px;height:16px;flex-shrink:0;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3C/svg%3E") center/contain no-repeat}
+
+    .btn-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ===================== DASHBOARD ===================== */
+    #dashboard{display:none;position:relative;z-index:1}
+    #dashboard.visible{display:block}
+    .app-wrapper{position:relative;z-index:1;min-height:100vh;padding:0 16px 120px;max-width:480px;margin:0 auto}
+
+    header{padding:40px 0 24px;position:relative}
+    .header-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:8px}
+    .logo-section{display:flex;flex-direction:column;align-items:flex-start}
+    h1.app-title{font-family:'Orbitron',monospace;font-size:28px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(0,212,255,0.5));animation:titlePulse 3s ease-in-out infinite}
+    .app-subtitle{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);margin-top:2px}
+    .header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+    .status-badge{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;backdrop-filter:blur(10px);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-secondary);transition:var(--transition)}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:#555;transition:var(--transition)}
+    .status-dot.connected{background:var(--neon-green);box-shadow:0 0 8px var(--neon-green),0 0 16px rgba(0,255,136,0.4);animation:dotPulse 2s ease-in-out infinite}
+    .status-dot.offline{background:var(--neon-pink);box-shadow:0 0 8px var(--neon-pink)}
+    @keyframes dotPulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+    .user-btn{display:flex;align-items:center;gap:7px;padding:6px 12px 6px 8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;backdrop-filter:blur(10px);cursor:pointer;transition:var(--transition);font-family:'Rajdhani',sans-serif;font-size:11px;letter-spacing:1px;color:var(--text-secondary)}
+    .user-btn:hover{background:var(--glass-hover);color:var(--neon-pink);border-color:rgba(255,0,170,0.3)}
+    .user-avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;flex-shrink:0}
+
+    .theme-btn{width:40px;height:40px;border-radius:50%;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(10px);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:var(--transition);color:var(--text-primary)}
+    .theme-btn:hover{background:var(--glass-hover);box-shadow:var(--glow-blue);transform:scale(1.1) rotate(15deg)}
+
+    .greeting{margin:24px 0 8px;font-size:13px;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase}
+    .time-display{font-family:'Orbitron',monospace;font-size:42px;font-weight:800;color:var(--text-primary);letter-spacing:2px;line-height:1}
+    .date-display{font-size:13px;color:var(--text-secondary);margin-top:4px;letter-spacing:2px;text-transform:uppercase}
+
+    .section-header{display:flex;justify-content:space-between;align-items:center;margin:28px 0 14px}
+    .section-title{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted)}
+    .section-count{font-size:11px;color:var(--neon-blue);letter-spacing:1px}
+
+    .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px}
+    .stat-card{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(20px);border-radius:var(--radius-md);padding:14px 10px;text-align:center;transition:var(--transition)}
+    .stat-card:hover{transform:translateY(-2px);background:var(--glass-hover)}
+    .stat-number{font-family:'Orbitron',monospace;font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .stat-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-top:2px}
+
+    /* DEVICE CARDS */
+    #devices-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .device-card{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(20px);border-radius:var(--radius-lg);padding:20px 16px;cursor:pointer;transition:var(--transition);position:relative;overflow:hidden;user-select:none}
+    .device-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 60%,rgba(255,255,255,0.03));pointer-events:none}
+    .device-card:hover{transform:translateY(-4px) scale(1.02);background:var(--glass-hover);border-color:rgba(255,255,255,0.2)}
+    .device-card.on .device-glow{opacity:1}
+    .device-card[data-color="blue"].on{border-color:rgba(0,212,255,0.5);box-shadow:0 0 30px rgba(0,212,255,0.15)}
+    .device-card[data-color="purple"].on{border-color:rgba(191,0,255,0.5);box-shadow:0 0 30px rgba(191,0,255,0.15)}
+    .device-card[data-color="pink"].on{border-color:rgba(255,0,170,0.5);box-shadow:0 0 30px rgba(255,0,170,0.15)}
+    .device-card[data-color="cyan"].on{border-color:rgba(0,255,238,0.5);box-shadow:0 0 30px rgba(0,255,238,0.15)}
+    .device-glow{position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px;opacity:0;transition:var(--transition)}
+    .device-card[data-color="blue"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-blue),transparent)}
+    .device-card[data-color="purple"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-purple),transparent)}
+    .device-card[data-color="pink"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-pink),transparent)}
+    .device-card[data-color="cyan"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-cyan),transparent)}
+    .device-icon-wrap{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px;transition:var(--transition);background:rgba(255,255,255,0.06)}
+    .device-card.on[data-color="blue"] .device-icon-wrap{background:rgba(0,212,255,0.15);box-shadow:0 0 16px rgba(0,212,255,0.3)}
+    .device-card.on[data-color="purple"] .device-icon-wrap{background:rgba(191,0,255,0.15);box-shadow:0 0 16px rgba(191,0,255,0.3)}
+    .device-card.on[data-color="pink"] .device-icon-wrap{background:rgba(255,0,170,0.15);box-shadow:0 0 16px rgba(255,0,170,0.3)}
+    .device-card.on[data-color="cyan"] .device-icon-wrap{background:rgba(0,255,238,0.15);box-shadow:0 0 16px rgba(0,255,238,0.3)}
+    .device-name{font-size:14px;font-weight:600;color:var(--text-primary);letter-spacing:.5px;margin-bottom:2px}
+    .device-location{font-size:10px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px}
+    .toggle-wrap{display:flex;align-items:center;justify-content:space-between}
+    .toggle-status{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);transition:var(--transition)}
+    .device-card.on .toggle-status{color:var(--neon-green)}
+    .toggle-switch{width:40px;height:22px;background:rgba(255,255,255,0.1);border-radius:11px;position:relative;cursor:pointer;transition:var(--transition);flex-shrink:0}
+    .device-card.on[data-color="blue"] .toggle-switch{background:rgba(0,212,255,0.4);box-shadow:0 0 10px rgba(0,212,255,0.4)}
+    .device-card.on[data-color="purple"] .toggle-switch{background:rgba(191,0,255,0.4);box-shadow:0 0 10px rgba(191,0,255,0.4)}
+    .device-card.on[data-color="pink"] .toggle-switch{background:rgba(255,0,170,0.4);box-shadow:0 0 10px rgba(255,0,170,0.4)}
+    .device-card.on[data-color="cyan"] .toggle-switch{background:rgba(0,255,238,0.4);box-shadow:0 0 10px rgba(0,255,238,0.4)}
+    .toggle-thumb{width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .3s cubic-bezier(0.4,0,0.2,1);box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+    .device-card.on .toggle-thumb{transform:translateX(18px)}
+    .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,0.2);transform:scale(0);animation:rippleAnim .6s ease-out;pointer-events:none}
+    @keyframes rippleAnim{to{transform:scale(4);opacity:0}}
+
+    /* FAB + INSTALL */
+    #add-btn{position:fixed;bottom:32px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));border:none;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:28px;color:#fff;box-shadow:0 0 20px rgba(0,212,255,0.5),0 0 40px rgba(191,0,255,0.3),0 8px 32px rgba(0,0,0,0.4);transition:var(--transition);z-index:100;animation:fabFloat 3s ease-in-out infinite}
+    #add-btn.show{display:flex}
+    @keyframes fabFloat{0%,100%{transform:translateY(0);box-shadow:0 0 20px rgba(0,212,255,0.5),0 0 40px rgba(191,0,255,0.3),0 8px 32px rgba(0,0,0,0.4)}50%{transform:translateY(-4px);box-shadow:0 0 30px rgba(0,212,255,0.7),0 0 60px rgba(191,0,255,0.4),0 16px 40px rgba(0,0,0,0.5)}}
+    #add-btn:hover{transform:scale(1.1) rotate(90deg) !important;animation:none}
+    #add-btn:active{transform:scale(0.95) !important}
+    #install-btn{position:fixed;bottom:32px;left:24px;padding:12px 18px;border-radius:30px;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(20px);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);display:none;z-index:100;transition:var(--transition);align-items:center;gap:8px}
+    #install-btn:hover{background:var(--glass-hover);box-shadow:var(--glow-blue);color:var(--neon-blue)}
+    #install-btn.visible{display:flex}
+
+    /* MODAL */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s ease}
+    .modal-overlay.open{opacity:1;pointer-events:all}
+    .modal{background:#0d0d1e;border:1px solid var(--glass-border);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:28px 24px 40px;width:100%;max-width:480px;transform:translateY(100%);transition:transform .4s cubic-bezier(0.4,0,0.2,1)}
+    .light-mode .modal{background:#f0f2ff}
+    .modal-overlay.open .modal{transform:translateY(0)}
+    .modal-handle{width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:0 auto 24px}
+    .modal-title{font-family:'Orbitron',monospace;font-size:16px;letter-spacing:2px;margin-bottom:24px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .form-group{margin-bottom:16px}
+    .form-label{display:block;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+    .form-input{width:100%;padding:12px 16px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Rajdhani',sans-serif;font-size:15px;outline:none;transition:var(--transition)}
+    .light-mode .form-input{background:rgba(0,0,0,0.06);color:#1a1a2e}
+    .form-input:focus{border-color:var(--neon-blue);box-shadow:0 0 0 2px rgba(0,212,255,0.15)}
+    .color-picker{display:flex;gap:10px}
+    .color-option{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:var(--transition)}
+    .color-option.selected{border-color:#fff;transform:scale(1.2)}
+    .color-option[data-val="blue"]{background:var(--neon-blue);box-shadow:0 0 10px var(--neon-blue)}
+    .color-option[data-val="purple"]{background:var(--neon-purple);box-shadow:0 0 10px var(--neon-purple)}
+    .color-option[data-val="pink"]{background:var(--neon-pink);box-shadow:0 0 10px var(--neon-pink)}
+    .color-option[data-val="cyan"]{background:var(--neon-cyan);box-shadow:0 0 10px var(--neon-cyan)}
+    .emoji-picker{display:flex;gap:8px;flex-wrap:wrap}
+    .emoji-option{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;transition:var(--transition)}
+    .emoji-option.selected,.emoji-option:hover{background:rgba(0,212,255,0.15);border-color:var(--neon-blue);transform:scale(1.1)}
+    .modal-actions{display:flex;gap:12px;margin-top:24px}
+    .btn-cancel,.btn-add{flex:1;padding:14px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;letter-spacing:2px;text-transform:uppercase;transition:var(--transition)}
+    .btn-cancel{background:rgba(255,255,255,0.06);color:var(--text-secondary);border:1px solid var(--glass-border)}
+    .btn-cancel:hover{background:rgba(255,255,255,0.1)}
+    .btn-add{background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));color:#fff;box-shadow:0 0 20px rgba(0,212,255,0.3)}
+    .btn-add:hover{box-shadow:0 0 30px rgba(0,212,255,0.5),0 0 60px rgba(191,0,255,0.3);transform:translateY(-1px)}
+
+    /* SCENES */
+    .scenes-row{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px;margin-bottom:8px}
+    .scenes-row::-webkit-scrollbar{display:none}
+    .scene-btn{flex-shrink:0;padding:10px 16px;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(10px);border-radius:20px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-secondary);transition:var(--transition);white-space:nowrap;display:flex;align-items:center;gap:6px}
+    .scene-btn:hover{background:var(--glass-hover);color:var(--neon-blue);border-color:rgba(0,212,255,0.3);box-shadow:0 0 12px rgba(0,212,255,0.15)}
+
+    @keyframes cardEnter{from{opacity:0;transform:translateY(20px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+    .device-card{animation:cardEnter .4s ease-out both}
+    .device-card:nth-child(1){animation-delay:.05s} .device-card:nth-child(2){animation-delay:.1s}
+    .device-card:nth-child(3){animation-delay:.15s} .device-card:nth-child(4){animation-delay:.2s}
+
+    @media(max-width:360px){.time-display{font-size:34px}h1.app-title{font-size:22px}}
   </style>
 </head>
 <body>
-
-  <!-- Loading Screen -->
-  <div id="loading-screen">
-    <div class="loader-title">A5x</div>
-    <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
-    <div class="loader-text">Initializing Systems...</div>
-  </div>
 
   <!-- Background Orbs -->
   <div class="gradient-orb orb-1"></div>
@@ -884,91 +260,166 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- Main App -->
-  <div class="app-wrapper">
-
-    <!-- HEADER -->
-    <header>
-      <div class="header-top">
-        <div class="logo-section">
-          <h1 class="app-title">A5x HOME</h1>
-          <p class="app-subtitle">Smart Home Dashboard</p>
-        </div>
-        <div class="header-actions">
-          <div class="status-badge" id="status-badge">
-            <div class="status-dot" id="status-dot"></div>
-            <span id="status-text">Connecting</span>
-          </div>
-          <button class="theme-btn" id="theme-btn" title="Toggle Theme">🌙</button>
-        </div>
-      </div>
-
-      <!-- Time -->
-      <div class="greeting" id="greeting">Good Morning</div>
-      <div class="time-display" id="clock">00:00</div>
-      <div class="date-display" id="date-display">Loading...</div>
-    </header>
-
-    <!-- STATS -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-number" id="stat-total">0</div>
-        <div class="stat-label">Devices</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number" id="stat-on">0</div>
-        <div class="stat-label">Active</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number" id="stat-rooms">1</div>
-        <div class="stat-label">Rooms</div>
-      </div>
-    </div>
-
-    <!-- SCENES -->
-    <div class="section-header">
-      <span class="section-title">Quick Scenes</span>
-    </div>
-    <div class="scenes-row">
-      <button class="scene-btn" onclick="setScene('all-on')">☀️ All On</button>
-      <button class="scene-btn" onclick="setScene('all-off')">🌙 All Off</button>
-      <button class="scene-btn" onclick="setScene('movie')">🎬 Movie</button>
-      <button class="scene-btn" onclick="setScene('sleep')">😴 Sleep</button>
-    </div>
-
-    <!-- DEVICES -->
-    <div class="section-header">
-      <span class="section-title">Devices</span>
-      <span class="section-count" id="device-count">0 Online</span>
-    </div>
-    <div id="devices-grid">
-      <!-- Cards rendered by JS -->
-    </div>
-
+  <!-- LOADING SCREEN -->
+  <div id="loading-screen">
+    <div class="loader-title">A5x</div>
+    <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+    <div class="loader-text">Initializing Systems...</div>
   </div>
 
-  <!-- Floating Add Button -->
-  <button id="add-btn" title="Add Device">+</button>
+  <!-- ============================================================
+       AUTH SCREEN
+  ============================================================= -->
+  <div id="auth-screen">
+    <div class="auth-card">
 
-  <!-- Install Button -->
+      <div class="auth-logo">
+        <div class="auth-logo-title">A5x HOME</div>
+        <div class="auth-logo-sub">Smart Home Dashboard</div>
+      </div>
+
+      <!-- TABS -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Login</button>
+        <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Register</button>
+      </div>
+
+      <!-- LOGIN PANEL -->
+      <div class="auth-panel active" id="panel-login">
+        <div class="auth-form-group">
+          <label class="auth-label">Email</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">✉️</span>
+            <input type="email" class="auth-input" id="login-email" placeholder="you@email.com" autocomplete="email" />
+          </div>
+        </div>
+        <div class="auth-form-group">
+          <label class="auth-label">Password</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">🔑</span>
+            <input type="password" class="auth-input" id="login-password" placeholder="Enter password" autocomplete="current-password" />
+            <button class="pass-toggle" onclick="togglePass('login-password',this)" tabindex="-1">👁️</button>
+          </div>
+        </div>
+        <div class="auth-forgot"><a href="#" onclick="forgotPassword();return false;">Forgot password?</a></div>
+        <div class="auth-error" id="login-error"></div>
+        <button class="auth-btn-primary" id="btn-login" onclick="doLogin()">Login</button>
+        <div class="auth-divider"><span>or</span></div>
+        <button class="auth-btn-google" onclick="doGoogleLogin()">
+          <div class="google-icon"></div>Continue with Google
+        </button>
+      </div>
+
+      <!-- REGISTER PANEL -->
+      <div class="auth-panel" id="panel-register">
+        <div class="auth-form-group">
+          <label class="auth-label">Display Name</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">👤</span>
+            <input type="text" class="auth-input" id="reg-name" placeholder="Your name" autocomplete="name" />
+          </div>
+        </div>
+        <div class="auth-form-group">
+          <label class="auth-label">Email</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">✉️</span>
+            <input type="email" class="auth-input" id="reg-email" placeholder="you@email.com" autocomplete="email" />
+          </div>
+        </div>
+        <div class="auth-form-group">
+          <label class="auth-label">Password</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">🔑</span>
+            <input type="password" class="auth-input" id="reg-password" placeholder="Min 6 characters" autocomplete="new-password" />
+            <button class="pass-toggle" onclick="togglePass('reg-password',this)" tabindex="-1">👁️</button>
+          </div>
+        </div>
+        <div class="auth-form-group">
+          <label class="auth-label">Confirm Password</label>
+          <div class="auth-input-wrap">
+            <span class="auth-input-icon">🔐</span>
+            <input type="password" class="auth-input" id="reg-confirm" placeholder="Repeat password" autocomplete="new-password" />
+          </div>
+        </div>
+        <div class="auth-error" id="register-error"></div>
+        <button class="auth-btn-primary" id="btn-register" onclick="doRegister()">Create Account</button>
+        <div class="auth-divider"><span>or</span></div>
+        <button class="auth-btn-google" onclick="doGoogleLogin()">
+          <div class="google-icon"></div>Continue with Google
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+       DASHBOARD
+  ============================================================= -->
+  <div id="dashboard">
+    <div class="app-wrapper">
+      <header>
+        <div class="header-top">
+          <div class="logo-section">
+            <h1 class="app-title">A5x HOME</h1>
+            <p class="app-subtitle">Smart Home Dashboard</p>
+          </div>
+          <div class="header-actions">
+            <div class="status-badge" id="status-badge">
+              <div class="status-dot" id="status-dot"></div>
+              <span id="status-text">Connecting</span>
+            </div>
+            <button class="theme-btn" id="theme-btn" title="Toggle Theme">🌙</button>
+            <button class="user-btn" onclick="doLogout()">
+              <div class="user-avatar" id="user-avatar">?</div>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+        <div class="greeting" id="greeting">Good Morning</div>
+        <div class="time-display" id="clock">00:00</div>
+        <div class="date-display" id="date-display">Loading...</div>
+      </header>
+
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-number" id="stat-total">0</div><div class="stat-label">Devices</div></div>
+        <div class="stat-card"><div class="stat-number" id="stat-on">0</div><div class="stat-label">Active</div></div>
+        <div class="stat-card"><div class="stat-number" id="stat-rooms">1</div><div class="stat-label">Rooms</div></div>
+      </div>
+
+      <div class="section-header"><span class="section-title">Quick Scenes</span></div>
+      <div class="scenes-row">
+        <button class="scene-btn" onclick="setScene('all-on')">☀️ All On</button>
+        <button class="scene-btn" onclick="setScene('all-off')">🌙 All Off</button>
+        <button class="scene-btn" onclick="setScene('movie')">🎬 Movie</button>
+        <button class="scene-btn" onclick="setScene('sleep')">😴 Sleep</button>
+      </div>
+
+      <div class="section-header">
+        <span class="section-title">Devices</span>
+        <span class="section-count" id="device-count">0 Online</span>
+      </div>
+      <div id="devices-grid"></div>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button id="add-btn" title="Add Device">+</button>
+  <!-- Install -->
   <button id="install-btn">📲 Install</button>
 
-  <!-- Add Device Modal -->
+  <!-- ADD DEVICE MODAL -->
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-handle"></div>
       <div class="modal-title">Add New Device</div>
-
       <div class="form-group">
         <label class="form-label">Device Name</label>
         <input type="text" class="form-input" id="input-name" placeholder="e.g. Bedroom Fan" maxlength="24" />
       </div>
-
       <div class="form-group">
         <label class="form-label">Location</label>
         <input type="text" class="form-input" id="input-location" placeholder="e.g. Bedroom" maxlength="20" />
       </div>
-
       <div class="form-group">
         <label class="form-label">Icon</label>
         <div class="emoji-picker" id="emoji-picker">
@@ -982,7 +433,6 @@
           <div class="emoji-option" data-emoji="🚿">🚿</div>
         </div>
       </div>
-
       <div class="form-group">
         <label class="form-label">Color Accent</label>
         <div class="color-picker" id="color-picker">
@@ -992,7 +442,6 @@
           <div class="color-option" data-val="cyan"></div>
         </div>
       </div>
-
       <div class="modal-actions">
         <button class="btn-cancel" id="btn-cancel">Cancel</button>
         <button class="btn-add" id="btn-add-confirm">Add Device</button>
@@ -1000,491 +449,387 @@
     </div>
   </div>
 
-  <!-- ==============================
-       SCRIPTS
-  ============================== -->
-  <!-- Firebase SDK (Modular via CDN compat) -->
+  <!-- ============================================================
+       SCRIPT — Firebase Auth + Realtime DB
+  ============================================================= -->
   <script type="module">
-    // ================================================================
-    // FIREBASE CONFIG — Replace with your actual Firebase project keys
-    // ================================================================
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { initializeApp }     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import {
-      getDatabase,
-      ref,
-      onValue,
-      set,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+      getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+      signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail,
+      updateProfile, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-   const firebaseConfig = {
-  apiKey: "AIzaSyCjPTuY4QnhRbM8ZmbcNgY49TdfS5poxZQ",
-  authDomain: "home-automation-a5x.firebaseapp.com",
-  projectId: "home-automation-a5x",
-  storageBucket: "home-automation-a5x.firebasestorage.app",
-  messagingSenderId: "412536927952",
-  appId: "1:412536927952:web:a98ab4de410986d78e10d5",
-  databaseURL: "https://home-automation-a5x-default-rtdb.asia-southeast1.firebasedatabase.app/"
-};
-
-    // ================================================================
-    // INIT FIREBASE
-    // ================================================================
-    let db = null;
-    let firebaseReady = false;
-
-    try {
-      const app = initializeApp(firebaseConfig);
-      db = getDatabase(app);
-      firebaseReady = true;
-      setStatus(true);
-    } catch (e) {
-      console.warn("Firebase init failed (using local mode):", e.message);
-      setStatus(false);
-    }
-
-    // ================================================================
-    // STATE
-    // ================================================================
-    // Default devices (Firebase paths: /home/light1, /home/light2)
-    let devices = [
-      { id: "light1",  name: "Light 1",  location: "Living Room", icon: "💡", color: "blue",   state: 0,
-fbPath: "/home/devices/light1/state" },
-      { id: "light2",  name: "Light 2",  location: "Bedroom",     icon: "💡", color: "purple", state: 0,
-fbPath: "/home/devices/light2/state" },
-    ];
-
-    // Load persisted devices from localStorage
-    const saved = localStorage.getItem("a5x_devices");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // merge: keep default Firebase paths but restore user-added devices
-        const userAdded = parsed.filter(d => !["light1","light2"].includes(d.id));
-        devices = [...devices, ...userAdded];
-      } catch(e) {}
-    }
-
-    // ================================================================
-    // FIREBASE LISTENERS
-    // ================================================================
-   function setupFirebaseListeners() {
-  if (!firebaseReady || !db) return;
-
-  devices.forEach(device => {
-    if (!device.fbPath) return;
-
-    const dbRef = ref(db, device.fbPath);
-
-    onValue(dbRef, (snapshot) => {
-      let val = snapshot.val();
-
-      val = Number(val);
-
-      if (val === 0 || val === 1) {
-        device.state = val;
-        updateCardUI(device.id, val);
-        refreshStats();
-      }
-    });
-  });
-}
-
- 
-    // ================================================================
-    // TOGGLE A DEVICE (write to Firebase or local)
-    // ================================================================
-    window.toggleDevice = function(id) {
-      const device = devices.find(d => d.id === id);
-      if (!device) return;
-
-      const newState = device.state === 1 ? 0 : 1;
-      device.state = newState;
-
-      // Sound
-      playClick();
-
-      // Firebase write
-      if (firebaseReady && db && device.fbPath) {
-        set(ref(db, device.fbPath), newState)
-          .then(() => showToast(`${device.name} ${newState ? 'ON ✦' : 'OFF'}`))
-          .catch(() => showToast("Firebase write failed — local only"));
-      } else {
-        showToast(`${device.name} ${newState ? 'ON ✦' : 'OFF'} (local)`);
-      }
-
-      updateCardUI(id, newState);
-      refreshStats();
-      saveLocal();
+    /* ---- CONFIG ---- */
+    const firebaseConfig = {
+      apiKey:            "AIzaSyCjPTuY4QnhRbM8ZmbcNgY49TdfS5poxZQ",
+      authDomain:        "home-automation-a5x.firebaseapp.com",
+      projectId:         "home-automation-a5x",
+      storageBucket:     "home-automation-a5x.firebasestorage.app",
+      messagingSenderId: "412536927952",
+      appId:             "1:412536927952:web:a98ab4de410986d78e10d5",
+      databaseURL:       "https://home-automation-a5x-default-rtdb.asia-southeast1.firebasedatabase.app/"
     };
 
-    // ================================================================
-    // RENDER DEVICE CARDS
-    // ================================================================
+    const app      = initializeApp(firebaseConfig);
+    const auth     = getAuth(app);
+    const db       = getDatabase(app);
+    const provider = new GoogleAuthProvider();
+
+    /* ========== AUTH HELPERS ========== */
+    window.switchTab = function(tab) {
+      ["login","register"].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
+        document.getElementById(`panel-${t}`).classList.toggle("active", t === tab);
+      });
+      clearErrors();
+    };
+
+    function clearErrors() {
+      document.getElementById("login-error").textContent = "";
+      document.getElementById("register-error").textContent = "";
+    }
+
+    function setAuthError(panel, msg) { document.getElementById(`${panel}-error`).textContent = msg; }
+
+    function setLoading(id, on) {
+      const btn = document.getElementById(id);
+      btn.disabled = on;
+      btn.innerHTML = on
+        ? `<span class="btn-spinner"></span> Please wait...`
+        : id === "btn-login" ? "Login" : "Create Account";
+    }
+
+    window.togglePass = function(id, btn) {
+      const el = document.getElementById(id);
+      el.type = el.type === "password" ? "text" : "password";
+      btn.textContent = el.type === "password" ? "👁️" : "🙈";
+    };
+
+    /* LOGIN */
+    window.doLogin = async function() {
+      const email = document.getElementById("login-email").value.trim();
+      const pass  = document.getElementById("login-password").value;
+      clearErrors();
+      if (!email || !pass) { setAuthError("login","⚠ Please fill all fields"); return; }
+      setLoading("btn-login", true);
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+      } catch(e) {
+        setLoading("btn-login", false);
+        setAuthError("login", friendlyError(e.code));
+      }
+    };
+
+    /* REGISTER */
+    window.doRegister = async function() {
+      const name  = document.getElementById("reg-name").value.trim();
+      const email = document.getElementById("reg-email").value.trim();
+      const pass  = document.getElementById("reg-password").value;
+      const conf  = document.getElementById("reg-confirm").value;
+      clearErrors();
+      if (!name||!email||!pass||!conf) { setAuthError("register","⚠ Please fill all fields"); return; }
+      if (pass.length < 6)             { setAuthError("register","⚠ Password must be at least 6 characters"); return; }
+      if (pass !== conf)               { setAuthError("register","⚠ Passwords do not match"); return; }
+      setLoading("btn-register", true);
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        await updateProfile(cred.user, { displayName: name });
+        showToast("🎉 Account created!");
+      } catch(e) {
+        setLoading("btn-register", false);
+        setAuthError("register", friendlyError(e.code));
+      }
+    };
+
+    /* GOOGLE */
+    window.doGoogleLogin = async function() {
+      clearErrors();
+      try { await signInWithPopup(auth, provider); }
+      catch(e) {
+        const msg = friendlyError(e.code);
+        if (msg) { setAuthError("login", msg); setAuthError("register", msg); }
+      }
+    };
+
+    /* FORGOT */
+    window.forgotPassword = async function() {
+      const email = document.getElementById("login-email").value.trim();
+      if (!email) { setAuthError("login","⚠ Enter your email above first"); return; }
+      try { await sendPasswordResetEmail(auth, email); showToast("📧 Reset email sent!"); }
+      catch(e) { setAuthError("login", friendlyError(e.code)); }
+    };
+
+    /* LOGOUT */
+    window.doLogout = async function() { await signOut(auth); showToast("👋 Logged out"); };
+
+    /* FRIENDLY ERRORS */
+    function friendlyError(code) {
+      return {
+        "auth/invalid-email":        "⚠ Invalid email address",
+        "auth/user-not-found":       "⚠ No account with this email",
+        "auth/wrong-password":       "⚠ Incorrect password",
+        "auth/invalid-credential":   "⚠ Incorrect email or password",
+        "auth/email-already-in-use": "⚠ Email already registered",
+        "auth/weak-password":        "⚠ Password too weak (min 6 chars)",
+        "auth/too-many-requests":    "⚠ Too many attempts. Try later",
+        "auth/popup-closed-by-user": "",
+        "auth/network-request-failed":"⚠ Network error. Check connection",
+      }[code] || `⚠ Error: ${code}`;
+    }
+
+    /* ENTER KEY SHORTCUTS */
+    document.getElementById("login-password").addEventListener("keydown", e => { if(e.key==="Enter") window.doLogin(); });
+    document.getElementById("login-email").addEventListener("keydown",    e => { if(e.key==="Enter") document.getElementById("login-password").focus(); });
+    document.getElementById("reg-confirm").addEventListener("keydown",    e => { if(e.key==="Enter") window.doRegister(); });
+
+    /* ========== AUTH STATE ========== */
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        document.getElementById("auth-screen").classList.remove("visible");
+        document.getElementById("dashboard").classList.add("visible");
+        document.getElementById("add-btn").classList.add("show");
+
+        const initials = (user.displayName || user.email || "U")
+          .split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);
+        document.getElementById("user-avatar").textContent = initials;
+
+        const firstName = (user.displayName || user.email || "").split(" ")[0].split("@")[0];
+        showToast(`👋 Welcome, ${firstName}!`);
+        initDashboard(user);
+      } else {
+        document.getElementById("auth-screen").classList.add("visible");
+        document.getElementById("dashboard").classList.remove("visible");
+        document.getElementById("add-btn").classList.remove("show");
+        setLoading("btn-login", false);
+        setLoading("btn-register", false);
+        setStatus(false);
+      }
+    });
+
+    /* ========== DASHBOARD ========== */
+    let devices = [];
+
+    function initDashboard(user) {
+      setStatus(true);
+      devices = [
+        { id:"light1", name:"Light 1", location:"Living Room", icon:"💡", color:"blue",   state:0, fbPath:"/home/devices/light1/state" },
+        { id:"light2", name:"Light 2", location:"Bedroom",     icon:"💡", color:"purple", state:0, fbPath:"/home/devices/light2/state" },
+      ];
+
+      const saved = localStorage.getItem(`a5x_devices_${user.uid}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const extra  = parsed.filter(d => !["light1","light2"].includes(d.id));
+          devices = [...devices, ...extra];
+        } catch(e) {}
+      }
+
+      renderDevices();
+      setupListeners();
+    }
+
+    function setupListeners() {
+      devices.forEach(d => {
+        if (!d.fbPath) return;
+        onValue(ref(db, d.fbPath), snap => {
+          const v = Number(snap.val());
+          if (v===0||v===1) { d.state=v; updateCardUI(d.id,v); refreshStats(); }
+        });
+      });
+    }
+
+    window.toggleDevice = function(id) {
+      const d = devices.find(x=>x.id===id);
+      if (!d) return;
+      const s = d.state===1 ? 0 : 1;
+      d.state = s;
+      playClick();
+      if (d.fbPath) {
+        set(ref(db, d.fbPath), s)
+          .then(()=>showToast(`${d.name} ${s?'ON ✦':'OFF'}`))
+          .catch(()=>showToast("Write failed — local only"));
+      } else {
+        showToast(`${d.name} ${s?'ON ✦':'OFF'}`);
+      }
+      updateCardUI(id,s); refreshStats(); saveLocal();
+    };
+
     function renderDevices() {
       const grid = document.getElementById("devices-grid");
       grid.innerHTML = "";
-
-      devices.forEach((device, i) => {
+      devices.forEach((d,i) => {
         const card = document.createElement("div");
-        card.className = `device-card${device.state ? " on" : ""}`;
-        card.setAttribute("data-color", device.color);
-        card.setAttribute("data-id", device.id);
-        card.style.animationDelay = `${i * 0.05}s`;
-
+        card.className = `device-card${d.state?" on":""}`;
+        card.setAttribute("data-color", d.color);
+        card.setAttribute("data-id", d.id);
+        card.style.animationDelay = `${i*.05}s`;
         card.innerHTML = `
           <div class="device-glow"></div>
-          <div class="device-icon-wrap">${device.icon}</div>
-          <div class="device-name">${device.name}</div>
-          <div class="device-location">${device.location}</div>
+          <div class="device-icon-wrap">${d.icon}</div>
+          <div class="device-name">${d.name}</div>
+          <div class="device-location">${d.location}</div>
           <div class="toggle-wrap">
-            <span class="toggle-status">${device.state ? "ON" : "OFF"}</span>
-            <div class="toggle-switch">
-              <div class="toggle-thumb"></div>
-            </div>
-          </div>
-        `;
-
-        card.addEventListener("click", (e) => {
-          createRipple(e, card);
-          toggleDevice(device.id);
-        });
-
+            <span class="toggle-status">${d.state?"ON":"OFF"}</span>
+            <div class="toggle-switch"><div class="toggle-thumb"></div></div>
+          </div>`;
+        card.addEventListener("click", e => { createRipple(e,card); toggleDevice(d.id); });
         grid.appendChild(card);
       });
-
       refreshStats();
     }
 
-    // ================================================================
-    // UPDATE SINGLE CARD UI (without re-render)
-    // ================================================================
     function updateCardUI(id, state) {
       const card = document.querySelector(`[data-id="${id}"]`);
       if (!card) return;
-      if (state) {
-        card.classList.add("on");
-      } else {
-        card.classList.remove("on");
-      }
-      const statusSpan = card.querySelector(".toggle-status");
-      if (statusSpan) statusSpan.textContent = state ? "ON" : "OFF";
+      state ? card.classList.add("on") : card.classList.remove("on");
+      const s = card.querySelector(".toggle-status");
+      if (s) s.textContent = state?"ON":"OFF";
     }
 
-    // ================================================================
-    // STATS
-    // ================================================================
     function refreshStats() {
-      const total = devices.length;
-      const active = devices.filter(d => d.state === 1).length;
-      document.getElementById("stat-total").textContent = total;
-      document.getElementById("stat-on").textContent = active;
+      const total  = devices.length;
+      const active = devices.filter(d=>d.state===1).length;
+      document.getElementById("stat-total").textContent   = total;
+      document.getElementById("stat-on").textContent      = active;
       document.getElementById("device-count").textContent = `${active} Online`;
     }
 
-    // ================================================================
-    // SCENE CONTROLS
-    // ================================================================
     window.setScene = function(scene) {
-      let targetState = 0;
-      if (scene === "all-on") targetState = 1;
-      else if (scene === "all-off") targetState = 0;
-      else if (scene === "movie") {
-        // Only light2 ON
-        devices.forEach(d => {
-          const s = d.id === "light2" ? 1 : 0;
-          d.state = s;
-          if (firebaseReady && db && d.fbPath) set(ref(db, d.fbPath), s);
-          updateCardUI(d.id, s);
-        });
-        showToast("🎬 Movie Mode");
-        saveLocal(); refreshStats(); return;
-      } else if (scene === "sleep") targetState = 0;
-
-      devices.forEach(d => {
-        d.state = targetState;
-        if (firebaseReady && db && d.fbPath) set(ref(db, d.fbPath), targetState);
-        updateCardUI(d.id, targetState);
-      });
-      showToast(scene === "all-on" ? "☀️ All Lights On" : "🌙 All Lights Off");
+      if (scene==="movie") {
+        devices.forEach(d=>{const s=d.id==="light2"?1:0;d.state=s;if(d.fbPath)set(ref(db,d.fbPath),s);updateCardUI(d.id,s);});
+        showToast("🎬 Movie Mode"); saveLocal(); refreshStats(); return;
+      }
+      const t = scene==="all-on"?1:0;
+      devices.forEach(d=>{d.state=t;if(d.fbPath)set(ref(db,d.fbPath),t);updateCardUI(d.id,t);});
+      showToast(t?"☀️ All Lights On":"🌙 All Lights Off");
       saveLocal(); refreshStats();
     };
 
-    // ================================================================
-    // ADD DEVICE MODAL
-    // ================================================================
-    let selectedEmoji = "💡";
-    let selectedColor = "blue";
-
-    // Emoji picker
-    document.querySelectorAll(".emoji-option").forEach(opt => {
-      opt.addEventListener("click", () => {
-        document.querySelectorAll(".emoji-option").forEach(o => o.classList.remove("selected"));
-        opt.classList.add("selected");
-        selectedEmoji = opt.dataset.emoji;
-      });
-    });
-
-    // Color picker
-    document.querySelectorAll(".color-option").forEach(opt => {
-      opt.addEventListener("click", () => {
-        document.querySelectorAll(".color-option").forEach(o => o.classList.remove("selected"));
-        opt.classList.add("selected");
-        selectedColor = opt.dataset.val;
-      });
-    });
-
-    document.getElementById("add-btn").addEventListener("click", () => {
-      document.getElementById("modal-overlay").classList.add("open");
-    });
-
-    document.getElementById("btn-cancel").addEventListener("click", closeModal);
-    document.getElementById("modal-overlay").addEventListener("click", (e) => {
-      if (e.target === document.getElementById("modal-overlay")) closeModal();
-    });
-
-    function closeModal() {
-      document.getElementById("modal-overlay").classList.remove("open");
-    }
-
-    document.getElementById("btn-add-confirm").addEventListener("click", () => {
-      const name = document.getElementById("input-name").value.trim();
-      const location = document.getElementById("input-location").value.trim() || "Home";
-      if (!name) { document.getElementById("input-name").focus(); return; }
-
-      const id = "device_" + Date.now();
-      const newDevice = {
-        id, name, location,
-        icon: selectedEmoji,
-        color: selectedColor,
-        state: 0,
-       fbPath: `/home/devices/${id}/state`
-      };
-
-      devices.push(newDevice);
-      saveLocal();
-      renderDevices();
-
-      // Setup FB listener for new device too
-      if (firebaseReady && db) {
-        const dbRef = ref(db, newDevice.fbPath);
-        onValue(dbRef, (snapshot) => {
-          let val = snapshot.val();
-         val = Number(val);
-
-if (val === 0 || val === 1) {
-            newDevice.state = val;
-            updateCardUI(newDevice.id, val);
-            refreshStats();
-          }
-        });
-      }
-
-      closeModal();
-      document.getElementById("input-name").value = "";
-      document.getElementById("input-location").value = "";
-      showToast(`${newDevice.icon} ${name} added!`);
-    });
-
-    // ================================================================
-    // LOCAL PERSISTENCE
-    // ================================================================
     function saveLocal() {
-      localStorage.setItem("a5x_devices", JSON.stringify(devices));
+      const u = auth.currentUser;
+      if (u) localStorage.setItem(`a5x_devices_${u.uid}`, JSON.stringify(devices));
     }
 
-    // ================================================================
-    // STATUS BADGE
-    // ================================================================
-    function setStatus(connected) {
-      const dot = document.getElementById("status-dot");
-      const text = document.getElementById("status-text");
-      if (connected) {
-        dot.className = "status-dot connected";
-        text.textContent = "Connected";
-      } else {
-        dot.className = "status-dot offline";
-        text.textContent = "Offline";
-      }
+    function setStatus(ok) {
+      const dot=document.getElementById("status-dot"), txt=document.getElementById("status-text");
+      if(!dot||!txt) return;
+      dot.className = ok?"status-dot connected":"status-dot offline";
+      txt.textContent = ok?"Connected":"Offline";
     }
 
-    // ================================================================
-    // THEME TOGGLE
-    // ================================================================
-    let darkMode = true;
-    document.getElementById("theme-btn").addEventListener("click", () => {
-      darkMode = !darkMode;
-      document.body.classList.toggle("light-mode", !darkMode);
-      document.getElementById("theme-btn").textContent = darkMode ? "🌙" : "☀️";
-      showToast(darkMode ? "🌙 Dark Mode" : "☀️ Light Mode");
+    /* -------- ADD DEVICE MODAL -------- */
+    let selEmoji="💡", selColor="blue";
+
+    document.querySelectorAll(".emoji-option").forEach(o=>{
+      o.addEventListener("click",()=>{
+        document.querySelectorAll(".emoji-option").forEach(x=>x.classList.remove("selected"));
+        o.classList.add("selected"); selEmoji=o.dataset.emoji;
+      });
     });
 
-    // ================================================================
-    // CLOCK
-    // ================================================================
-    function updateClock() {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, "0");
-      const m = String(now.getMinutes()).padStart(2, "0");
-      document.getElementById("clock").textContent = `${h}:${m}`;
+    document.querySelectorAll(".color-option").forEach(o=>{
+      o.addEventListener("click",()=>{
+        document.querySelectorAll(".color-option").forEach(x=>x.classList.remove("selected"));
+        o.classList.add("selected"); selColor=o.dataset.val;
+      });
+    });
 
-      const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      document.getElementById("date-display").textContent =
-        `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+    document.getElementById("add-btn").addEventListener("click",()=>document.getElementById("modal-overlay").classList.add("open"));
+    document.getElementById("btn-cancel").addEventListener("click", closeModal);
+    document.getElementById("modal-overlay").addEventListener("click",e=>{if(e.target===document.getElementById("modal-overlay"))closeModal();});
+    function closeModal(){document.getElementById("modal-overlay").classList.remove("open")}
 
-      const hr = now.getHours();
-      let greet = hr < 12 ? "Good Morning" : hr < 17 ? "Good Afternoon" : "Good Evening";
-      document.getElementById("greeting").textContent = greet;
+    document.getElementById("btn-add-confirm").addEventListener("click",()=>{
+      const name = document.getElementById("input-name").value.trim();
+      const loc  = document.getElementById("input-location").value.trim()||"Home";
+      if(!name){document.getElementById("input-name").focus();return;}
+      const id = "device_"+Date.now();
+      const nd = {id,name,location:loc,icon:selEmoji,color:selColor,state:0,fbPath:`/home/devices/${id}/state`};
+      devices.push(nd); saveLocal(); renderDevices();
+      onValue(ref(db,nd.fbPath),snap=>{const v=Number(snap.val());if(v===0||v===1){nd.state=v;updateCardUI(nd.id,v);refreshStats();}});
+      closeModal();
+      document.getElementById("input-name").value="";
+      document.getElementById("input-location").value="";
+      showToast(`${nd.icon} ${name} added!`);
+    });
+
+    /* -------- THEME -------- */
+    let darkMode=true;
+    document.getElementById("theme-btn").addEventListener("click",()=>{
+      darkMode=!darkMode;
+      document.body.classList.toggle("light-mode",!darkMode);
+      document.getElementById("theme-btn").textContent=darkMode?"🌙":"☀️";
+      showToast(darkMode?"🌙 Dark Mode":"☀️ Light Mode");
+    });
+
+    /* -------- CLOCK -------- */
+    function updateClock(){
+      const n=new Date();
+      document.getElementById("clock").textContent=`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
+      const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const mon=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      document.getElementById("date-display").textContent=`${days[n.getDay()]}, ${mon[n.getMonth()]} ${n.getDate()}`;
+      const hr=n.getHours();
+      document.getElementById("greeting").textContent=hr<12?"Good Morning":hr<17?"Good Afternoon":"Good Evening";
+    }
+    setInterval(updateClock,1000); updateClock();
+
+    /* -------- RIPPLE + SOUND -------- */
+    function createRipple(e,el){
+      const r=document.createElement("div"); r.className="ripple";
+      const rect=el.getBoundingClientRect(), sz=Math.max(rect.width,rect.height);
+      r.style.cssText=`width:${sz}px;height:${sz}px;left:${e.clientX-rect.left-sz/2}px;top:${e.clientY-rect.top-sz/2}px;`;
+      el.appendChild(r); setTimeout(()=>r.remove(),600);
     }
 
-    setInterval(updateClock, 1000);
-    updateClock();
-
-    // ================================================================
-    // RIPPLE EFFECT
-    // ================================================================
-    function createRipple(e, el) {
-      const ripple = document.createElement("div");
-      ripple.className = "ripple";
-      const rect = el.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height);
-      ripple.style.cssText = `
-        width: ${size}px; height: ${size}px;
-        left: ${e.clientX - rect.left - size/2}px;
-        top: ${e.clientY - rect.top - size/2}px;
-      `;
-      el.appendChild(ripple);
-      setTimeout(() => ripple.remove(), 600);
+    function playClick(){
+      try{
+        const ctx=new(window.AudioContext||window.webkitAudioContext)();
+        const o=ctx.createOscillator(), g=ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type="sine";
+        o.frequency.setValueAtTime(800,ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(400,ctx.currentTime+.1);
+        g.gain.setValueAtTime(.08,ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);
+        o.start(); o.stop(ctx.currentTime+.15);
+      }catch(e){}
     }
 
-    // ================================================================
-    // SOUND FEEDBACK
-    // ================================================================
-    function playClick() {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-      } catch(e) {}
-    }
+    /* -------- TOAST -------- */
+    let toastTmr;
+    window.showToast = function(msg){
+      const t=document.getElementById("toast");
+      t.textContent=msg; t.classList.add("show");
+      clearTimeout(toastTmr);
+      toastTmr=setTimeout(()=>t.classList.remove("show"),2200);
+    };
 
-    // ================================================================
-    // TOAST
-    // ================================================================
-    let toastTimer;
-    function showToast(msg) {
-      const toast = document.getElementById("toast");
-      toast.textContent = msg;
-      toast.classList.add("show");
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove("show"), 2000);
-    }
-
-    // ================================================================
-    // PWA — Install Prompt
-    // ================================================================
+    /* -------- PWA -------- */
     let deferredPrompt;
-    window.addEventListener("beforeinstallprompt", (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
+    window.addEventListener("beforeinstallprompt",e=>{
+      e.preventDefault(); deferredPrompt=e;
       document.getElementById("install-btn").classList.add("visible");
     });
-
-    document.getElementById("install-btn").addEventListener("click", async () => {
-      if (!deferredPrompt) return;
+    document.getElementById("install-btn").addEventListener("click",async()=>{
+      if(!deferredPrompt)return;
       deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === "accepted") showToast("App Installed! 🚀");
-      deferredPrompt = null;
+      const{outcome}=await deferredPrompt.userChoice;
+      if(outcome==="accepted")showToast("App Installed! 🚀");
+      deferredPrompt=null;
       document.getElementById("install-btn").classList.remove("visible");
     });
 
-    // ================================================================
-    // INIT
-    // ================================================================
-    window.addEventListener("load", () => {
-      // Remove loading screen after 1.8s
-      setTimeout(() => {
+    /* -------- LOADING SCREEN -------- */
+    window.addEventListener("load",()=>{
+      setTimeout(()=>{
         document.getElementById("loading-screen").classList.add("fade-out");
-        setTimeout(() => document.getElementById("loading-screen").remove(), 600);
-      }, 1800);
-
-      renderDevices();
-      setupFirebaseListeners();
+        setTimeout(()=>{ const s=document.getElementById("loading-screen"); if(s)s.remove(); },600);
+      },1800);
     });
-  </script>
-
-  <!-- ================================================================
-       SERVICE WORKER REGISTRATION (PWA)
-  ================================================================ -->
-  <script>
-    // Register inline Service Worker via blob URL
-    if ('serviceWorker' in navigator) {
-      const swCode = `
-        const CACHE = 'a5x-v1';
-        const ASSETS = ['/'];
-
-        self.addEventListener('install', e => {
-          e.waitUntil(
-            caches.open(CACHE).then(c => c.addAll(ASSETS))
-          );
-          self.skipWaiting();
-        });
-
-        self.addEventListener('activate', e => {
-          e.waitUntil(
-            caches.keys().then(keys =>
-              Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-            )
-          );
-          self.clients.claim();
-        });
-
-        self.addEventListener('fetch', e => {
-          e.respondWith(
-            caches.match(e.request).then(r => r || fetch(e.request))
-          );
-        });
-      `;
-      /*
-      const blob = new Blob([swCode], { type: 'application/javascript' });
-      const url = URL.createObjectURL(blob);
-      navigator.serviceWorker.register(url)
-        .then(() => console.log('[A5x] Service Worker ready'))
-        .catch(err => console.log('[A5x] SW error:', err));
-        */
-    }
-
-    // Inline Web App Manifest
-    const manifest = {
-      name: "A5x Home",
-  short_name: "A5x",
-  start_url: "index.html",   // 👈 NO slash, NO ./ 
-  scope: ".",
-  display: "standalone",
-  background_color: "#050510",
-  theme_color: "#050510",
-icons: [
-  {
-    src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23050510'/></svg>",
-    sizes: "512x512",
-    type: "image/svg+xml"
-  }
-]
-      
-    };
-
- 
   </script>
 
 </body>
