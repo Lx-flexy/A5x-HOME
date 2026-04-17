@@ -757,8 +757,9 @@
 
       codes.forEach((code, i) => {
         const meta     = deviceMetas[code];
-        const controls = meta.controls || { light: 0 }; // default fallback
-
+        const controls = (meta.controls && Object.keys(meta.controls).length > 0)
+  ? meta.controls
+  : { light: 0 };
         const displayName = meta.displayName || code;
         const location    = meta.location    || "Home";
         const icon        = meta.icon        || "💡";
