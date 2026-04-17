@@ -706,40 +706,56 @@
        Then parallel fetch for each device metadata
        (Avoids N+1 sequential reads)
     ================================================================ */
-  async function addDevice(deviceId) {
+    async function loadUserDevices(uid) {
+      const grid = document.getElementById("devices-grid");
+      grid.innerHTML = `
+        <div class="devices-loading">
+          <div class="devices-loading-dot"></div>
+          <div class="devices-loading-dot"></div>
+          <div class="devices-loading-dot"></div>
+        </div>`;
 
-  const user = auth.currentUser;
-  if (!user) return alert("Login required");
+      try {
+        const userDevicesSnap = await get(ref(db, `users/${uid}/devices`));
 
-  const refPath = ref(db, "devices/" + deviceId);
-  const snap = await get(refPath);
+        if (!userDevicesSnap.exists() || !userDevicesSnap.val()) {
+          renderNoDevices();
+          refreshStats([]);
+          return;
+        }
 
-  // ❌ device exist nahi
-  if (!snap.exists()) {
-    alert("Invalid device code ❌");
-    return;
-  }
+        const deviceCodes = Object.keys(userDevicesSnap.val());
 
-  const data = snap.val();
+        // Parallel fetch — one get() call per device (concurrent, not sequential)
+        const fetches = deviceCodes.map(code =>
+          get(ref(db, `devices/${code}`)).then(snap => ({ code, snap }))
+        );
+        const results = await Promise.all(fetches);
 
-  // ✅ owner empty → link karo
-  if (!data.owner || data.owner === "") {
-    await update(refPath, {
-      owner: user.uid
-    });
-    alert("Device connected ✅");
-    return;
-  }
+        // Filter: only show devices this user owns
+        const deviceMetas = {};
+        results.forEach(({ code, snap }) => {
+          if (snap.exists()) {
+            const data = snap.val();
+            if (data.owner === uid) {
+              deviceMetas[code] = data;
+            }
+          }
+        });
 
-  // ⚠ same user
-  if (data.owner === user.uid) {
-    alert("Already added ✔");
-    return;
-  }
+        renderAllDevices(uid, deviceMetas);
 
-  // ❌ kisi aur ka device
-  alert("Device already in use ❌");
-}
+      } catch(e) {
+        console.error("loadUserDevices error:", e);
+        const isPermission = e.code === "PERMISSION_DENIED";
+        grid.innerHTML = `
+          <div class="no-devices">
+            <div class="no-devices-icon">⚠️</div>
+            <div class="no-devices-title">${isPermission ? "Permission Denied" : "Failed to Load"}</div>
+            <div class="no-devices-sub">${isPermission ? "Check Firebase security rules" : e.message}</div>
+          </div>`;
+      }
+    }
 
     /* ================================================================
        RENDER ALL DEVICE CARDS
@@ -757,9 +773,8 @@
 
       codes.forEach((code, i) => {
         const meta     = deviceMetas[code];
-        const controls = (meta.controls && Object.keys(meta.controls).length > 0)
-  ? meta.controls
-  : { light: 0 };
+        const controls = meta.controls || { light: 0 }; // default fallback
+
         const displayName = meta.displayName || code;
         const location    = meta.location    || "Home";
         const icon        = meta.icon        || "💡";
