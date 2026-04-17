@@ -706,56 +706,40 @@
        Then parallel fetch for each device metadata
        (Avoids N+1 sequential reads)
     ================================================================ */
-    async function loadUserDevices(uid) {
-      const grid = document.getElementById("devices-grid");
-      grid.innerHTML = `
-        <div class="devices-loading">
-          <div class="devices-loading-dot"></div>
-          <div class="devices-loading-dot"></div>
-          <div class="devices-loading-dot"></div>
-        </div>`;
+  async function addDevice(deviceId) {
 
-      try {
-        const userDevicesSnap = await get(ref(db, `users/${uid}/devices`));
+  const user = auth.currentUser;
+  if (!user) return alert("Login required");
 
-        if (!userDevicesSnap.exists() || !userDevicesSnap.val()) {
-          renderNoDevices();
-          refreshStats([]);
-          return;
-        }
+  const refPath = ref(db, "devices/" + deviceId);
+  const snap = await get(refPath);
 
-        const deviceCodes = Object.keys(userDevicesSnap.val());
+  // ❌ device exist nahi
+  if (!snap.exists()) {
+    alert("Invalid device code ❌");
+    return;
+  }
 
-        // Parallel fetch — one get() call per device (concurrent, not sequential)
-        const fetches = deviceCodes.map(code =>
-          get(ref(db, `devices/${code}`)).then(snap => ({ code, snap }))
-        );
-        const results = await Promise.all(fetches);
+  const data = snap.val();
 
-        // Filter: only show devices this user owns
-        const deviceMetas = {};
-        results.forEach(({ code, snap }) => {
-          if (snap.exists()) {
-            const data = snap.val();
-            if (data.owner === uid) {
-              deviceMetas[code] = data;
-            }
-          }
-        });
+  // ✅ owner empty → link karo
+  if (!data.owner || data.owner === "") {
+    await update(refPath, {
+      owner: user.uid
+    });
+    alert("Device connected ✅");
+    return;
+  }
 
-        renderAllDevices(uid, deviceMetas);
+  // ⚠ same user
+  if (data.owner === user.uid) {
+    alert("Already added ✔");
+    return;
+  }
 
-      } catch(e) {
-        console.error("loadUserDevices error:", e);
-        const isPermission = e.code === "PERMISSION_DENIED";
-        grid.innerHTML = `
-          <div class="no-devices">
-            <div class="no-devices-icon">⚠️</div>
-            <div class="no-devices-title">${isPermission ? "Permission Denied" : "Failed to Load"}</div>
-            <div class="no-devices-sub">${isPermission ? "Check Firebase security rules" : e.message}</div>
-          </div>`;
-      }
-    }
+  // ❌ kisi aur ka device
+  alert("Device already in use ❌");
+}
 
     /* ================================================================
        RENDER ALL DEVICE CARDS
