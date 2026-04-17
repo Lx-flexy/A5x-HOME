@@ -42,249 +42,259 @@
       --glow-blue: 0 0 15px rgba(0,153,204,0.3),0 0 30px rgba(0,153,204,0.1);
       --glow-purple: 0 0 15px rgba(136,0,204,0.3),0 0 30px rgba(136,0,204,0.1);
     }
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Rajdhani',sans-serif;background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow-x:hidden;transition:var(--transition-slow)}
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0 }
+    body { font-family:'Rajdhani',sans-serif; background:var(--bg-primary); color:var(--text-primary); min-height:100vh; overflow-x:hidden; transition:var(--transition-slow) }
 
-    /* ORBS */
-    .gradient-orb{position:fixed;border-radius:50%;filter:blur(100px);opacity:0.15;z-index:0;pointer-events:none;animation:orbFloat 8s ease-in-out infinite}
-    .orb-1{width:500px;height:500px;background:var(--neon-purple);top:-200px;right:-100px;animation-delay:0s}
-    .orb-2{width:400px;height:400px;background:var(--neon-blue);bottom:-100px;left:-100px;animation-delay:3s}
-    .orb-3{width:300px;height:300px;background:var(--neon-pink);top:50%;left:50%;animation-delay:6s}
-    @keyframes orbFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-30px) scale(1.05)}}
+    .gradient-orb { position:fixed; border-radius:50%; filter:blur(100px); opacity:0.15; z-index:0; pointer-events:none; animation:orbFloat 8s ease-in-out infinite }
+    .orb-1 { width:500px; height:500px; background:var(--neon-purple); top:-200px; right:-100px; animation-delay:0s }
+    .orb-2 { width:400px; height:400px; background:var(--neon-blue); bottom:-100px; left:-100px; animation-delay:3s }
+    .orb-3 { width:300px; height:300px; background:var(--neon-pink); top:50%; left:50%; animation-delay:6s }
+    @keyframes orbFloat { 0%,100% { transform:translateY(0) scale(1) } 50% { transform:translateY(-30px) scale(1.05) } }
 
-    /* LOADING */
-    #loading-screen{position:fixed;inset:0;background:#050510;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .6s ease}
-    #loading-screen.fade-out{opacity:0;pointer-events:none}
-    .loader-title{font-family:'Orbitron',monospace;font-size:30px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:titlePulse 2s ease-in-out infinite}
-    .loader-bar-wrap{width:160px;height:3px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}
-    .loader-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--neon-blue),var(--neon-purple));border-radius:3px;animation:loadBar 1.5s ease-out forwards;box-shadow:0 0 8px var(--neon-blue)}
-    @keyframes loadBar{to{width:100%}}
-    .loader-text{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);animation:blink 1.2s ease-in-out infinite}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+    #loading-screen { position:fixed; inset:0; background:#050510; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; transition:opacity .6s ease }
+    #loading-screen.fade-out { opacity:0; pointer-events:none }
+    .loader-title { font-family:'Orbitron',monospace; font-size:30px; font-weight:900; letter-spacing:6px; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:titlePulse 2s ease-in-out infinite }
+    .loader-bar-wrap { width:160px; height:3px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden }
+    .loader-bar { height:100%; width:0%; background:linear-gradient(90deg,var(--neon-blue),var(--neon-purple)); border-radius:3px; animation:loadBar 1.5s ease-out forwards; box-shadow:0 0 8px var(--neon-blue) }
+    @keyframes loadBar { to { width:100% } }
+    .loader-text { font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--text-muted); animation:blink 1.2s ease-in-out infinite }
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
 
-    /* TOAST */
-    .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:rgba(10,10,30,0.95);border:1px solid var(--glass-border);backdrop-filter:blur(20px);border-radius:30px;padding:12px 20px;font-size:13px;letter-spacing:1px;color:var(--text-secondary);z-index:9000;transition:transform .3s cubic-bezier(0.4,0,0.2,1);white-space:nowrap}
-    .light-mode .toast{background:rgba(240,242,255,0.95)}
-    .toast.show{transform:translateX(-50%) translateY(0)}
+    .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px); background:rgba(10,10,30,0.95); border:1px solid var(--glass-border); backdrop-filter:blur(20px); border-radius:30px; padding:12px 20px; font-size:13px; letter-spacing:1px; color:var(--text-secondary); z-index:9000; transition:transform .3s cubic-bezier(0.4,0,0.2,1); white-space:nowrap }
+    .light-mode .toast { background:rgba(240,242,255,0.95) }
+    .toast.show { transform:translateX(-50%) translateY(0) }
 
-    /* ===================== AUTH SCREEN ===================== */
-    #auth-screen{display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
-    #auth-screen.visible{display:flex}
+    #auth-screen { display:none; position:fixed; inset:0; z-index:500; align-items:center; justify-content:center; padding:20px; overflow-y:auto }
+    #auth-screen.visible { display:flex }
+    .auth-card { background:rgba(10,10,30,0.88); border:1px solid var(--glass-border); backdrop-filter:blur(30px); border-radius:var(--radius-xl); padding:36px 28px 32px; width:100%; max-width:400px; position:relative; z-index:1; animation:authCardIn .5s cubic-bezier(0.4,0,0.2,1) both; margin:auto }
+    .light-mode .auth-card { background:rgba(240,242,255,0.9) }
+    @keyframes authCardIn { from { opacity:0; transform:translateY(30px) scale(0.96) } to { opacity:1; transform:translateY(0) scale(1) } }
+    .auth-card::before { content:''; position:absolute; top:0; left:20%; right:20%; height:2px; background:linear-gradient(90deg,transparent,var(--neon-blue),var(--neon-purple),transparent); border-radius:2px }
+    .auth-logo { text-align:center; margin-bottom:8px }
+    .auth-logo-title { font-family:'Orbitron',monospace; font-size:24px; font-weight:900; letter-spacing:4px; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; filter:drop-shadow(0 0 8px rgba(0,212,255,0.4)); animation:titlePulse 3s ease-in-out infinite }
+    @keyframes titlePulse { 0%,100% { filter:drop-shadow(0 0 8px rgba(0,212,255,0.5)) } 50% { filter:drop-shadow(0 0 16px rgba(191,0,255,0.7)) } }
+    .auth-logo-sub { font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--text-muted); margin-top:2px }
+    .auth-tabs { display:flex; background:rgba(255,255,255,0.05); border-radius:10px; padding:4px; margin:22px 0 20px; gap:4px }
+    .auth-tab { flex:1; padding:9px; border-radius:8px; border:none; background:transparent; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); transition:var(--transition) }
+    .auth-tab.active { background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(191,0,255,0.2)); color:var(--neon-blue); box-shadow:0 0 12px rgba(0,212,255,0.15) }
+    .auth-panel { display:none } .auth-panel.active { display:block }
+    .auth-form-group { margin-bottom:14px }
+    .auth-label { display:block; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:7px }
+    .auth-input-wrap { position:relative }
+    .auth-input-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none }
+    .auth-input { width:100%; padding:12px 16px 12px 40px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary); font-family:'Rajdhani',sans-serif; font-size:15px; outline:none; transition:var(--transition) }
+    .light-mode .auth-input { background:rgba(0,0,0,0.06); color:#1a1a2e }
+    .auth-input:focus { border-color:var(--neon-blue); box-shadow:0 0 0 2px rgba(0,212,255,0.15),0 0 12px rgba(0,212,255,0.1) }
+    .auth-input::placeholder { color:var(--text-muted) }
+    .pass-toggle { position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:14px; color:var(--text-muted); transition:var(--transition); background:none; border:none; padding:0; line-height:1 }
+    .pass-toggle:hover { color:var(--neon-blue) }
+    .auth-error { font-size:12px; color:var(--neon-pink); letter-spacing:.5px; margin-top:-6px; margin-bottom:10px; min-height:18px }
+    .auth-forgot { text-align:right; margin-top:-4px; margin-bottom:14px }
+    .auth-forgot a { font-size:11px; letter-spacing:1px; color:var(--neon-blue); text-decoration:none; opacity:.7; transition:var(--transition) }
+    .auth-forgot a:hover { opacity:1 }
+    .auth-divider { display:flex; align-items:center; gap:12px; margin:16px 0 }
+    .auth-divider::before,.auth-divider::after { content:''; flex:1; height:1px; background:var(--glass-border) }
+    .auth-divider span { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted) }
+    .auth-btn-primary { width:100%; padding:14px; border-radius:var(--radius-sm); border:none; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:700; letter-spacing:3px; text-transform:uppercase; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple)); color:#fff; box-shadow:0 0 20px rgba(0,212,255,0.3); transition:var(--transition) }
+    .auth-btn-primary:hover { box-shadow:0 0 30px rgba(0,212,255,0.5),0 0 60px rgba(191,0,255,0.3); transform:translateY(-1px) }
+    .auth-btn-primary:active { transform:scale(0.98) }
+    .auth-btn-primary:disabled { opacity:.6; cursor:not-allowed; transform:none }
+    .auth-btn-google { width:100%; padding:12px; border-radius:var(--radius-sm); border:1px solid var(--glass-border); cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; background:rgba(255,255,255,0.05); color:var(--text-secondary); transition:var(--transition); display:flex; align-items:center; justify-content:center; gap:8px }
+    .auth-btn-google:hover { background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.25); color:var(--text-primary) }
+    .google-icon { width:16px; height:16px; flex-shrink:0; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3C/svg%3E") center/contain no-repeat }
+    .btn-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px }
+    @keyframes spin { to { transform:rotate(360deg) } }
 
-    .auth-card{background:rgba(10,10,30,0.88);border:1px solid var(--glass-border);backdrop-filter:blur(30px);border-radius:var(--radius-xl);padding:36px 28px 32px;width:100%;max-width:400px;position:relative;z-index:1;animation:authCardIn .5s cubic-bezier(0.4,0,0.2,1) both;margin:auto}
-    .light-mode .auth-card{background:rgba(240,242,255,0.9)}
-    @keyframes authCardIn{from{opacity:0;transform:translateY(30px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-    .auth-card::before{content:'';position:absolute;top:0;left:20%;right:20%;height:2px;background:linear-gradient(90deg,transparent,var(--neon-blue),var(--neon-purple),transparent);border-radius:2px}
+    #dashboard { display:none; position:relative; z-index:1 }
+    #dashboard.visible { display:block }
+    .app-wrapper { position:relative; z-index:1; min-height:100vh; padding:0 16px 120px; max-width:480px; margin:0 auto }
+    header { padding:40px 0 24px; position:relative }
+    .header-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:8px }
+    .logo-section { display:flex; flex-direction:column; align-items:flex-start }
+    h1.app-title { font-family:'Orbitron',monospace; font-size:28px; font-weight:900; letter-spacing:4px; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; filter:drop-shadow(0 0 8px rgba(0,212,255,0.5)); animation:titlePulse 3s ease-in-out infinite }
+    .app-subtitle { font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--text-muted); margin-top:2px }
+    .header-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .status-badge { display:flex; align-items:center; gap:6px; padding:6px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:20px; backdrop-filter:blur(10px); font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--text-secondary); transition:var(--transition) }
+    .status-dot { width:7px; height:7px; border-radius:50%; background:#555; transition:var(--transition) }
+    .status-dot.connected { background:var(--neon-green); box-shadow:0 0 8px var(--neon-green),0 0 16px rgba(0,255,136,0.4); animation:dotPulse 2s ease-in-out infinite }
+    .status-dot.offline { background:var(--neon-pink); box-shadow:0 0 8px var(--neon-pink) }
+    @keyframes dotPulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+    .user-btn { display:flex; align-items:center; gap:7px; padding:6px 12px 6px 8px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:20px; backdrop-filter:blur(10px); cursor:pointer; transition:var(--transition); font-family:'Rajdhani',sans-serif; font-size:11px; letter-spacing:1px; color:var(--text-secondary) }
+    .user-btn:hover { background:var(--glass-hover); color:var(--neon-pink); border-color:rgba(255,0,170,0.3) }
+    .user-avatar { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple)); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:700; flex-shrink:0 }
+    .theme-btn { width:40px; height:40px; border-radius:50%; background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(10px); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; transition:var(--transition); color:var(--text-primary) }
+    .theme-btn:hover { background:var(--glass-hover); box-shadow:var(--glow-blue); transform:scale(1.1) rotate(15deg) }
+    .greeting { margin:24px 0 8px; font-size:13px; color:var(--text-muted); letter-spacing:2px; text-transform:uppercase }
+    .time-display { font-family:'Orbitron',monospace; font-size:42px; font-weight:800; color:var(--text-primary); letter-spacing:2px; line-height:1 }
+    .date-display { font-size:13px; color:var(--text-secondary); margin-top:4px; letter-spacing:2px; text-transform:uppercase }
+    .section-header { display:flex; justify-content:space-between; align-items:center; margin:28px 0 14px }
+    .section-title { font-family:'Orbitron',monospace; font-size:12px; letter-spacing:3px; text-transform:uppercase; color:var(--text-muted) }
+    .section-count { font-size:11px; color:var(--neon-blue); letter-spacing:1px }
+    .stats-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px }
+    .stat-card { background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(20px); border-radius:var(--radius-md); padding:14px 10px; text-align:center; transition:var(--transition) }
+    .stat-card:hover { transform:translateY(-2px); background:var(--glass-hover) }
+    .stat-number { font-family:'Orbitron',monospace; font-size:22px; font-weight:800; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text }
+    .stat-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); margin-top:2px }
 
-    .auth-logo{text-align:center;margin-bottom:8px}
-    .auth-logo-title{font-family:'Orbitron',monospace;font-size:24px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(0,212,255,0.4));animation:titlePulse 3s ease-in-out infinite}
-    @keyframes titlePulse{0%,100%{filter:drop-shadow(0 0 8px rgba(0,212,255,0.5))}50%{filter:drop-shadow(0 0 16px rgba(191,0,255,0.7))}}
-    .auth-logo-sub{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);margin-top:2px}
+    /* DEVICE CARDS — full-width for multi-control layout */
+    #devices-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px }
 
-    /* Tabs */
-    .auth-tabs{display:flex;background:rgba(255,255,255,0.05);border-radius:10px;padding:4px;margin:22px 0 20px;gap:4px}
-    .auth-tab{flex:1;padding:9px;border-radius:8px;border:none;background:transparent;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);transition:var(--transition)}
-    .auth-tab.active{background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(191,0,255,0.2));color:var(--neon-blue);box-shadow:0 0 12px rgba(0,212,255,0.15)}
+    /* Cards with 2+ controls use full width */
+    .device-card { background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(20px); border-radius:var(--radius-lg); padding:20px 16px; cursor:default; transition:var(--transition); position:relative; overflow:hidden; user-select:none }
+    .device-card.multi-control { grid-column: 1 / -1 }
+    .device-card::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,transparent 60%,rgba(255,255,255,0.03)); pointer-events:none }
+    .device-card:hover { transform:translateY(-4px) scale(1.01); background:var(--glass-hover); border-color:rgba(255,255,255,0.2) }
 
-    /* Panels */
-    .auth-panel{display:none} .auth-panel.active{display:block}
+    /* Color states — card is "on" if ANY control is on */
+    .device-card[data-color="blue"].any-on { border-color:rgba(0,212,255,0.5); box-shadow:0 0 30px rgba(0,212,255,0.15) }
+    .device-card[data-color="purple"].any-on { border-color:rgba(191,0,255,0.5); box-shadow:0 0 30px rgba(191,0,255,0.15) }
+    .device-card[data-color="pink"].any-on { border-color:rgba(255,0,170,0.5); box-shadow:0 0 30px rgba(255,0,170,0.15) }
+    .device-card[data-color="cyan"].any-on { border-color:rgba(0,255,238,0.5); box-shadow:0 0 30px rgba(0,255,238,0.15) }
 
-    .auth-form-group{margin-bottom:14px}
-    .auth-label{display:block;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:7px}
-    .auth-input-wrap{position:relative}
-    .auth-input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
-    .auth-input{width:100%;padding:12px 16px 12px 40px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Rajdhani',sans-serif;font-size:15px;outline:none;transition:var(--transition)}
-    .light-mode .auth-input{background:rgba(0,0,0,0.06);color:#1a1a2e}
-    .auth-input:focus{border-color:var(--neon-blue);box-shadow:0 0 0 2px rgba(0,212,255,0.15),0 0 12px rgba(0,212,255,0.1)}
-    .auth-input::placeholder{color:var(--text-muted)}
-    .pass-toggle{position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:14px;color:var(--text-muted);transition:var(--transition);background:none;border:none;padding:0;line-height:1}
-    .pass-toggle:hover{color:var(--neon-blue)}
+    .device-glow { position:absolute; top:0; left:0; right:0; height:2px; border-radius:2px; opacity:0; transition:var(--transition) }
+    .device-card[data-color="blue"].any-on .device-glow { opacity:1; background:linear-gradient(90deg,transparent,var(--neon-blue),transparent) }
+    .device-card[data-color="purple"].any-on .device-glow { opacity:1; background:linear-gradient(90deg,transparent,var(--neon-purple),transparent) }
+    .device-card[data-color="pink"].any-on .device-glow { opacity:1; background:linear-gradient(90deg,transparent,var(--neon-pink),transparent) }
+    .device-card[data-color="cyan"].any-on .device-glow { opacity:1; background:linear-gradient(90deg,transparent,var(--neon-cyan),transparent) }
 
-    .auth-error{font-size:12px;color:var(--neon-pink);letter-spacing:.5px;margin-top:-6px;margin-bottom:10px;min-height:18px}
+    .device-icon-wrap { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:14px; transition:var(--transition); background:rgba(255,255,255,0.06) }
+    .device-card.any-on[data-color="blue"] .device-icon-wrap { background:rgba(0,212,255,0.15); box-shadow:0 0 16px rgba(0,212,255,0.3) }
+    .device-card.any-on[data-color="purple"] .device-icon-wrap { background:rgba(191,0,255,0.15); box-shadow:0 0 16px rgba(191,0,255,0.3) }
+    .device-card.any-on[data-color="pink"] .device-icon-wrap { background:rgba(255,0,170,0.15); box-shadow:0 0 16px rgba(255,0,170,0.3) }
+    .device-card.any-on[data-color="cyan"] .device-icon-wrap { background:rgba(0,255,238,0.15); box-shadow:0 0 16px rgba(0,255,238,0.3) }
 
-    .auth-forgot{text-align:right;margin-top:-4px;margin-bottom:14px}
-    .auth-forgot a{font-size:11px;letter-spacing:1px;color:var(--neon-blue);text-decoration:none;opacity:.7;transition:var(--transition)}
-    .auth-forgot a:hover{opacity:1}
+    .device-name { font-size:14px; font-weight:600; color:var(--text-primary); letter-spacing:.5px; margin-bottom:2px }
+    .device-location { font-size:10px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:14px }
 
-    .auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0}
-    .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--glass-border)}
-    .auth-divider span{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted)}
+    /* MULTI-CONTROL ROW */
+    .controls-list { display:flex; flex-direction:column; gap:10px }
+    .control-row { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:rgba(255,255,255,0.04); border:1px solid var(--glass-border); border-radius:10px; transition:var(--transition) }
+    .control-row:hover { background:rgba(255,255,255,0.08) }
+    .control-label { font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-secondary); display:flex; align-items:center; gap:8px }
+    .control-icon { font-size:15px }
+    .control-right { display:flex; align-items:center; gap:8px }
+    .control-status { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); transition:var(--transition) }
+    .control-row.ctrl-on .control-status { color:var(--neon-green) }
 
-    .auth-btn-primary{width:100%;padding:14px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));color:#fff;box-shadow:0 0 20px rgba(0,212,255,0.3);transition:var(--transition);position:relative;overflow:hidden}
-    .auth-btn-primary:hover{box-shadow:0 0 30px rgba(0,212,255,0.5),0 0 60px rgba(191,0,255,0.3);transform:translateY(-1px)}
-    .auth-btn-primary:active{transform:scale(0.98)}
-    .auth-btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    /* Toggle switch (reused per control) */
+    .toggle-switch { width:40px; height:22px; background:rgba(255,255,255,0.1); border-radius:11px; position:relative; cursor:pointer; transition:var(--transition); flex-shrink:0 }
+    .ctrl-on[data-ctrl-color="blue"] .toggle-switch { background:rgba(0,212,255,0.4); box-shadow:0 0 10px rgba(0,212,255,0.4) }
+    .ctrl-on[data-ctrl-color="purple"] .toggle-switch { background:rgba(191,0,255,0.4); box-shadow:0 0 10px rgba(191,0,255,0.4) }
+    .ctrl-on[data-ctrl-color="pink"] .toggle-switch { background:rgba(255,0,170,0.4); box-shadow:0 0 10px rgba(255,0,170,0.4) }
+    .ctrl-on[data-ctrl-color="cyan"] .toggle-switch { background:rgba(0,255,238,0.4); box-shadow:0 0 10px rgba(0,255,238,0.4) }
+    .toggle-thumb { width:16px; height:16px; background:#fff; border-radius:50%; position:absolute; top:3px; left:3px; transition:transform .3s cubic-bezier(0.4,0,0.2,1); box-shadow:0 2px 8px rgba(0,0,0,0.3) }
+    .ctrl-on .toggle-thumb { transform:translateX(18px) }
 
-    .auth-btn-google{width:100%;padding:12px;border-radius:var(--radius-sm);border:1px solid var(--glass-border);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;background:rgba(255,255,255,0.05);color:var(--text-secondary);transition:var(--transition);display:flex;align-items:center;justify-content:center;gap:8px}
-    .auth-btn-google:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.25);color:var(--text-primary)}
-    .google-icon{width:16px;height:16px;flex-shrink:0;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3C/svg%3E") center/contain no-repeat}
+    /* Control icons map */
+    .ctrl-icon-light::before   { content:'💡' }
+    .ctrl-icon-fan::before     { content:'🌀' }
+    .ctrl-icon-motor::before   { content:'⚙️' }
+    .ctrl-icon-ac::before      { content:'❄️' }
+    .ctrl-icon-tv::before      { content:'📺' }
+    .ctrl-icon-pump::before    { content:'🚿' }
+    .ctrl-icon-plug::before    { content:'🔌' }
+    .ctrl-icon-default::before { content:'🔘' }
 
-    .btn-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
-    @keyframes spin{to{transform:rotate(360deg)}}
+    /* DELETE button */
+    .device-delete-btn { position:absolute; top:10px; right:10px; width:24px; height:24px; border-radius:6px; background:rgba(255,0,170,0.1); border:1px solid rgba(255,0,170,0.2); color:var(--neon-pink); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:var(--transition); z-index:2 }
+    .device-card:hover .device-delete-btn { opacity:1 }
+    .device-delete-btn:hover { background:rgba(255,0,170,0.25); box-shadow:0 0 8px rgba(255,0,170,0.3) }
 
-    /* ===================== DASHBOARD ===================== */
-    #dashboard{display:none;position:relative;z-index:1}
-    #dashboard.visible{display:block}
-    .app-wrapper{position:relative;z-index:1;min-height:100vh;padding:0 16px 120px;max-width:480px;margin:0 auto}
+    .ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,0.2); transform:scale(0); animation:rippleAnim .6s ease-out; pointer-events:none }
+    @keyframes rippleAnim { to { transform:scale(4); opacity:0 } }
 
-    header{padding:40px 0 24px;position:relative}
-    .header-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:8px}
-    .logo-section{display:flex;flex-direction:column;align-items:flex-start}
-    h1.app-title{font-family:'Orbitron',monospace;font-size:28px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(0,212,255,0.5));animation:titlePulse 3s ease-in-out infinite}
-    .app-subtitle{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);margin-top:2px}
-    .header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .no-devices { grid-column:1/-1; text-align:center; padding:48px 20px }
+    .no-devices-icon { font-size:48px; margin-bottom:14px; opacity:0.4 }
+    .no-devices-title { font-family:'Orbitron',monospace; font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px }
+    .no-devices-sub { font-size:12px; color:var(--text-muted); opacity:0.6; letter-spacing:1px }
 
-    .status-badge{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;backdrop-filter:blur(10px);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-secondary);transition:var(--transition)}
-    .status-dot{width:7px;height:7px;border-radius:50%;background:#555;transition:var(--transition)}
-    .status-dot.connected{background:var(--neon-green);box-shadow:0 0 8px var(--neon-green),0 0 16px rgba(0,255,136,0.4);animation:dotPulse 2s ease-in-out infinite}
-    .status-dot.offline{background:var(--neon-pink);box-shadow:0 0 8px var(--neon-pink)}
-    @keyframes dotPulse{0%,100%{opacity:1}50%{opacity:0.5}}
+    .devices-loading { grid-column:1/-1; display:flex; justify-content:center; align-items:center; gap:10px; padding:40px; color:var(--text-muted); font-size:12px; letter-spacing:2px; text-transform:uppercase }
+    .devices-loading-dot { width:6px; height:6px; border-radius:50%; background:var(--neon-blue); animation:loadDot 1.2s ease-in-out infinite }
+    .devices-loading-dot:nth-child(2) { animation-delay:.2s; background:var(--neon-purple) }
+    .devices-loading-dot:nth-child(3) { animation-delay:.4s; background:var(--neon-pink) }
+    @keyframes loadDot { 0%,80%,100% { transform:scale(0.6); opacity:0.4 } 40% { transform:scale(1); opacity:1 } }
 
-    .user-btn{display:flex;align-items:center;gap:7px;padding:6px 12px 6px 8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;backdrop-filter:blur(10px);cursor:pointer;transition:var(--transition);font-family:'Rajdhani',sans-serif;font-size:11px;letter-spacing:1px;color:var(--text-secondary)}
-    .user-btn:hover{background:var(--glass-hover);color:var(--neon-pink);border-color:rgba(255,0,170,0.3)}
-    .user-avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;flex-shrink:0}
+    #add-btn { position:fixed; bottom:32px; right:24px; width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple)); border:none; cursor:pointer; display:none; align-items:center; justify-content:center; font-size:28px; color:#fff; box-shadow:0 0 20px rgba(0,212,255,0.5),0 0 40px rgba(191,0,255,0.3),0 8px 32px rgba(0,0,0,0.4); transition:var(--transition); z-index:100; animation:fabFloat 3s ease-in-out infinite }
+    #add-btn.show { display:flex }
+    @keyframes fabFloat { 0%,100% { transform:translateY(0); box-shadow:0 0 20px rgba(0,212,255,0.5),0 0 40px rgba(191,0,255,0.3),0 8px 32px rgba(0,0,0,0.4) } 50% { transform:translateY(-4px); box-shadow:0 0 30px rgba(0,212,255,0.7),0 0 60px rgba(191,0,255,0.4),0 16px 40px rgba(0,0,0,0.5) } }
+    #add-btn:hover { transform:scale(1.1) rotate(90deg) !important; animation:none }
+    #add-btn:active { transform:scale(0.95) !important }
+    #install-btn { position:fixed; bottom:32px; left:24px; padding:12px 18px; border-radius:30px; background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(20px); cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--text-secondary); display:none; z-index:100; transition:var(--transition); align-items:center; gap:8px }
+    #install-btn:hover { background:var(--glass-hover); box-shadow:var(--glow-blue); color:var(--neon-blue) }
+    #install-btn.visible { display:flex }
 
-    .theme-btn{width:40px;height:40px;border-radius:50%;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(10px);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:var(--transition);color:var(--text-primary)}
-    .theme-btn:hover{background:var(--glass-hover);box-shadow:var(--glow-blue);transform:scale(1.1) rotate(15deg)}
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px); z-index:200; display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition:opacity .3s ease }
+    .modal-overlay.open { opacity:1; pointer-events:all }
+    .modal { background:#0d0d1e; border:1px solid var(--glass-border); border-radius:var(--radius-xl) var(--radius-xl) 0 0; padding:28px 24px 40px; width:100%; max-width:480px; transform:translateY(100%); transition:transform .4s cubic-bezier(0.4,0,0.2,1) }
+    .light-mode .modal { background:#f0f2ff }
+    .modal-overlay.open .modal { transform:translateY(0) }
+    .modal-handle { width:40px; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin:0 auto 24px }
+    .modal-title { font-family:'Orbitron',monospace; font-size:16px; letter-spacing:2px; margin-bottom:24px; background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text }
+    .form-group { margin-bottom:16px }
+    .form-label { display:block; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px }
+    .form-input { width:100%; padding:12px 16px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary); font-family:'Rajdhani',sans-serif; font-size:15px; outline:none; transition:var(--transition) }
+    .light-mode .form-input { background:rgba(0,0,0,0.06); color:#1a1a2e }
+    .form-input:focus { border-color:var(--neon-blue); box-shadow:0 0 0 2px rgba(0,212,255,0.15) }
+    #input-device-code { font-family:'Orbitron',monospace; letter-spacing:3px; text-transform:uppercase; font-size:13px }
+    .form-input-hint { font-size:10px; color:var(--text-muted); letter-spacing:1px; margin-top:5px }
+    .form-error { font-size:11px; color:var(--neon-pink); letter-spacing:.5px; margin-top:5px; min-height:16px }
+    .color-picker { display:flex; gap:10px }
+    .color-option { width:32px; height:32px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:var(--transition) }
+    .color-option.selected { border-color:#fff; transform:scale(1.2) }
+    .color-option[data-val="blue"] { background:var(--neon-blue); box-shadow:0 0 10px var(--neon-blue) }
+    .color-option[data-val="purple"] { background:var(--neon-purple); box-shadow:0 0 10px var(--neon-purple) }
+    .color-option[data-val="pink"] { background:var(--neon-pink); box-shadow:0 0 10px var(--neon-pink) }
+    .color-option[data-val="cyan"] { background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan) }
+    .emoji-picker { display:flex; gap:8px; flex-wrap:wrap }
+    .emoji-option { width:40px; height:40px; border-radius:10px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; transition:var(--transition) }
+    .emoji-option.selected,.emoji-option:hover { background:rgba(0,212,255,0.15); border-color:var(--neon-blue); transform:scale(1.1) }
+    .modal-actions { display:flex; gap:12px; margin-top:24px }
+    .btn-cancel,.btn-add { flex:1; padding:14px; border-radius:var(--radius-sm); border:none; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600; letter-spacing:2px; text-transform:uppercase; transition:var(--transition) }
+    .btn-cancel { background:rgba(255,255,255,0.06); color:var(--text-secondary); border:1px solid var(--glass-border) }
+    .btn-cancel:hover { background:rgba(255,255,255,0.1) }
+    .btn-add { background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple)); color:#fff; box-shadow:0 0 20px rgba(0,212,255,0.3) }
+    .btn-add:hover { box-shadow:0 0 30px rgba(0,212,255,0.5),0 0 60px rgba(191,0,255,0.3); transform:translateY(-1px) }
+    .btn-add:disabled { opacity:.6; cursor:not-allowed; transform:none }
 
-    .greeting{margin:24px 0 8px;font-size:13px;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase}
-    .time-display{font-family:'Orbitron',monospace;font-size:42px;font-weight:800;color:var(--text-primary);letter-spacing:2px;line-height:1}
-    .date-display{font-size:13px;color:var(--text-secondary);margin-top:4px;letter-spacing:2px;text-transform:uppercase}
+    .scenes-row { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; padding-bottom:4px; margin-bottom:8px }
+    .scenes-row::-webkit-scrollbar { display:none }
+    .scene-btn { flex-shrink:0; padding:10px 16px; background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(10px); border-radius:20px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-secondary); transition:var(--transition); white-space:nowrap; display:flex; align-items:center; gap:6px }
+    .scene-btn:hover { background:var(--glass-hover); color:var(--neon-blue); border-color:rgba(0,212,255,0.3); box-shadow:0 0 12px rgba(0,212,255,0.15) }
 
-    .section-header{display:flex;justify-content:space-between;align-items:center;margin:28px 0 14px}
-    .section-title{font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted)}
-    .section-count{font-size:11px;color:var(--neon-blue);letter-spacing:1px}
+    @keyframes cardEnter { from { opacity:0; transform:translateY(20px) scale(0.95) } to { opacity:1; transform:translateY(0) scale(1) } }
+    .device-card { animation:cardEnter .4s ease-out both }
+    .device-card:nth-child(1) { animation-delay:.05s } .device-card:nth-child(2) { animation-delay:.1s }
+    .device-card:nth-child(3) { animation-delay:.15s } .device-card:nth-child(4) { animation-delay:.2s }
+    .device-card:nth-child(5) { animation-delay:.25s } .device-card:nth-child(6) { animation-delay:.3s }
 
-    .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px}
-    .stat-card{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(20px);border-radius:var(--radius-md);padding:14px 10px;text-align:center;transition:var(--transition)}
-    .stat-card:hover{transform:translateY(-2px);background:var(--glass-hover)}
-    .stat-number{font-family:'Orbitron',monospace;font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-    .stat-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-top:2px}
-
-    /* DEVICE CARDS */
-    #devices-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    .device-card{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(20px);border-radius:var(--radius-lg);padding:20px 16px;cursor:pointer;transition:var(--transition);position:relative;overflow:hidden;user-select:none}
-    .device-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 60%,rgba(255,255,255,0.03));pointer-events:none}
-    .device-card:hover{transform:translateY(-4px) scale(1.02);background:var(--glass-hover);border-color:rgba(255,255,255,0.2)}
-    .device-card.on .device-glow{opacity:1}
-    .device-card[data-color="blue"].on{border-color:rgba(0,212,255,0.5);box-shadow:0 0 30px rgba(0,212,255,0.15)}
-    .device-card[data-color="purple"].on{border-color:rgba(191,0,255,0.5);box-shadow:0 0 30px rgba(191,0,255,0.15)}
-    .device-card[data-color="pink"].on{border-color:rgba(255,0,170,0.5);box-shadow:0 0 30px rgba(255,0,170,0.15)}
-    .device-card[data-color="cyan"].on{border-color:rgba(0,255,238,0.5);box-shadow:0 0 30px rgba(0,255,238,0.15)}
-    .device-glow{position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px;opacity:0;transition:var(--transition)}
-    .device-card[data-color="blue"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-blue),transparent)}
-    .device-card[data-color="purple"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-purple),transparent)}
-    .device-card[data-color="pink"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-pink),transparent)}
-    .device-card[data-color="cyan"] .device-glow{background:linear-gradient(90deg,transparent,var(--neon-cyan),transparent)}
-    .device-icon-wrap{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px;transition:var(--transition);background:rgba(255,255,255,0.06)}
-    .device-card.on[data-color="blue"] .device-icon-wrap{background:rgba(0,212,255,0.15);box-shadow:0 0 16px rgba(0,212,255,0.3)}
-    .device-card.on[data-color="purple"] .device-icon-wrap{background:rgba(191,0,255,0.15);box-shadow:0 0 16px rgba(191,0,255,0.3)}
-    .device-card.on[data-color="pink"] .device-icon-wrap{background:rgba(255,0,170,0.15);box-shadow:0 0 16px rgba(255,0,170,0.3)}
-    .device-card.on[data-color="cyan"] .device-icon-wrap{background:rgba(0,255,238,0.15);box-shadow:0 0 16px rgba(0,255,238,0.3)}
-    .device-name{font-size:14px;font-weight:600;color:var(--text-primary);letter-spacing:.5px;margin-bottom:2px}
-    .device-location{font-size:10px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px}
-    .toggle-wrap{display:flex;align-items:center;justify-content:space-between}
-    .toggle-status{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);transition:var(--transition)}
-    .device-card.on .toggle-status{color:var(--neon-green)}
-    .toggle-switch{width:40px;height:22px;background:rgba(255,255,255,0.1);border-radius:11px;position:relative;cursor:pointer;transition:var(--transition);flex-shrink:0}
-    .device-card.on[data-color="blue"] .toggle-switch{background:rgba(0,212,255,0.4);box-shadow:0 0 10px rgba(0,212,255,0.4)}
-    .device-card.on[data-color="purple"] .toggle-switch{background:rgba(191,0,255,0.4);box-shadow:0 0 10px rgba(191,0,255,0.4)}
-    .device-card.on[data-color="pink"] .toggle-switch{background:rgba(255,0,170,0.4);box-shadow:0 0 10px rgba(255,0,170,0.4)}
-    .device-card.on[data-color="cyan"] .toggle-switch{background:rgba(0,255,238,0.4);box-shadow:0 0 10px rgba(0,255,238,0.4)}
-    .toggle-thumb{width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .3s cubic-bezier(0.4,0,0.2,1);box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-    .device-card.on .toggle-thumb{transform:translateX(18px)}
-    .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,0.2);transform:scale(0);animation:rippleAnim .6s ease-out;pointer-events:none}
-    @keyframes rippleAnim{to{transform:scale(4);opacity:0}}
-
-    /* FAB + INSTALL */
-    #add-btn{position:fixed;bottom:32px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));border:none;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:28px;color:#fff;box-shadow:0 0 20px rgba(0,212,255,0.5),0 0 40px rgba(191,0,255,0.3),0 8px 32px rgba(0,0,0,0.4);transition:var(--transition);z-index:100;animation:fabFloat 3s ease-in-out infinite}
-    #add-btn.show{display:flex}
-    @keyframes fabFloat{0%,100%{transform:translateY(0);box-shadow:0 0 20px rgba(0,212,255,0.5),0 0 40px rgba(191,0,255,0.3),0 8px 32px rgba(0,0,0,0.4)}50%{transform:translateY(-4px);box-shadow:0 0 30px rgba(0,212,255,0.7),0 0 60px rgba(191,0,255,0.4),0 16px 40px rgba(0,0,0,0.5)}}
-    #add-btn:hover{transform:scale(1.1) rotate(90deg) !important;animation:none}
-    #add-btn:active{transform:scale(0.95) !important}
-    #install-btn{position:fixed;bottom:32px;left:24px;padding:12px 18px;border-radius:30px;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(20px);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);display:none;z-index:100;transition:var(--transition);align-items:center;gap:8px}
-    #install-btn:hover{background:var(--glass-hover);box-shadow:var(--glow-blue);color:var(--neon-blue)}
-    #install-btn.visible{display:flex}
-
-    /* MODAL */
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s ease}
-    .modal-overlay.open{opacity:1;pointer-events:all}
-    .modal{background:#0d0d1e;border:1px solid var(--glass-border);border-radius:var(--radius-xl) var(--radius-xl) 0 0;padding:28px 24px 40px;width:100%;max-width:480px;transform:translateY(100%);transition:transform .4s cubic-bezier(0.4,0,0.2,1)}
-    .light-mode .modal{background:#f0f2ff}
-    .modal-overlay.open .modal{transform:translateY(0)}
-    .modal-handle{width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:0 auto 24px}
-    .modal-title{font-family:'Orbitron',monospace;font-size:16px;letter-spacing:2px;margin-bottom:24px;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-    .form-group{margin-bottom:16px}
-    .form-label{display:block;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
-    .form-input{width:100%;padding:12px 16px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Rajdhani',sans-serif;font-size:15px;outline:none;transition:var(--transition)}
-    .light-mode .form-input{background:rgba(0,0,0,0.06);color:#1a1a2e}
-    .form-input:focus{border-color:var(--neon-blue);box-shadow:0 0 0 2px rgba(0,212,255,0.15)}
-    .color-picker{display:flex;gap:10px}
-    .color-option{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:var(--transition)}
-    .color-option.selected{border-color:#fff;transform:scale(1.2)}
-    .color-option[data-val="blue"]{background:var(--neon-blue);box-shadow:0 0 10px var(--neon-blue)}
-    .color-option[data-val="purple"]{background:var(--neon-purple);box-shadow:0 0 10px var(--neon-purple)}
-    .color-option[data-val="pink"]{background:var(--neon-pink);box-shadow:0 0 10px var(--neon-pink)}
-    .color-option[data-val="cyan"]{background:var(--neon-cyan);box-shadow:0 0 10px var(--neon-cyan)}
-    .emoji-picker{display:flex;gap:8px;flex-wrap:wrap}
-    .emoji-option{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;transition:var(--transition)}
-    .emoji-option.selected,.emoji-option:hover{background:rgba(0,212,255,0.15);border-color:var(--neon-blue);transform:scale(1.1)}
-    .modal-actions{display:flex;gap:12px;margin-top:24px}
-    .btn-cancel,.btn-add{flex:1;padding:14px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;letter-spacing:2px;text-transform:uppercase;transition:var(--transition)}
-    .btn-cancel{background:rgba(255,255,255,0.06);color:var(--text-secondary);border:1px solid var(--glass-border)}
-    .btn-cancel:hover{background:rgba(255,255,255,0.1)}
-    .btn-add{background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));color:#fff;box-shadow:0 0 20px rgba(0,212,255,0.3)}
-    .btn-add:hover{box-shadow:0 0 30px rgba(0,212,255,0.5),0 0 60px rgba(191,0,255,0.3);transform:translateY(-1px)}
-
-    /* SCENES */
-    .scenes-row{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px;margin-bottom:8px}
-    .scenes-row::-webkit-scrollbar{display:none}
-    .scene-btn{flex-shrink:0;padding:10px 16px;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(10px);border-radius:20px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-secondary);transition:var(--transition);white-space:nowrap;display:flex;align-items:center;gap:6px}
-    .scene-btn:hover{background:var(--glass-hover);color:var(--neon-blue);border-color:rgba(0,212,255,0.3);box-shadow:0 0 12px rgba(0,212,255,0.15)}
-
-    @keyframes cardEnter{from{opacity:0;transform:translateY(20px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}
-    .device-card{animation:cardEnter .4s ease-out both}
-    .device-card:nth-child(1){animation-delay:.05s} .device-card:nth-child(2){animation-delay:.1s}
-    .device-card:nth-child(3){animation-delay:.15s} .device-card:nth-child(4){animation-delay:.2s}
-
-    @media(max-width:360px){.time-display{font-size:34px}h1.app-title{font-size:22px}}
+    @media(max-width:360px) { .time-display { font-size:34px } h1.app-title { font-size:22px } }
   </style>
 </head>
 <body>
 
-  <!-- Background Orbs -->
   <div class="gradient-orb orb-1"></div>
   <div class="gradient-orb orb-2"></div>
   <div class="gradient-orb orb-3"></div>
 
-  <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- LOADING SCREEN -->
   <div id="loading-screen">
     <div class="loader-title">A5x</div>
     <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
     <div class="loader-text">Initializing Systems...</div>
   </div>
 
-  <!-- ============================================================
-       AUTH SCREEN
-  ============================================================= -->
+  <!-- AUTH SCREEN -->
   <div id="auth-screen">
     <div class="auth-card">
-
       <div class="auth-logo">
         <div class="auth-logo-title">A5x HOME</div>
         <div class="auth-logo-sub">Smart Home Dashboard</div>
       </div>
-
-      <!-- TABS -->
       <div class="auth-tabs">
         <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Login</button>
         <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Register</button>
       </div>
-
-      <!-- LOGIN PANEL -->
       <div class="auth-panel active" id="panel-login">
         <div class="auth-form-group">
           <label class="auth-label">Email</label>
@@ -309,8 +319,6 @@
           <div class="google-icon"></div>Continue with Google
         </button>
       </div>
-
-      <!-- REGISTER PANEL -->
       <div class="auth-panel" id="panel-register">
         <div class="auth-form-group">
           <label class="auth-label">Display Name</label>
@@ -348,13 +356,10 @@
           <div class="google-icon"></div>Continue with Google
         </button>
       </div>
-
     </div>
   </div>
 
-  <!-- ============================================================
-       DASHBOARD
-  ============================================================= -->
+  <!-- DASHBOARD -->
   <div id="dashboard">
     <div class="app-wrapper">
       <header>
@@ -402,19 +407,25 @@
     </div>
   </div>
 
-  <!-- FAB -->
   <button id="add-btn" title="Add Device">+</button>
-  <!-- Install -->
   <button id="install-btn">📲 Install</button>
 
   <!-- ADD DEVICE MODAL -->
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-handle"></div>
-      <div class="modal-title">Add New Device</div>
+      <div class="modal-title">Link New Device</div>
+      <div class="form-group">
+        <label class="form-label">Device Code <span style="color:var(--neon-pink)">*</span></label>
+        <input type="text" class="form-input" id="input-device-code"
+               placeholder="e.g. A5X-001" maxlength="20"
+               oninput="this.value=this.value.toUpperCase()" />
+        <div class="form-input-hint">Enter the unique code printed on your device</div>
+        <div class="form-error" id="code-error"></div>
+      </div>
       <div class="form-group">
         <label class="form-label">Device Name</label>
-        <input type="text" class="form-input" id="input-name" placeholder="e.g. Bedroom Fan" maxlength="24" />
+        <input type="text" class="form-input" id="input-name" placeholder="e.g. Bedroom Light" maxlength="24" />
       </div>
       <div class="form-group">
         <label class="form-label">Location</label>
@@ -444,24 +455,53 @@
       </div>
       <div class="modal-actions">
         <button class="btn-cancel" id="btn-cancel">Cancel</button>
-        <button class="btn-add" id="btn-add-confirm">Add Device</button>
+        <button class="btn-add" id="btn-add-confirm">Link Device</button>
       </div>
     </div>
   </div>
 
-  <!-- ============================================================
-       SCRIPT — Firebase Auth + Realtime DB
-  ============================================================= -->
+  <!-- ================================================================
+       UPGRADED FIREBASE LOGIC
+       
+       ✅ FIREBASE SECURITY RULES TO PASTE IN CONSOLE:
+       {
+         "rules": {
+           "devices": {
+             "$deviceId": {
+               ".read":  "auth != null && data.child('owner').val() === auth.uid",
+               ".write": "auth != null && (
+                           (!data.exists() && newData.child('owner').val() === auth.uid) ||
+                           (data.child('owner').val() === auth.uid)
+                         )"
+             }
+           },
+           "users": {
+             "$uid": {
+               ".read":  "auth != null && $uid === auth.uid",
+               ".write": "auth != null && $uid === auth.uid"
+             }
+           }
+         }
+       }
+       
+       ✅ ESP DEVICE READS:
+         /devices/{deviceId}/owner      → verify ownership
+         /devices/{deviceId}/controls   → read all control states
+  ================================================================ -->
   <script type="module">
-    import { initializeApp }     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getDatabase, ref, get, set, onValue, remove, runTransaction, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import {
       getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
       signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail,
       updateProfile, signOut, onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-    /* ---- CONFIG ---- */
+    /* ================================================================
+       FIREBASE CONFIG
+    ================================================================ */
     const firebaseConfig = {
       apiKey:            "AIzaSyCjPTuY4QnhRbM8ZmbcNgY49TdfS5poxZQ",
       authDomain:        "home-automation-a5x.firebaseapp.com",
@@ -477,8 +517,57 @@
     const db       = getDatabase(app);
     const provider = new GoogleAuthProvider();
 
-    /* ========== AUTH HELPERS ========== */
-    window.switchTab = function(tab) {
+    /* ================================================================
+       LISTENER REGISTRY
+       deviceCode → unsubscribe function
+       Prevents duplicate listeners and ensures clean teardown
+    ================================================================ */
+    const listenerRegistry = new Map();
+
+    function registerListener(code, unsubFn) {
+      // Always clean old listener before adding new one
+      if (listenerRegistry.has(code)) {
+        try { listenerRegistry.get(code)(); } catch(_) {}
+      }
+      listenerRegistry.set(code, unsubFn);
+    }
+
+    function removeListener(code) {
+      if (listenerRegistry.has(code)) {
+        try { listenerRegistry.get(code)(); } catch(_) {}
+        listenerRegistry.delete(code);
+      }
+    }
+
+    function removeAllListeners() {
+      listenerRegistry.forEach((unsub, code) => {
+        try { unsub(); } catch(_) {}
+      });
+      listenerRegistry.clear();
+    }
+
+    /* ================================================================
+       CONTROL ICON MAP
+       Maps Firebase control key → emoji + display label
+    ================================================================ */
+    const CONTROL_META = {
+      light:  { icon: "💡", label: "Light"  },
+      fan:    { icon: "🌀", label: "Fan"    },
+      motor:  { icon: "⚙️", label: "Motor"  },
+      ac:     { icon: "❄️", label: "AC"     },
+      tv:     { icon: "📺", label: "TV"     },
+      pump:   { icon: "🚿", label: "Pump"   },
+      plug:   { icon: "🔌", label: "Plug"   },
+    };
+
+    function getControlMeta(key) {
+      return CONTROL_META[key] || { icon: "🔘", label: key.charAt(0).toUpperCase() + key.slice(1) };
+    }
+
+    /* ================================================================
+       AUTH HELPERS
+    ================================================================ */
+    window.switchTab = (tab) => {
       ["login","register"].forEach(t => {
         document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
         document.getElementById(`panel-${t}`).classList.toggle("active", t === tab);
@@ -486,12 +575,14 @@
       clearErrors();
     };
 
-    function clearErrors() {
-      document.getElementById("login-error").textContent = "";
+    const clearErrors = () => {
+      document.getElementById("login-error").textContent    = "";
       document.getElementById("register-error").textContent = "";
-    }
+    };
 
-    function setAuthError(panel, msg) { document.getElementById(`${panel}-error`).textContent = msg; }
+    const setAuthError = (panel, msg) => {
+      document.getElementById(`${panel}-error`).textContent = msg;
+    };
 
     function setLoading(id, on) {
       const btn = document.getElementById(id);
@@ -501,14 +592,13 @@
         : id === "btn-login" ? "Login" : "Create Account";
     }
 
-    window.togglePass = function(id, btn) {
+    window.togglePass = (id, btn) => {
       const el = document.getElementById(id);
-      el.type = el.type === "password" ? "text" : "password";
+      el.type  = el.type === "password" ? "text" : "password";
       btn.textContent = el.type === "password" ? "👁️" : "🙈";
     };
 
-    /* LOGIN */
-    window.doLogin = async function() {
+    window.doLogin = async () => {
       const email = document.getElementById("login-email").value.trim();
       const pass  = document.getElementById("login-password").value;
       clearErrors();
@@ -522,8 +612,7 @@
       }
     };
 
-    /* REGISTER */
-    window.doRegister = async function() {
+    window.doRegister = async () => {
       const name  = document.getElementById("reg-name").value.trim();
       const email = document.getElementById("reg-email").value.trim();
       const pass  = document.getElementById("reg-password").value;
@@ -543,8 +632,7 @@
       }
     };
 
-    /* GOOGLE */
-    window.doGoogleLogin = async function() {
+    window.doGoogleLogin = async () => {
       clearErrors();
       try { await signInWithPopup(auth, provider); }
       catch(e) {
@@ -553,284 +641,724 @@
       }
     };
 
-    /* FORGOT */
-    window.forgotPassword = async function() {
+    window.forgotPassword = async () => {
       const email = document.getElementById("login-email").value.trim();
       if (!email) { setAuthError("login","⚠ Enter your email above first"); return; }
       try { await sendPasswordResetEmail(auth, email); showToast("📧 Reset email sent!"); }
       catch(e) { setAuthError("login", friendlyError(e.code)); }
     };
 
-    /* LOGOUT */
-    window.doLogout = async function() { await signOut(auth); showToast("👋 Logged out"); };
+    window.doLogout = async () => {
+      removeAllListeners();
+      await signOut(auth);
+      showToast("👋 Logged out");
+    };
 
-    /* FRIENDLY ERRORS */
-    function friendlyError(code) {
-      return {
-        "auth/invalid-email":        "⚠ Invalid email address",
-        "auth/user-not-found":       "⚠ No account with this email",
-        "auth/wrong-password":       "⚠ Incorrect password",
-        "auth/invalid-credential":   "⚠ Incorrect email or password",
-        "auth/email-already-in-use": "⚠ Email already registered",
-        "auth/weak-password":        "⚠ Password too weak (min 6 chars)",
-        "auth/too-many-requests":    "⚠ Too many attempts. Try later",
-        "auth/popup-closed-by-user": "",
-        "auth/network-request-failed":"⚠ Network error. Check connection",
-      }[code] || `⚠ Error: ${code}`;
-    }
+    const friendlyError = (code) => ({
+      "auth/invalid-email":         "⚠ Invalid email address",
+      "auth/user-not-found":        "⚠ No account with this email",
+      "auth/wrong-password":        "⚠ Incorrect password",
+      "auth/invalid-credential":    "⚠ Incorrect email or password",
+      "auth/email-already-in-use":  "⚠ Email already registered",
+      "auth/weak-password":         "⚠ Password too weak (min 6 chars)",
+      "auth/too-many-requests":     "⚠ Too many attempts. Try later",
+      "auth/popup-closed-by-user":  "",
+      "auth/network-request-failed":"⚠ Network error. Check connection",
+    })[code] || `⚠ Error: ${code}`;
 
-    /* ENTER KEY SHORTCUTS */
+    // Enter key shortcuts
     document.getElementById("login-password").addEventListener("keydown", e => { if(e.key==="Enter") window.doLogin(); });
     document.getElementById("login-email").addEventListener("keydown",    e => { if(e.key==="Enter") document.getElementById("login-password").focus(); });
     document.getElementById("reg-confirm").addEventListener("keydown",    e => { if(e.key==="Enter") window.doRegister(); });
 
-    /* ========== AUTH STATE ========== */
-    onAuthStateChanged(auth, (user) => {
+    /* ================================================================
+       AUTH STATE OBSERVER
+    ================================================================ */
+    onAuthStateChanged(auth, async (user) => {
       if (user) {
         document.getElementById("auth-screen").classList.remove("visible");
         document.getElementById("dashboard").classList.add("visible");
         document.getElementById("add-btn").classList.add("show");
 
         const initials = (user.displayName || user.email || "U")
-          .split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);
+          .split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
         document.getElementById("user-avatar").textContent = initials;
 
         const firstName = (user.displayName || user.email || "").split(" ")[0].split("@")[0];
         showToast(`👋 Welcome, ${firstName}!`);
-        initDashboard(user);
+        setStatus(true);
+        await loadUserDevices(user.uid);
       } else {
         document.getElementById("auth-screen").classList.add("visible");
         document.getElementById("dashboard").classList.remove("visible");
         document.getElementById("add-btn").classList.remove("show");
+        document.getElementById("devices-grid").innerHTML = "";
         setLoading("btn-login", false);
         setLoading("btn-register", false);
         setStatus(false);
+        refreshStats([]);
       }
     });
 
-    /* ========== DASHBOARD ========== */
-    let devices = [];
+    /* ================================================================
+       LOAD USER DEVICES
+       Single batched read: /users/{uid}/devices → codes
+       Then parallel fetch for each device metadata
+       (Avoids N+1 sequential reads)
+    ================================================================ */
+    async function loadUserDevices(uid) {
+      const grid = document.getElementById("devices-grid");
+      grid.innerHTML = `
+        <div class="devices-loading">
+          <div class="devices-loading-dot"></div>
+          <div class="devices-loading-dot"></div>
+          <div class="devices-loading-dot"></div>
+        </div>`;
 
-    function initDashboard(user) {
-      setStatus(true);
-      devices = [
-        { id:"light1", name:"Light 1", location:"Living Room", icon:"💡", color:"blue",   state:0, fbPath:"/home/devices/light1/state" },
-        { id:"light2", name:"Light 2", location:"Bedroom",     icon:"💡", color:"purple", state:0, fbPath:"/home/devices/light2/state" },
-      ];
+      try {
+        const userDevicesSnap = await get(ref(db, `users/${uid}/devices`));
 
-      const saved = localStorage.getItem(`a5x_devices_${user.uid}`);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          const extra  = parsed.filter(d => !["light1","light2"].includes(d.id));
-          devices = [...devices, ...extra];
-        } catch(e) {}
+        if (!userDevicesSnap.exists() || !userDevicesSnap.val()) {
+          renderNoDevices();
+          refreshStats([]);
+          return;
+        }
+
+        const deviceCodes = Object.keys(userDevicesSnap.val());
+
+        // Parallel fetch — one get() call per device (concurrent, not sequential)
+        const fetches = deviceCodes.map(code =>
+          get(ref(db, `devices/${code}`)).then(snap => ({ code, snap }))
+        );
+        const results = await Promise.all(fetches);
+
+        // Filter: only show devices this user owns
+        const deviceMetas = {};
+        results.forEach(({ code, snap }) => {
+          if (snap.exists()) {
+            const data = snap.val();
+            if (data.owner === uid) {
+              deviceMetas[code] = data;
+            }
+          }
+        });
+
+        renderAllDevices(uid, deviceMetas);
+
+      } catch(e) {
+        console.error("loadUserDevices error:", e);
+        const isPermission = e.code === "PERMISSION_DENIED";
+        grid.innerHTML = `
+          <div class="no-devices">
+            <div class="no-devices-icon">⚠️</div>
+            <div class="no-devices-title">${isPermission ? "Permission Denied" : "Failed to Load"}</div>
+            <div class="no-devices-sub">${isPermission ? "Check Firebase security rules" : e.message}</div>
+          </div>`;
       }
-
-      renderDevices();
-      setupListeners();
     }
 
-    function setupListeners() {
-      devices.forEach(d => {
-        if (!d.fbPath) return;
-        onValue(ref(db, d.fbPath), snap => {
-          const v = Number(snap.val());
-          if (v===0||v===1) { d.state=v; updateCardUI(d.id,v); refreshStats(); }
+    /* ================================================================
+       RENDER ALL DEVICE CARDS
+    ================================================================ */
+    function renderAllDevices(uid, deviceMetas) {
+      const grid = document.getElementById("devices-grid");
+      grid.innerHTML = "";
+
+      const codes = Object.keys(deviceMetas);
+      if (codes.length === 0) {
+        renderNoDevices();
+        refreshStats([]);
+        return;
+      }
+
+      codes.forEach((code, i) => {
+        const meta     = deviceMetas[code];
+        const controls = meta.controls || { light: 0 }; // default fallback
+
+        const displayName = meta.displayName || code;
+        const location    = meta.location    || "Home";
+        const icon        = meta.icon        || "💡";
+        const color       = meta.color       || "blue";
+        const controlKeys = Object.keys(controls);
+        const isMulti     = controlKeys.length > 1;
+
+        const card = createDeviceCard({ code, displayName, location, icon, color, controls, isMulti }, i);
+        grid.appendChild(card);
+
+        // Set up ONE realtime listener per device for the full controls node
+        setupDeviceListener(uid, code, color);
+      });
+
+      refreshStatsFromDOM();
+    }
+
+    /* ================================================================
+       CREATE A SINGLE DEVICE CARD — multi-control aware
+    ================================================================ */
+    function createDeviceCard({ code, displayName, location, icon, color, controls, isMulti }, index) {
+      const card = document.createElement("div");
+      const anyOn = Object.values(controls).some(v => Number(v) === 1);
+
+      card.className = `device-card${anyOn ? " any-on" : ""}${isMulti ? " multi-control" : ""}`;
+      card.setAttribute("data-color", color);
+      card.setAttribute("data-id", code);
+      card.style.animationDelay = `${index * 0.05}s`;
+
+      // Build controls HTML
+      const controlsHTML = Object.entries(controls).map(([key, val]) => {
+        const state = Number(val) === 1;
+        const meta  = getControlMeta(key);
+        return `
+          <div class="control-row${state ? " ctrl-on" : ""}"
+               data-code="${code}" data-key="${key}" data-ctrl-color="${color}">
+            <div class="control-label">
+              <span class="control-icon">${meta.icon}</span>
+              ${meta.label}
+            </div>
+            <div class="control-right">
+              <span class="control-status">${state ? "ON" : "OFF"}</span>
+              <div class="toggle-switch" role="switch" aria-checked="${state}">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>`;
+      }).join("");
+
+      card.innerHTML = `
+        <button class="device-delete-btn" title="Remove device" data-code="${code}">✕</button>
+        <div class="device-glow"></div>
+        <div class="device-icon-wrap">${icon}</div>
+        <div class="device-name">${displayName}</div>
+        <div class="device-location">${location}</div>
+        <div class="controls-list">${controlsHTML}</div>`;
+
+      // Attach toggle handlers to each control row
+      card.querySelectorAll(".control-row").forEach(row => {
+        row.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const c = row.getAttribute("data-code");
+          const k = row.getAttribute("data-key");
+          createRipple(e, row);
+          toggleControl(c, k);
+        });
+      });
+
+      // Delete handler
+      card.querySelector(".device-delete-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeDevice(code);
+      });
+
+      return card;
+    }
+
+    /* ================================================================
+       REALTIME LISTENER — /devices/{code}/controls
+       Listens to the ENTIRE controls node so all keys update together
+    ================================================================ */
+    function setupDeviceListener(uid, code, color) {
+      const controlsRef = ref(db, `devices/${code}/controls`);
+
+      const unsub = onValue(controlsRef, (snap) => {
+        if (!snap.exists()) return;
+        const controls = snap.val();
+        updateCardControls(code, controls, color);
+      }, (err) => {
+        console.warn(`Listener error [${code}]:`, err.code);
+        if (err.code === "PERMISSION_DENIED") {
+          showToast(`⚠ Permission denied for ${code}`);
+        }
+      });
+
+      registerListener(code, unsub);
+    }
+
+    /* ================================================================
+       UPDATE CARD CONTROLS (called from realtime listener)
+       Updates every control row and the card-level any-on state
+    ================================================================ */
+    function updateCardControls(code, controls, color) {
+      const card = document.querySelector(`[data-id="${code}"]`);
+      if (!card) return;
+
+      const anyOn = Object.values(controls).some(v => Number(v) === 1);
+      card.classList.toggle("any-on", anyOn);
+
+      Object.entries(controls).forEach(([key, val]) => {
+        const state = Number(val) === 1;
+        const row   = card.querySelector(`.control-row[data-key="${key}"]`);
+
+        if (row) {
+          // Existing row — update in-place
+          row.classList.toggle("ctrl-on", state);
+          const statusEl = row.querySelector(".control-status");
+          const switchEl = row.querySelector(".toggle-switch");
+          if (statusEl) statusEl.textContent = state ? "ON" : "OFF";
+          if (switchEl) switchEl.setAttribute("aria-checked", state);
+        } else {
+          // New control appeared (device firmware update) — rebuild card
+          rebuildCardControls(code, controls, color);
+        }
+      });
+
+      refreshStatsFromDOM();
+    }
+
+    /* ================================================================
+       REBUILD CONTROLS LIST (when new control keys appear dynamically)
+    ================================================================ */
+    function rebuildCardControls(code, controls, color) {
+      const card = document.querySelector(`[data-id="${code}"]`);
+      if (!card) return;
+
+      const list = card.querySelector(".controls-list");
+      if (!list) return;
+
+      const isMulti = Object.keys(controls).length > 1;
+      card.classList.toggle("multi-control", isMulti);
+
+      list.innerHTML = Object.entries(controls).map(([key, val]) => {
+        const state = Number(val) === 1;
+        const meta  = getControlMeta(key);
+        return `
+          <div class="control-row${state ? " ctrl-on" : ""}"
+               data-code="${code}" data-key="${key}" data-ctrl-color="${color}">
+            <div class="control-label">
+              <span class="control-icon">${meta.icon}</span>
+              ${meta.label}
+            </div>
+            <div class="control-right">
+              <span class="control-status">${state ? "ON" : "OFF"}</span>
+              <div class="toggle-switch" role="switch" aria-checked="${state}">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>`;
+      }).join("");
+
+      // Re-attach click handlers
+      list.querySelectorAll(".control-row").forEach(row => {
+        row.addEventListener("click", (e) => {
+          e.stopPropagation();
+          createRipple(e, row);
+          toggleControl(row.getAttribute("data-code"), row.getAttribute("data-key"));
         });
       });
     }
 
-    window.toggleDevice = function(id) {
-      const d = devices.find(x=>x.id===id);
-      if (!d) return;
-      const s = d.state===1 ? 0 : 1;
-      d.state = s;
+    /* ================================================================
+       TOGGLE A SINGLE CONTROL
+       Writes ONLY the specific key: /devices/{code}/controls/{key}
+       Uses optimistic UI + rollback on error
+    ================================================================ */
+    window.toggleControl = function(code, key) {
+      const card = document.querySelector(`[data-id="${code}"]`);
+      if (!card) return;
+
+      const row = card.querySelector(`.control-row[data-key="${key}"]`);
+      if (!row) return;
+
+      const currentState = row.classList.contains("ctrl-on") ? 1 : 0;
+      const newState     = currentState === 1 ? 0 : 1;
+      const meta         = getControlMeta(key);
+      const deviceName   = card.querySelector(".device-name")?.textContent || code;
+
       playClick();
-      if (d.fbPath) {
-        set(ref(db, d.fbPath), s)
-          .then(()=>showToast(`${d.name} ${s?'ON ✦':'OFF'}`))
-          .catch(()=>showToast("Write failed — local only"));
-      } else {
-        showToast(`${d.name} ${s?'ON ✦':'OFF'}`);
-      }
-      updateCardUI(id,s); refreshStats(); saveLocal();
+
+      // Optimistic update
+      row.classList.toggle("ctrl-on", newState === 1);
+      const statusEl = row.querySelector(".control-status");
+      if (statusEl) statusEl.textContent = newState ? "ON" : "OFF";
+
+      // Update card any-on state
+      const anyOn = [...card.querySelectorAll(".control-row")].some(r => r.classList.contains("ctrl-on"));
+      card.classList.toggle("any-on", anyOn);
+      refreshStatsFromDOM();
+
+      // Write to Firebase — only the specific control key
+      set(ref(db, `devices/${code}/controls/${key}`), newState)
+        .then(() => {
+          showToast(`${meta.icon} ${deviceName} — ${meta.label} ${newState ? "ON" : "OFF"}`);
+        })
+        .catch((err) => {
+          // Rollback
+          row.classList.toggle("ctrl-on", currentState === 1);
+          if (statusEl) statusEl.textContent = currentState ? "ON" : "OFF";
+          const rollbackAnyOn = [...card.querySelectorAll(".control-row")].some(r => r.classList.contains("ctrl-on"));
+          card.classList.toggle("any-on", rollbackAnyOn);
+          refreshStatsFromDOM();
+
+          const isPermission = err.code === "PERMISSION_DENIED";
+          showToast(isPermission
+            ? `⚠ Permission denied — check ownership`
+            : `⚠ Write failed: ${err.code || err.message}`
+          );
+        });
     };
 
-    function renderDevices() {
-      const grid = document.getElementById("devices-grid");
-      grid.innerHTML = "";
-      devices.forEach((d,i) => {
-        const card = document.createElement("div");
-        card.className = `device-card${d.state?" on":""}`;
-        card.setAttribute("data-color", d.color);
-        card.setAttribute("data-id", d.id);
-        card.style.animationDelay = `${i*.05}s`;
-        card.innerHTML = `
-          <div class="device-glow"></div>
-          <div class="device-icon-wrap">${d.icon}</div>
-          <div class="device-name">${d.name}</div>
-          <div class="device-location">${d.location}</div>
-          <div class="toggle-wrap">
-            <span class="toggle-status">${d.state?"ON":"OFF"}</span>
-            <div class="toggle-switch"><div class="toggle-thumb"></div></div>
-          </div>`;
-        card.addEventListener("click", e => { createRipple(e,card); toggleDevice(d.id); });
-        grid.appendChild(card);
-      });
-      refreshStats();
-    }
-
-    function updateCardUI(id, state) {
-      const card = document.querySelector(`[data-id="${id}"]`);
-      if (!card) return;
-      state ? card.classList.add("on") : card.classList.remove("on");
-      const s = card.querySelector(".toggle-status");
-      if (s) s.textContent = state?"ON":"OFF";
-    }
-
-    function refreshStats() {
-      const total  = devices.length;
-      const active = devices.filter(d=>d.state===1).length;
+    /* ================================================================
+       STATS
+    ================================================================ */
+    function refreshStats(stateValues) {
+      const total  = stateValues.length;
+      const active = stateValues.filter(v => v === 1).length;
       document.getElementById("stat-total").textContent   = total;
       document.getElementById("stat-on").textContent      = active;
       document.getElementById("device-count").textContent = `${active} Online`;
     }
 
-    window.setScene = function(scene) {
-      if (scene==="movie") {
-        devices.forEach(d=>{const s=d.id==="light2"?1:0;d.state=s;if(d.fbPath)set(ref(db,d.fbPath),s);updateCardUI(d.id,s);});
-        showToast("🎬 Movie Mode"); saveLocal(); refreshStats(); return;
-      }
-      const t = scene==="all-on"?1:0;
-      devices.forEach(d=>{d.state=t;if(d.fbPath)set(ref(db,d.fbPath),t);updateCardUI(d.id,t);});
-      showToast(t?"☀️ All Lights On":"🌙 All Lights Off");
-      saveLocal(); refreshStats();
-    };
-
-    function saveLocal() {
-      const u = auth.currentUser;
-      if (u) localStorage.setItem(`a5x_devices_${u.uid}`, JSON.stringify(devices));
+    function refreshStatsFromDOM() {
+      const cards  = document.querySelectorAll(".device-card");
+      const total  = cards.length;
+      const active = [...cards].filter(c => c.classList.contains("any-on")).length;
+      document.getElementById("stat-total").textContent   = total;
+      document.getElementById("stat-on").textContent      = active;
+      document.getElementById("device-count").textContent = `${active} Online`;
     }
 
-    function setStatus(ok) {
-      const dot=document.getElementById("status-dot"), txt=document.getElementById("status-text");
-      if(!dot||!txt) return;
-      dot.className = ok?"status-dot connected":"status-dot offline";
-      txt.textContent = ok?"Connected":"Offline";
+    /* ================================================================
+       NO DEVICES STATE
+    ================================================================ */
+    function renderNoDevices() {
+      document.getElementById("devices-grid").innerHTML = `
+        <div class="no-devices">
+          <div class="no-devices-icon">📡</div>
+          <div class="no-devices-title">No Devices Linked</div>
+          <div class="no-devices-sub">Tap + to link your first device</div>
+        </div>`;
     }
 
-    /* -------- ADD DEVICE MODAL -------- */
-    let selEmoji="💡", selColor="blue";
+    /* ================================================================
+       ADD DEVICE MODAL
+       SECURE ATOMIC CLAIM using runTransaction()
+       Prevents race conditions — only one user can claim a device
+    ================================================================ */
+    let selEmoji = "💡";
+    let selColor = "blue";
 
-    document.querySelectorAll(".emoji-option").forEach(o=>{
-      o.addEventListener("click",()=>{
-        document.querySelectorAll(".emoji-option").forEach(x=>x.classList.remove("selected"));
-        o.classList.add("selected"); selEmoji=o.dataset.emoji;
+    document.querySelectorAll(".emoji-option").forEach(o => {
+      o.addEventListener("click", () => {
+        document.querySelectorAll(".emoji-option").forEach(x => x.classList.remove("selected"));
+        o.classList.add("selected"); selEmoji = o.dataset.emoji;
       });
     });
 
-    document.querySelectorAll(".color-option").forEach(o=>{
-      o.addEventListener("click",()=>{
-        document.querySelectorAll(".color-option").forEach(x=>x.classList.remove("selected"));
-        o.classList.add("selected"); selColor=o.dataset.val;
+    document.querySelectorAll(".color-option").forEach(o => {
+      o.addEventListener("click", () => {
+        document.querySelectorAll(".color-option").forEach(x => x.classList.remove("selected"));
+        o.classList.add("selected"); selColor = o.dataset.val;
       });
     });
 
-    document.getElementById("add-btn").addEventListener("click",()=>document.getElementById("modal-overlay").classList.add("open"));
+    document.getElementById("add-btn").addEventListener("click", () => {
+      document.getElementById("modal-overlay").classList.add("open");
+      document.getElementById("code-error").textContent = "";
+    });
+
     document.getElementById("btn-cancel").addEventListener("click", closeModal);
-    document.getElementById("modal-overlay").addEventListener("click",e=>{if(e.target===document.getElementById("modal-overlay"))closeModal();});
-    function closeModal(){document.getElementById("modal-overlay").classList.remove("open")}
-
-    document.getElementById("btn-add-confirm").addEventListener("click",()=>{
-      const name = document.getElementById("input-name").value.trim();
-      const loc  = document.getElementById("input-location").value.trim()||"Home";
-      if(!name){document.getElementById("input-name").focus();return;}
-      const id = "device_"+Date.now();
-      const nd = {id,name,location:loc,icon:selEmoji,color:selColor,state:0,fbPath:`/home/devices/${id}/state`};
-      devices.push(nd); saveLocal(); renderDevices();
-      onValue(ref(db,nd.fbPath),snap=>{const v=Number(snap.val());if(v===0||v===1){nd.state=v;updateCardUI(nd.id,v);refreshStats();}});
-      closeModal();
-      document.getElementById("input-name").value="";
-      document.getElementById("input-location").value="";
-      showToast(`${nd.icon} ${name} added!`);
+    document.getElementById("modal-overlay").addEventListener("click", e => {
+      if (e.target === document.getElementById("modal-overlay")) closeModal();
     });
 
-    /* -------- THEME -------- */
-    let darkMode=true;
-    document.getElementById("theme-btn").addEventListener("click",()=>{
-      darkMode=!darkMode;
-      document.body.classList.toggle("light-mode",!darkMode);
-      document.getElementById("theme-btn").textContent=darkMode?"🌙":"☀️";
-      showToast(darkMode?"🌙 Dark Mode":"☀️ Light Mode");
+    function closeModal() {
+      document.getElementById("modal-overlay").classList.remove("open");
+      document.getElementById("input-device-code").value = "";
+      document.getElementById("input-name").value        = "";
+      document.getElementById("input-location").value    = "";
+      document.getElementById("code-error").textContent  = "";
+    }
+
+    document.getElementById("btn-add-confirm").addEventListener("click", async () => {
+      const user       = auth.currentUser;
+      const deviceCode = document.getElementById("input-device-code").value.trim().toUpperCase();
+      const dispName   = document.getElementById("input-name").value.trim() || deviceCode;
+      const location   = document.getElementById("input-location").value.trim() || "Home";
+      const codeErr    = document.getElementById("code-error");
+
+      codeErr.textContent = "";
+
+      if (!deviceCode) {
+        codeErr.textContent = "⚠ Device code is required";
+        return;
+      }
+
+      const addBtn = document.getElementById("btn-add-confirm");
+      addBtn.disabled = true;
+      addBtn.innerHTML = `<span class="btn-spinner"></span> Checking...`;
+
+      try {
+        // ── Step 1: Verify device exists ─────────────────────────────
+        const deviceSnap = await get(ref(db, `devices/${deviceCode}`));
+
+        if (!deviceSnap.exists()) {
+          codeErr.textContent = "⚠ Invalid device code. Device not registered.";
+          resetAddBtn(); return;
+        }
+
+        const deviceData = deviceSnap.val();
+
+        // ── Step 2: Pre-check ownership (fast read) ───────────────────
+        if (deviceData.owner && deviceData.owner !== null && deviceData.owner !== "") {
+          codeErr.textContent = deviceData.owner === user.uid
+            ? "⚠ This device is already linked to your account."
+            : "⚠ Device already claimed by another account.";
+          resetAddBtn(); return;
+        }
+
+        // ── Step 3: ATOMIC CLAIM via transaction ──────────────────────
+        // runTransaction ensures only ONE user wins the race condition
+        addBtn.innerHTML = `<span class="btn-spinner"></span> Claiming...`;
+
+        let claimSuccess = false;
+
+        await runTransaction(ref(db, `devices/${deviceCode}/owner`), (currentOwner) => {
+          if (currentOwner !== null && currentOwner !== undefined && currentOwner !== "") {
+            // Already claimed — abort transaction
+            return; // returning undefined = abort
+          }
+          // Not claimed — set our uid atomically
+          claimSuccess = true;
+          return user.uid;
+        });
+
+        if (!claimSuccess) {
+          codeErr.textContent = "⚠ Device was just claimed by another user. Try a different code.";
+          resetAddBtn(); return;
+        }
+
+        // ── Step 4: Write display metadata ───────────────────────────
+        addBtn.innerHTML = `<span class="btn-spinner"></span> Linking...`;
+
+        const metaWrites = [
+          set(ref(db, `devices/${deviceCode}/displayName`), dispName),
+          set(ref(db, `devices/${deviceCode}/location`),    location),
+          set(ref(db, `devices/${deviceCode}/icon`),        selEmoji),
+          set(ref(db, `devices/${deviceCode}/color`),       selColor),
+          set(ref(db, `users/${user.uid}/devices/${deviceCode}`), true),
+        ];
+
+        // Init controls node only if missing
+        if (!deviceData.controls) {
+          metaWrites.push(set(ref(db, `devices/${deviceCode}/controls/light`), 0));
+        }
+
+        await Promise.all(metaWrites);
+
+        showToast(`${selEmoji} ${dispName} linked!`);
+        closeModal();
+        resetAddBtn();
+        await loadUserDevices(user.uid);
+
+      } catch(err) {
+        console.error("addDevice error:", err);
+        const isPermission = err.code === "PERMISSION_DENIED";
+        codeErr.textContent = isPermission
+          ? "⚠ Permission denied. Device may be owned by another account."
+          : `⚠ Error: ${err.message}`;
+        resetAddBtn();
+      }
     });
 
-    /* -------- CLOCK -------- */
-    function updateClock(){
-      const n=new Date();
-      document.getElementById("clock").textContent=`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
-      const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-      const mon=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      document.getElementById("date-display").textContent=`${days[n.getDay()]}, ${mon[n.getMonth()]} ${n.getDate()}`;
-      const hr=n.getHours();
-      document.getElementById("greeting").textContent=hr<12?"Good Morning":hr<17?"Good Afternoon":"Good Evening";
-    }
-    setInterval(updateClock,1000); updateClock();
-
-    /* -------- RIPPLE + SOUND -------- */
-    function createRipple(e,el){
-      const r=document.createElement("div"); r.className="ripple";
-      const rect=el.getBoundingClientRect(), sz=Math.max(rect.width,rect.height);
-      r.style.cssText=`width:${sz}px;height:${sz}px;left:${e.clientX-rect.left-sz/2}px;top:${e.clientY-rect.top-sz/2}px;`;
-      el.appendChild(r); setTimeout(()=>r.remove(),600);
+    function resetAddBtn() {
+      const btn = document.getElementById("btn-add-confirm");
+      btn.disabled = false;
+      btn.innerHTML = "Link Device";
     }
 
-    function playClick(){
-      try{
-        const ctx=new(window.AudioContext||window.webkitAudioContext)();
-        const o=ctx.createOscillator(), g=ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type="sine";
-        o.frequency.setValueAtTime(800,ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(400,ctx.currentTime+.1);
-        g.gain.setValueAtTime(.08,ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);
-        o.start(); o.stop(ctx.currentTime+.15);
-      }catch(e){}
-    }
+    /* ================================================================
+       REMOVE DEVICE
+       - Cleans up listener
+       - Removes from user list
+       - Clears owner (makes device re-claimable by others)
+       - Clears display metadata
+    ================================================================ */
+    window.removeDevice = async function(code) {
+      const user = auth.currentUser;
+      if (!user) return;
 
-    /* -------- TOAST -------- */
-    let toastTmr;
-    window.showToast = function(msg){
-      const t=document.getElementById("toast");
-      t.textContent=msg; t.classList.add("show");
-      clearTimeout(toastTmr);
-      toastTmr=setTimeout(()=>t.classList.remove("show"),2200);
+      const card     = document.querySelector(`[data-id="${code}"]`);
+      const name     = card?.querySelector(".device-name")?.textContent || code;
+
+      if (!confirm(`Remove "${name}" from your account?`)) return;
+
+      try {
+        // Stop listener first
+        removeListener(code);
+
+        // Parallel removes/clears
+        await Promise.all([
+          remove(ref(db, `users/${user.uid}/devices/${code}`)),
+          set(ref(db, `devices/${code}/owner`),       null),
+          set(ref(db, `devices/${code}/displayName`), null),
+          set(ref(db, `devices/${code}/location`),    null),
+          set(ref(db, `devices/${code}/icon`),        null),
+          set(ref(db, `devices/${code}/color`),       null),
+        ]);
+
+        showToast(`🗑 ${name} removed`);
+
+        // Remove card from DOM
+        if (card) card.remove();
+        refreshStatsFromDOM();
+
+        if (document.querySelectorAll(".device-card").length === 0) {
+          renderNoDevices();
+          refreshStats([]);
+        }
+
+      } catch(err) {
+        const isPermission = err.code === "PERMISSION_DENIED";
+        showToast(isPermission
+          ? `⚠ Permission denied — you don't own this device`
+          : `⚠ Remove failed: ${err.message}`
+        );
+      }
     };
 
-    /* -------- PWA -------- */
+    /* ================================================================
+       SCENE CONTROLS
+       Updates ALL controls for ALL devices based on scene
+    ================================================================ */
+    window.setScene = function(scene) {
+      const user  = auth.currentUser;
+      const cards = document.querySelectorAll(".device-card");
+      if (!user || cards.length === 0) { showToast("⚠ No devices linked"); return; }
+
+      const writes = [];
+
+      cards.forEach(card => {
+        const code        = card.getAttribute("data-id");
+        const controlRows = card.querySelectorAll(".control-row");
+
+        controlRows.forEach(row => {
+          const key = row.getAttribute("data-key");
+          let targetState;
+
+          if (scene === "all-on")  targetState = 1;
+          else if (scene === "all-off") targetState = 0;
+          else if (scene === "sleep") {
+            // Sleep: only lights off, keep fans on if active
+            targetState = key === "light" ? 0 : (row.classList.contains("ctrl-on") ? 1 : 0);
+          } else if (scene === "movie") {
+            // Movie: lights low (off), fans on
+            targetState = key === "fan" ? 1 : (key === "light" ? 0 : 1);
+          } else {
+            targetState = 0;
+          }
+
+          writes.push(set(ref(db, `devices/${code}/controls/${key}`), targetState));
+        });
+      });
+
+      const labels = { "all-on": "☀️ All On", "all-off": "🌙 All Off", "movie": "🎬 Movie Mode", "sleep": "😴 Sleep Mode" };
+      showToast(labels[scene] || "Scene activated");
+
+      Promise.all(writes).catch(err => showToast(`⚠ Scene error: ${err.code || err.message}`));
+    };
+
+    /* ================================================================
+       STATUS BADGE
+    ================================================================ */
+    function setStatus(ok) {
+      const dot = document.getElementById("status-dot");
+      const txt = document.getElementById("status-text");
+      if (!dot || !txt) return;
+      dot.className   = ok ? "status-dot connected" : "status-dot offline";
+      txt.textContent = ok ? "Connected" : "Offline";
+    }
+
+    // Monitor network connectivity
+    window.addEventListener("online",  () => setStatus(true));
+    window.addEventListener("offline", () => { setStatus(false); showToast("⚠ Network offline"); });
+
+    /* ================================================================
+       THEME TOGGLE
+    ================================================================ */
+    let darkMode = true;
+    document.getElementById("theme-btn").addEventListener("click", () => {
+      darkMode = !darkMode;
+      document.body.classList.toggle("light-mode", !darkMode);
+      document.getElementById("theme-btn").textContent = darkMode ? "🌙" : "☀️";
+      showToast(darkMode ? "🌙 Dark Mode" : "☀️ Light Mode");
+    });
+
+    /* ================================================================
+       CLOCK
+    ================================================================ */
+    function updateClock() {
+      const n = new Date();
+      document.getElementById("clock").textContent = `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
+      const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const mon  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      document.getElementById("date-display").textContent = `${days[n.getDay()]}, ${mon[n.getMonth()]} ${n.getDate()}`;
+      const hr = n.getHours();
+      document.getElementById("greeting").textContent = hr < 12 ? "Good Morning" : hr < 17 ? "Good Afternoon" : "Good Evening";
+    }
+    setInterval(updateClock, 1000); updateClock();
+
+    /* ================================================================
+       RIPPLE + SOUND
+    ================================================================ */
+    function createRipple(e, el) {
+      const r    = document.createElement("div");
+      r.className = "ripple";
+      const rect = el.getBoundingClientRect(), sz = Math.max(rect.width, rect.height);
+      r.style.cssText = `width:${sz}px;height:${sz}px;left:${e.clientX-rect.left-sz/2}px;top:${e.clientY-rect.top-sz/2}px;`;
+      el.appendChild(r); setTimeout(() => r.remove(), 600);
+    }
+
+    function playClick() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine";
+        o.frequency.setValueAtTime(800, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + .1);
+        g.gain.setValueAtTime(.08, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .15);
+        o.start(); o.stop(ctx.currentTime + .15);
+      } catch(_) {}
+    }
+
+    /* ================================================================
+       TOAST
+    ================================================================ */
+    let toastTmr;
+    window.showToast = function(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.classList.add("show");
+      clearTimeout(toastTmr);
+      toastTmr = setTimeout(() => t.classList.remove("show"), 2600);
+    };
+
+    /* ================================================================
+       PWA INSTALL
+    ================================================================ */
     let deferredPrompt;
-    window.addEventListener("beforeinstallprompt",e=>{
-      e.preventDefault(); deferredPrompt=e;
+    window.addEventListener("beforeinstallprompt", e => {
+      e.preventDefault(); deferredPrompt = e;
       document.getElementById("install-btn").classList.add("visible");
     });
-    document.getElementById("install-btn").addEventListener("click",async()=>{
-      if(!deferredPrompt)return;
+    document.getElementById("install-btn").addEventListener("click", async () => {
+      if (!deferredPrompt) return;
       deferredPrompt.prompt();
-      const{outcome}=await deferredPrompt.userChoice;
-      if(outcome==="accepted")showToast("App Installed! 🚀");
-      deferredPrompt=null;
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") showToast("App Installed! 🚀");
+      deferredPrompt = null;
       document.getElementById("install-btn").classList.remove("visible");
     });
 
-    /* -------- LOADING SCREEN -------- */
-    window.addEventListener("load",()=>{
-      setTimeout(()=>{
+    /* ================================================================
+       LOADING SCREEN
+    ================================================================ */
+    window.addEventListener("load", () => {
+      setTimeout(() => {
         document.getElementById("loading-screen").classList.add("fade-out");
-        setTimeout(()=>{ const s=document.getElementById("loading-screen"); if(s)s.remove(); },600);
-      },1800);
+        setTimeout(() => { const s = document.getElementById("loading-screen"); if(s) s.remove(); }, 600);
+      }, 1800);
     });
-  </script>
 
+  </script>
 </body>
 </html>
