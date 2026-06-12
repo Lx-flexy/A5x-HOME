@@ -30,22 +30,29 @@ async function saveUserToFirestore(uid: string, data: {
   phoneNumber?: string;
   provider: string;
 }) {
-  const userRef = doc(db, 'users', uid);
-  const existing = await getDoc(userRef);
-  if (!existing.exists()) {
-    const userId = generateUserId();
-    await setDoc(userRef, {
-      userId,
-      uid,
-      name: data.name,
-      email: data.email,
-      phoneNumber: data.phoneNumber || '',
-      provider: data.provider,
-      createdAt: serverTimestamp(),
-    });
-    return userId;
+  try {
+    const userRef = doc(db, 'users', uid);
+    const existing = await getDoc(userRef);
+    if (!existing.exists()) {
+      const userId = generateUserId();
+      await setDoc(userRef, {
+        userId,
+        uid,
+        name: data.name,
+        email: data.email,
+        phoneNumber: data.phoneNumber || '',
+        provider: data.provider,
+        createdAt: serverTimestamp(),
+      });
+      return userId;
+    }
+    return existing.data().userId;
+  } catch (err) {
+    // Firestore may be blocked by ad blockers or network issues.
+    // Auth still succeeds — user profile will sync on next load.
+    console.warn('[saveUserToFirestore] Firestore write failed (possibly blocked):', err);
+    return null;
   }
-  return existing.data().userId;
 }
 
 export async function registerWithEmail(name: string, email: string, password: string) {
@@ -91,9 +98,14 @@ export async function sendPhoneOTP(phone: string, recaptchaVerifier: RecaptchaVe
 }
 
 export async function getUserData(uid: string) {
-  const userRef = doc(db, 'users', uid);
-  const snap = await getDoc(userRef);
-  return snap.exists() ? snap.data() : null;
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snap = await getDoc(userRef);
+    return snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.warn('[getUserData] Firestore read failed (possibly blocked):', err);
+    return null;
+  }
 }
 
 export async function logout() {
