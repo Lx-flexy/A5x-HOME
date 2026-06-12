@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { Cpu, MapPin, Wifi, Users, Lightbulb, Wind, Trash2, Bot, Activity, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { subscribeToUserDevices, Device } from '../../services/deviceService';
-import { getActivityLogs, ActivityLog } from '../../services/analyticsService';
+import { subscribeToActivityLogs, ActivityLog } from '../../services/analyticsService';
+import { getTotalMembersForUser } from '../../services/memberService';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
 
@@ -63,6 +64,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [devices, setDevices] = useState<Device[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [memberCount, setMemberCount] = useState(0);
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(true);
 
@@ -71,6 +73,10 @@ export default function Dashboard() {
     const unsub = subscribeToUserDevices(user.uid, (devs) => {
       setDevices(devs);
       setLoadingDevices(false);
+
+      // Fetch real member count
+      const deviceIds = devs.map(d => d.deviceId);
+      getTotalMembersForUser(deviceIds).then(setMemberCount);
     });
     return unsub;
   }, [user]);
@@ -81,10 +87,11 @@ export default function Dashboard() {
       return;
     }
     const deviceIds = devices.map(d => d.deviceId);
-    getActivityLogs(deviceIds, 10).then(data => {
-      setLogs(data);
+    const unsub = subscribeToActivityLogs(deviceIds, (data) => {
+      setLogs(data.slice(0, 10));
       setLoadingLogs(false);
-    });
+    }, 10);
+    return unsub;
   }, [devices, user]);
 
   const onlineDevices = devices.filter(d => d.status === 'online');
@@ -121,7 +128,7 @@ export default function Dashboard() {
         />
         <StatCard
           label="Members"
-          value={0}
+          value={memberCount}
           sublabel="Total members"
           iconBg="bg-orange-50"
           icon={<Users size={20} className="text-orange-500" />}

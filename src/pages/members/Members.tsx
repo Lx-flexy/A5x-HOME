@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Plus, UserCheck, Crown, MoreVertical, Trash2, Shield } from 'lucide-react';
+import { Plus, UserCheck, Crown, MoreVertical, Trash2, Shield, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { subscribeToUserDevices, Device } from '../../services/deviceService';
-import { getDeviceMembers, addMember, removeMember, updateMemberRole, Member } from '../../services/memberService';
+import {
+  subscribeToDeviceMembers,
+  addMember,
+  removeMember,
+  updateMemberRole,
+  findUserByA5xId,
+  Member,
+} from '../../services/memberService';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import Modal from '../../components/ui/Modal';
@@ -10,7 +17,13 @@ import Loader from '../../components/ui/Loader';
 
 function Avatar({ name }: { name: string }) {
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  const colors = ['bg-blue-100 text-blue-700', 'bg-purple-100 text-purple-700', 'bg-green-100 text-green-700', 'bg-orange-100 text-orange-700', 'bg-pink-100 text-pink-700'];
+  const colors = [
+    'bg-blue-100 text-blue-700',
+    'bg-purple-100 text-purple-700',
+    'bg-green-100 text-green-700',
+    'bg-orange-100 text-orange-700',
+    'bg-pink-100 text-pink-700',
+  ];
   const color = colors[name.charCodeAt(0) % colors.length];
   return (
     <div className={`w-9 h-9 ${color} rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0`}>
@@ -21,9 +34,17 @@ function Avatar({ name }: { name: string }) {
 
 function RoleBadge({ role }: { role: string }) {
   if (role === 'owner') {
-    return <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary-50 text-primary-700 px-2.5 py-1 rounded-full"><Crown size={11} />Owner</span>;
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary-50 text-primary-700 px-2.5 py-1 rounded-full">
+        <Crown size={11} />Owner
+      </span>
+    );
   }
-  return <span className="inline-flex items-center gap-1 text-xs font-medium bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full"><Shield size={11} />Member</span>;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full">
+      <Shield size={11} />Member
+    </span>
+  );
 }
 
 export default function Members() {
@@ -35,10 +56,17 @@ export default function Members() {
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [addModal, setAddModal] = useState(false);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', userId: '', role: 'member' as 'owner' | 'member' });
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState('');
 
+  // Form state
+  const [userId, setUserId] = useState('');
+  const [role, setRole] = useState<'owner' | 'member'>('member');
+  const [lookupResult, setLookupResult] = useState<{ uid: string; name: string; email: string } | null>(null);
+  const [looking, setLooking] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
+
+  // Subscribe to devices
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToUserDevices(user.uid, devs => {
@@ -49,51 +77,74 @@ export default function Members() {
     return unsub;
   }, [user]);
 
+  // Subscribe to members of selected device (real-time)
   useEffect(() => {
     if (!selectedDevice) return;
     setLoadingMembers(true);
-    getDeviceMembers(selectedDevice.deviceId).then(m => {
+    const unsub = subscribeToDeviceMembers(selectedDevice.deviceId, m => {
       setMembers(m);
       setLoadingMembers(false);
     });
+    return unsub;
   }, [selectedDevice]);
+
+  // Look up user by A5X ID before adding
+  async function handleLookup() {
+    if (!userId.trim()) return;
+    setLooking(true);
+    setLookupError('');
+    setLookupResult(null);
+    const found = await findUserByA5xId(userId.trim().toUpperCase());
+    if (!found) {
+      setLookupError('No user found with this A5X ID.');
+    } else {
+      setLookupResult(found);
+    }
+    setLooking(false);
+  }
 
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedDevice) return;
+    if (!selectedDevice || !lookupResult) return;
     if (members.length >= 5) {
-      setError('Maximum 5 members per device.');
+      setAddError('Maximum 5 members per device.');
       return;
     }
-    setError('');
+    setAddError('');
     setAdding(true);
     try {
       await addMember({
         deviceId: selectedDevice.deviceId,
-        userId: form.userId,
-        name: form.name,
-        role: form.role,
+        userId: userId.trim().toUpperCase(),
+        uid: lookupResult.uid,
+        name: lookupResult.name,
+        email: lookupResult.email,
+        role,
       });
-      const updated = await getDeviceMembers(selectedDevice.deviceId);
-      setMembers(updated);
       setAddModal(false);
-      setForm({ name: '', userId: '', role: 'member' });
-    } catch {
-      setError('Failed to add member.');
+      resetForm();
+    } catch (err: unknown) {
+      setAddError(err instanceof Error ? err.message : 'Failed to add member.');
     } finally {
       setAdding(false);
     }
   }
 
+  function resetForm() {
+    setUserId('');
+    setRole('member');
+    setLookupResult(null);
+    setLookupError('');
+    setAddError('');
+  }
+
   async function handleRemove(member: Member) {
     await removeMember(member.id);
-    setMembers(prev => prev.filter(m => m.id !== member.id));
     setMenuOpen(null);
   }
 
-  async function handleRoleChange(member: Member, role: 'owner' | 'member') {
-    await updateMemberRole(member.id, role);
-    setMembers(prev => prev.map(m => m.id === member.id ? { ...m, role } : m));
+  async function handleRoleChange(member: Member, newRole: 'owner' | 'member') {
+    await updateMemberRole(member.id, newRole);
     setMenuOpen(null);
   }
 
@@ -109,9 +160,9 @@ export default function Members() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Members</h2>
-          <p className="text-sm text-neutral-500 mt-0.5">Manage people who have access to this device</p>
+          <p className="text-sm text-neutral-500 mt-0.5">Manage people who have access to your devices</p>
         </div>
-        <Button onClick={() => setAddModal(true)} disabled={!selectedDevice}>
+        <Button onClick={() => { resetForm(); setAddModal(true); }} disabled={!selectedDevice}>
           <Plus size={16} /> Add Member
         </Button>
       </div>
@@ -152,14 +203,14 @@ export default function Members() {
               <div className="py-12 text-center">
                 <UserCheck size={36} className="text-neutral-300 mx-auto mb-3" />
                 <p className="text-sm text-neutral-500">No members yet</p>
-                <p className="text-xs text-neutral-400 mt-1">Add members to share device access</p>
+                <p className="text-xs text-neutral-400 mt-1">Add members using their A5X User ID</p>
               </div>
             ) : (
               <>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-neutral-200">
-                      {['Name', 'User ID', 'Role', 'Joined On', 'Actions'].map(col => (
+                      {['Name', 'Email', 'User ID', 'Role', 'Joined On', 'Actions'].map(col => (
                         <th key={col} className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase tracking-wide">
                           {col}
                         </th>
@@ -180,6 +231,7 @@ export default function Members() {
                             </div>
                           </div>
                         </td>
+                        <td className="py-4 px-5 text-xs text-neutral-500">{member.email}</td>
                         <td className="py-4 px-5 text-xs text-neutral-500 font-mono">{member.userId}</td>
                         <td className="py-4 px-5"><RoleBadge role={member.role} /></td>
                         <td className="py-4 px-5 text-neutral-500 text-xs">{formatDate(member.joinedAt)}</td>
@@ -223,27 +275,57 @@ export default function Members() {
         </>
       )}
 
-      <Modal open={addModal} onClose={() => { setAddModal(false); setError(''); }} title="Add Member">
+      {/* Add Member Modal */}
+      <Modal open={addModal} onClose={() => { setAddModal(false); resetForm(); }} title="Add Member">
         <form onSubmit={handleAddMember} className="space-y-4">
-          {error && <div className="p-3 bg-error-50 border border-red-200 rounded-lg text-sm text-error-600">{error}</div>}
+          {addError && (
+            <div className="p-3 bg-error-50 border border-red-200 rounded-lg text-sm text-error-600">{addError}</div>
+          )}
+
           <div>
-            <label className="form-label">Name</label>
-            <input type="text" className="form-input" placeholder="Member name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
+            <label className="form-label">A5X User ID</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="form-input font-mono uppercase flex-1"
+                placeholder="A5X-U-XXXXXX"
+                value={userId}
+                onChange={e => { setUserId(e.target.value.toUpperCase()); setLookupResult(null); setLookupError(''); }}
+                required
+              />
+              <Button type="button" variant="secondary" loading={looking} onClick={handleLookup}>
+                <Search size={15} />
+              </Button>
+            </div>
+            {lookupError && <p className="text-xs text-error-500 mt-1">{lookupError}</p>}
           </div>
-          <div>
-            <label className="form-label">User ID</label>
-            <input type="text" className="form-input" placeholder="e.g. A5X-U-XXXXXX" value={form.userId} onChange={e => setForm(p => ({ ...p, userId: e.target.value.toUpperCase() }))} required />
-          </div>
+
+          {lookupResult && (
+            <div className="p-3 bg-success-50 border border-green-200 rounded-lg">
+              <p className="text-sm font-medium text-success-700">User found</p>
+              <p className="text-xs text-neutral-600 mt-0.5">{lookupResult.name} · {lookupResult.email}</p>
+            </div>
+          )}
+
           <div>
             <label className="form-label">Role</label>
-            <select className="form-input" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value as 'owner' | 'member' }))}>
+            <select
+              className="form-input"
+              value={role}
+              onChange={e => setRole(e.target.value as 'owner' | 'member')}
+            >
               <option value="member">Member</option>
               <option value="owner">Owner</option>
             </select>
           </div>
+
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" type="button" onClick={() => setAddModal(false)}>Cancel</Button>
-            <Button type="submit" loading={adding}>Add Member</Button>
+            <Button variant="secondary" type="button" onClick={() => { setAddModal(false); resetForm(); }}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={adding} disabled={!lookupResult}>
+              Add Member
+            </Button>
           </div>
         </form>
       </Modal>

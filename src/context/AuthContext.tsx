@@ -3,14 +3,22 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { getUserData } from '../services/authService';
 
-interface UserData {
+export interface UserData {
   userId: string;
   uid: string;
   name: string;
   email: string;
   phoneNumber: string;
   provider: string;
+  photoURL: string;
+  notifications: {
+    deviceOnline: boolean;
+    deviceOffline: boolean;
+    memberAdded: boolean;
+    activityLog: boolean;
+  };
   createdAt: unknown;
+  updatedAt: unknown;
 }
 
 interface AuthContextValue {
@@ -42,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    // Safety timeout: if Firebase auth doesn't respond in 8s, unblock the UI
+    // Safety timeout: unblock UI if Firebase doesn't respond (ad-blocker protection)
     const timeout = setTimeout(() => {
       setLoading(false);
     }, 8000);

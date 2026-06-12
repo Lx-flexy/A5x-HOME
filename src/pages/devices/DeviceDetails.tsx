@@ -15,7 +15,7 @@ import {
   MapPin,
   Trash,
 } from 'lucide-react';
-import { getDevice, subscribeToDeviceState, updateDeviceState, deleteDevice, logActivity, Device, DeviceState } from '../../services/deviceService';
+import { getDevice, subscribeToDeviceState, updateDeviceState, deleteDevice, Device, DeviceState } from '../../services/deviceService';
 import { useAuth } from '../../context/AuthContext';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -62,21 +62,25 @@ export default function DeviceDetails() {
 
   async function handleToggle(key: 'light' | 'fan', value: boolean) {
     if (!device) return;
-    await updateDeviceState(device.deviceId, { [key]: value });
-    await logActivity(device.deviceId, `${key === 'light' ? 'Light' : 'Fan'} turned ${value ? 'ON' : 'OFF'}`, userData?.name || 'User');
+    const label = `${key === 'light' ? 'Light' : 'Fan'} turned ${value ? 'ON' : 'OFF'}`;
+    await updateDeviceState(device.deviceId, { [key]: value }, userData?.name || 'User', label);
   }
 
   async function handleDustbin(open: boolean) {
     if (!device) return;
-    await updateDeviceState(device.deviceId, { dustbin: open ? 'open' : 'closed' });
-    await logActivity(device.deviceId, `Dustbin ${open ? 'opened' : 'closed'}`, userData?.name || 'User');
+    const label = `Dustbin ${open ? 'opened' : 'closed'}`;
+    await updateDeviceState(device.deviceId, { dustbin: open ? 'open' : 'closed' }, userData?.name || 'User', label);
   }
 
   async function handleSendOled() {
     if (!device || !oledMsg.trim()) return;
     setSendingOled(true);
-    await updateDeviceState(device.deviceId, { oledMessage: oledMsg });
-    await logActivity(device.deviceId, `OLED message sent: "${oledMsg}"`, userData?.name || 'User');
+    await updateDeviceState(
+      device.deviceId,
+      { oledMessage: oledMsg },
+      userData?.name || 'User',
+      `OLED message sent: "${oledMsg}"`
+    );
     setOledMsg('');
     setSendingOled(false);
   }
@@ -84,10 +88,9 @@ export default function DeviceDetails() {
   async function handleBuzzerBeep() {
     if (!device) return;
     setBeeping(true);
-    await updateDeviceState(device.deviceId, { buzzer: true });
-    await logActivity(device.deviceId, 'Buzzer beeped', userData?.name || 'User');
+    await updateDeviceState(device.deviceId, { buzzer: true }, userData?.name || 'User', 'Buzzer beeped');
     setTimeout(async () => {
-      await updateDeviceState(device.deviceId, { buzzer: false });
+      await updateDeviceState(device.deviceId, { buzzer: false }, userData?.name || 'User');
       setBeeping(false);
     }, 2000);
   }
@@ -95,7 +98,7 @@ export default function DeviceDetails() {
   async function handleDelete() {
     if (!device) return;
     setDeleting(true);
-    await deleteDevice(device.id);
+    await deleteDevice(device.id, device.deviceId, userData?.uid || '');
     navigate('/devices');
   }
 

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { User, Shield, Bell, LogOut, Eye, EyeOff, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { logout } from '../../services/authService';
-import { updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { logout, updateUserProfile, updateNotificationPreferences } from '../../services/authService';
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -24,10 +24,10 @@ export default function Settings() {
   const [pwError, setPwError] = useState('');
   const [pwSaved, setPwSaved] = useState(false);
   const [notifications, setNotifications] = useState({
-    deviceOnline: true,
-    deviceOffline: true,
-    memberAdded: false,
-    activityLog: true,
+    deviceOnline: userData?.notifications?.deviceOnline ?? true,
+    deviceOffline: userData?.notifications?.deviceOffline ?? true,
+    memberAdded: userData?.notifications?.memberAdded ?? false,
+    activityLog: userData?.notifications?.activityLog ?? true,
   });
 
   async function handleProfileSave(e: React.FormEvent) {
@@ -35,7 +35,8 @@ export default function Settings() {
     if (!user) return;
     setSavingProfile(true);
     try {
-      await updateProfile(user, { displayName: profileForm.name });
+      // Save to both Firebase Auth AND Firestore users/{uid}
+      await updateUserProfile(user.uid, { name: profileForm.name });
       await refreshUserData();
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 3000);
@@ -236,7 +237,13 @@ export default function Settings() {
                       <input
                         type="checkbox"
                         checked={notifications[item.key]}
-                        onChange={e => setNotifications(p => ({ ...p, [item.key]: e.target.checked }))}
+                        onChange={async e => {
+                          const updated = { ...notifications, [item.key]: e.target.checked };
+                          setNotifications(updated);
+                          if (user) {
+                            await updateNotificationPreferences(user.uid, updated).catch(() => {});
+                          }
+                        }}
                       />
                       <div className="toggle-track">
                         <div className="toggle-thumb" />

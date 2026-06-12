@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Home } from 'lucide-react';
-import { loginWithEmail, loginWithGoogle, loginWithFacebook } from '../../services/authService';
+import { loginWithEmail, loginWithGoogle, loginWithFacebook, forgotPassword } from '../../services/authService';
 import Button from '../../components/ui/Button';
 
 export default function Login() {
@@ -12,6 +12,22 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+
+  async function handleForgotPassword() {
+    if (!email) {
+      setError('Enter your email above first, then click Forgot Password.');
+      return;
+    }
+    try {
+      await forgotPassword(email);
+      setResetSent(true);
+      setError('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send reset email';
+      setError(msg.replace('Firebase: ', '').replace(/\(.*\)/, '').trim());
+    }
+  }
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -134,6 +150,12 @@ export default function Login() {
             </div>
           )}
 
+          {resetSent && (
+            <div className="mb-4 p-3 bg-success-50 border border-green-200 rounded-lg text-sm text-success-600">
+              Password reset email sent. Check your inbox.
+            </div>
+          )}
+
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
               <label className="form-label">Email</label>
@@ -178,7 +200,7 @@ export default function Login() {
                 />
                 Remember me
               </label>
-              <button type="button" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+              <button type="button" className="text-sm text-primary-600 hover:text-primary-700 font-medium" onClick={handleForgotPassword}>
                 Forgot password?
               </button>
             </div>

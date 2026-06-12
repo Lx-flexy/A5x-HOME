@@ -35,10 +35,10 @@ export default function Devices() {
   }, [user]);
 
   async function handleDelete() {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !user) return;
     setDeleting(true);
     try {
-      await deleteDevice(deleteConfirm.id);
+      await deleteDevice(deleteConfirm.id, deleteConfirm.deviceId, user.uid);
       setDeleteConfirm(null);
     } finally {
       setDeleting(false);

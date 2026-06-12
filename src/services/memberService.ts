@@ -8,29 +8,81 @@ import {
   where,
   serverTimestamp,
   updateDoc,
+  getDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Member {
   id: string;
   deviceId: string;
-  userId: string;
+  userId: string;       // A5X-U-XXXXXX custom ID
+  uid: string;          // Firebase Auth UID (for direct lookup)
   name: string;
+  email: string;
   role: 'owner' | 'member';
   joinedAt: unknown;
 }
 
+// ─── Schema ───────────────────────────────────────────────────────────────────
+// members/{autoId}
+// {
+//   deviceId, userId (A5X-U-XXXXXX), uid (Firebase UID), name, email, role, joinedAt
+// }
+
+// ─── Lookup user by A5X userId to validate before adding ─────────────────────
+
+export async function findUserByA5xId(userId: string): Promise<{ uid: string; name: string; email: string } | null> {
+  try {
+    const q = query(collection(db, 'users'), where('userId', '==', userId));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const data = snap.docs[0].data();
+    return { uid: data.uid, name: data.name, email: data.email };
+  } catch (err) {
+    console.warn('[findUserByA5xId] Failed:', err);
+    return null;
+  }
+}
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+
 export async function addMember(data: Omit<Member, 'id' | 'joinedAt'>) {
+  // Prevent duplicate members on same device
+  const existing = await getDocs(
+    query(collection(db, 'members'), where('deviceId', '==', data.deviceId), where('userId', '==', data.userId))
+  );
+  if (!existing.empty) throw new Error('This user is already a member of this device.');
+
   return addDoc(collection(db, 'members'), {
-    ...data,
+    deviceId: data.deviceId,
+    userId: data.userId,
+    uid: data.uid,
+    name: data.name,
+    email: data.email,
+    role: data.role,
     joinedAt: serverTimestamp(),
   });
 }
 
 export async function getDeviceMembers(deviceId: string): Promise<Member[]> {
+  try {
+    const q = query(collection(db, 'members'), where('deviceId', '==', deviceId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Member));
+  } catch (err) {
+    console.warn('[getDeviceMembers] Failed:', err);
+    return [];
+  }
+}
+
+export function subscribeToDeviceMembers(deviceId: string, callback: (members: Member[]) => void) {
   const q = query(collection(db, 'members'), where('deviceId', '==', deviceId));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Member));
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Member)));
+  });
 }
 
 export async function removeMember(memberId: string) {
@@ -39,4 +91,26 @@ export async function removeMember(memberId: string) {
 
 export async function updateMemberRole(memberId: string, role: 'owner' | 'member') {
   await updateDoc(doc(db, 'members', memberId), { role });
+}
+
+// ─── Get total member count across all user's devices ─────────────────────────
+
+export async function getTotalMembersForUser(deviceIds: string[]): Promise<number> {
+  if (deviceIds.length === 0) return 0;
+  try {
+    let total = 0;
+    // Firestore 'in' queries are limited to 30 items; batch if needed
+    const chunks: string[][] = [];
+    for (let i = 0; i < deviceIds.length; i += 30) chunks.push(deviceIds.slice(i, i + 30));
+
+    for (const chunk of chunks) {
+      const q = query(collection(db, 'members'), where('deviceId', 'in', chunk));
+      const snap = await getDocs(q);
+      total += snap.size;
+    }
+    return total;
+  } catch (err) {
+    console.warn('[getTotalMembersForUser] Failed:', err);
+    return 0;
+  }
 }

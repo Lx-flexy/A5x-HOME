@@ -77,7 +77,7 @@ export default function Analytics() {
       setDevices(devs);
       const ids = devs.map(d => d.deviceId);
       const [analyticsData, logsData] = await Promise.all([
-        getAllAnalytics(user.uid, ids),
+        getAllAnalytics(user.uid, ids, tab),
         getActivityLogs(ids, 30),
       ]);
       setAnalytics(analyticsData);
@@ -85,7 +85,7 @@ export default function Analytics() {
       setLoading(false);
     });
     return unsub;
-  }, [user]);
+  }, [user, tab]);
 
   const totalEnergy = analytics.reduce((a, b) => a + (b.energyUsage || 0), 0);
   const totalLightRuntime = analytics.reduce((a, b) => a + (b.lightRuntime || 0), 0);
