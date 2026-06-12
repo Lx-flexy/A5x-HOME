@@ -3,8 +3,19 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+
+if (!apiKey) {
+  throw new Error(
+    '[Firebase] VITE_FIREBASE_API_KEY is undefined. ' +
+    'If running locally, make sure .env exists. ' +
+    'If deployed on Vercel, add all VITE_FIREBASE_* environment variables ' +
+    'in Project → Settings → Environment Variables, then redeploy.'
+  );
+}
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
