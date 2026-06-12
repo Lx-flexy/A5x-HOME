@@ -258,7 +258,9 @@ export default function DeviceDetails() {
   const [deleting, setDeleting]       = useState(false);
 
   const performer = userData?.name || 'User';
-  const isOffline  = device?.status === 'offline';
+  // Controls are always enabled — commands are queued in Firestore
+  // and the ESP32 picks them up when it reconnects.
+  const isOffline = false;
 
   // ── Load device meta ──────────────────────────────────────────────────────
   useEffect(() => {

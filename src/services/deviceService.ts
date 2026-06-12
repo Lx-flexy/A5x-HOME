@@ -244,16 +244,34 @@ export function subscribeToUserDevices(userId: string, callback: (devices: Devic
 // ─── Real-time: outputs ───────────────────────────────────────────────────────
 
 export function subscribeToOutputs(deviceId: string, callback: (outputs: DeviceOutputs) => void) {
-  return onSnapshot(outputsRef(deviceId), snap => {
-    if (snap.exists()) callback(snap.data() as DeviceOutputs);
+  return onSnapshot(outputsRef(deviceId), async snap => {
+    if (snap.exists()) {
+      callback(snap.data() as DeviceOutputs);
+    } else {
+      // Auto-create outputs doc for devices added before migration
+      try {
+        await setDoc(outputsRef(deviceId), {
+          ...defaultOutputs(),
+          updatedAt: serverTimestamp(),
+        });
+      } catch { /* ignore race condition */ }
+      callback({ ...defaultOutputs() } as DeviceOutputs);
+    }
   });
 }
 
 // ─── Real-time: health ────────────────────────────────────────────────────────
 
 export function subscribeToHealth(deviceId: string, callback: (health: DeviceHealth) => void) {
-  return onSnapshot(healthRef(deviceId), snap => {
-    if (snap.exists()) callback(snap.data() as DeviceHealth);
+  return onSnapshot(healthRef(deviceId), async snap => {
+    if (snap.exists()) {
+      callback(snap.data() as DeviceHealth);
+    } else {
+      try {
+        await setDoc(healthRef(deviceId), { ...defaultHealth(), lastSeen: serverTimestamp() });
+      } catch { /* ignore */ }
+      callback(defaultHealth());
+    }
   });
 }
 
@@ -263,8 +281,15 @@ export function subscribeToAnalytics(
   deviceId: string,
   callback: (analytics: DeviceAnalyticsData) => void
 ) {
-  return onSnapshot(analyticsRef(deviceId), snap => {
-    if (snap.exists()) callback(snap.data() as DeviceAnalyticsData);
+  return onSnapshot(analyticsRef(deviceId), async snap => {
+    if (snap.exists()) {
+      callback(snap.data() as DeviceAnalyticsData);
+    } else {
+      try {
+        await setDoc(analyticsRef(deviceId), { ...defaultAnalytics(), updatedAt: serverTimestamp() });
+      } catch { /* ignore */ }
+      callback({ ...defaultAnalytics() } as DeviceAnalyticsData);
+    }
   });
 }
 
@@ -292,10 +317,11 @@ export async function setOutput(
   performedBy: string,
   label?: string
 ) {
-  await updateDoc(outputsRef(deviceId), {
+  // Use setDoc with merge so it works even if the doc doesn't exist yet
+  await setDoc(outputsRef(deviceId), {
     [key]: value,
     updatedAt: serverTimestamp(),
-  });
+  }, { merge: true });
   if (label) {
     await logActivity(deviceId, label, performedBy);
     if (typeof value === 'boolean' && value === true) {
@@ -322,14 +348,14 @@ async function incrementAnalytics(deviceId: string, key: OutputKey) {
     const runtimeField = key === 'custom1' ? 'customRuntime' : `${key}Runtime`;
     const prevRuntime = (cur[runtimeField] as number) || 0;
     const prevEnergy  = (cur.energyUsage  as number) || 0;
-    const runtimeInc  = 0.5; // +0.5h estimated per toggle-ON
+    const runtimeInc  = 0.5;
     const energyInc   = (WATT[key] / 1000) * runtimeInc;
 
-    await updateDoc(ref, {
+    await setDoc(ref, {
       [runtimeField]: prevRuntime + runtimeInc,
       energyUsage: prevEnergy + energyInc,
       updatedAt: serverTimestamp(),
-    });
+    }, { merge: true });
   } catch (err) {
     console.warn('[incrementAnalytics] Failed:', err);
   }
@@ -392,13 +418,9 @@ export async function updateDeviceState(
   const keys: (keyof LegacyDeviceState)[] = [
     'light1','light2','light3','fan1','fan2','custom1','oledMessage','buzzer'
   ];
-  keys.forEach(k => {
-    if (k in data) updates[k] = data[k];
-  });
-  await updateDoc(outputsRef(deviceId), updates);
-  if (label) {
-    await logActivity(deviceId, label, performedBy);
-  }
+  keys.forEach(k => { if (k in data) updates[k] = data[k]; });
+  await setDoc(outputsRef(deviceId), updates, { merge: true });
+  if (label) await logActivity(deviceId, label, performedBy);
 }
 
 export interface LegacyDeviceState {
