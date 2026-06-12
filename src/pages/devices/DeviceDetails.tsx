@@ -1,15 +1,22 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronRight, Lightbulb, Wind, Monitor, Volume2,
-  Wifi, Clock, Cpu, Activity, Edit2, MapPin, Trash,
+  Wifi, Clock, Cpu, Activity, MapPin, Trash,
   Zap, MemoryStick, RotateCcw, Signal, Server,
-  CheckCircle2, XCircle, BarChart3, Bolt,
+  CheckCircle2, XCircle, BarChart3, Bolt, Edit2,
 } from 'lucide-react';
 import {
-  getDevice, subscribeToDeviceState, subscribeToDeviceAnalytics,
-  updateDeviceState, deleteDevice,
-  Device, DeviceState, DeviceAnalytics,
+  getDevice,
+  subscribeToOutputs,
+  subscribeToHealth,
+  subscribeToAnalytics,
+  setOutput,
+  deleteDevice,
+  Device,
+  DeviceOutputs,
+  DeviceHealth,
+  DeviceAnalyticsData,
 } from '../../services/deviceService';
 import { useAuth } from '../../context/AuthContext';
 import Card from '../../components/ui/Card';
@@ -17,7 +24,51 @@ import Button from '../../components/ui/Button';
 import Loader from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
 
-// ─── Toggle ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtUptime(s: number): string {
+  if (!s || s <= 0) return '–';
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function fmtHeap(b: number): string {
+  if (!b) return '–';
+  return `${Math.round(b / 1024)} KB`;
+}
+
+function fmtRuntime(h: number): string {
+  if (!h) return '0h 0m';
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return `${hh}h ${mm}m`;
+}
+
+function timeAgo(ts: unknown): string {
+  if (!ts) return '–';
+  const secs = (ts as { seconds: number })?.seconds;
+  if (!secs) return '–';
+  const diff = Math.floor(Date.now() / 1000) - secs;
+  if (diff < 5) return 'just now';
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function rssiLabel(rssi: number): { text: string; color: string } {
+  if (rssi >= -50) return { text: 'Excellent', color: 'text-success-600' };
+  if (rssi >= -60) return { text: 'Good', color: 'text-success-600' };
+  if (rssi >= -70) return { text: 'Fair', color: 'text-yellow-600' };
+  return { text: 'Weak', color: 'text-error-500' };
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 function Toggle({
   checked,
   onChange,
@@ -28,25 +79,36 @@ function Toggle({
   disabled?: boolean;
 }) {
   return (
-    <label className={`toggle-switch ${disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'}`}>
+    <label
+      className={`relative inline-flex items-center ${
+        disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
+      }`}
+    >
       <input
         type="checkbox"
+        className="sr-only peer"
         checked={checked}
         onChange={e => onChange(e.target.checked)}
         disabled={disabled}
       />
-      <div className="toggle-track">
-        <div className="toggle-thumb" />
-      </div>
+      <div
+        className={`w-11 h-6 rounded-full border-2 transition-all duration-200 peer-checked:border-primary-600
+          ${checked ? 'bg-primary-600 border-primary-600' : 'bg-neutral-200 border-neutral-300'}
+        `}
+      />
+      <div
+        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200
+          ${checked ? 'translate-x-5' : 'translate-x-0'}
+        `}
+      />
     </label>
   );
 }
 
-// ─── Status Pill ──────────────────────────────────────────────────────────────
-function StatusPill({ online }: { online: boolean }) {
+function OnlinePill({ online }: { online: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
         online ? 'bg-success-50 text-success-700' : 'bg-neutral-100 text-neutral-500'
       }`}
     >
@@ -60,133 +122,145 @@ function StatusPill({ online }: { online: boolean }) {
   );
 }
 
-// ─── Runtime bar ─────────────────────────────────────────────────────────────
-function RuntimeBar({ value, max, color }: { value: number; max: number; color: string }) {
+function HealthRow({
+  icon,
+  label,
+  value,
+  ok,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  ok?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-neutral-50 last:border-0">
+      <div className="flex items-center gap-2.5">
+        <span className="text-neutral-400">{icon}</span>
+        <span className="text-xs text-neutral-600">{label}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {ok !== undefined &&
+          (ok ? (
+            <CheckCircle2 size={13} className="text-success-500" />
+          ) : (
+            <XCircle size={13} className="text-error-500" />
+          ))}
+        <span className="text-xs font-semibold text-neutral-900">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function ControlCard({
+  icon,
+  iconActiveBg,
+  iconInactiveBg,
+  iconActiveColor,
+  iconInactiveColor,
+  label,
+  runtime,
+  checked,
+  onChange,
+  disabled,
+  lastUpdate,
+}: {
+  icon: React.ReactNode;
+  iconActiveBg: string;
+  iconInactiveBg: string;
+  iconActiveColor: string;
+  iconInactiveColor: string;
+  label: string;
+  runtime?: number;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  lastUpdate?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border-2 p-4 transition-all duration-200 ${
+        checked
+          ? `border-primary-200 bg-gradient-to-br from-primary-50 to-white`
+          : 'border-neutral-100 bg-white hover:border-neutral-200'
+      }`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+            checked ? iconActiveBg : iconInactiveBg
+          }`}
+        >
+          <span className={checked ? iconActiveColor : iconInactiveColor}>{icon}</span>
+        </div>
+        <Toggle checked={checked} onChange={onChange} disabled={disabled} />
+      </div>
+      <p className="text-sm font-semibold text-neutral-900">{label}</p>
+      <div className="flex items-center justify-between mt-1">
+        <span
+          className={`text-xs font-medium ${
+            checked ? 'text-primary-600' : 'text-neutral-400'
+          }`}
+        >
+          {checked ? '● ON' : '○ OFF'}
+        </span>
+        {runtime !== undefined && runtime > 0 && (
+          <span className="text-xs text-neutral-400">{fmtRuntime(runtime)}</span>
+        )}
+      </div>
+      {lastUpdate && (
+        <p className="text-xs text-neutral-300 mt-1">{lastUpdate}</p>
+      )}
+    </div>
+  );
+}
+
+function RuntimeBar({
+  value,
+  max,
+  color,
+}: {
+  value: number;
+  max: number;
+  color: string;
+}) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="flex-1 h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+    <div className="flex-1 h-2 bg-neutral-100 rounded-full overflow-hidden">
       <div
-        className={`h-full ${color} rounded-full transition-all duration-700`}
+        className={`h-full ${color} rounded-full transition-all duration-700 ease-out`}
         style={{ width: `${pct}%` }}
       />
     </div>
   );
 }
 
-// ─── Health indicator ────────────────────────────────────────────────────────
-function HealthDot({ ok }: { ok: boolean }) {
-  return ok ? (
-    <CheckCircle2 size={14} className="text-success-500 flex-shrink-0" />
-  ) : (
-    <XCircle size={14} className="text-error-500 flex-shrink-0" />
-  );
-}
+// ─── Main page ────────────────────────────────────────────────────────────────
 
-// ─── Format seconds to readable ──────────────────────────────────────────────
-function fmtUptime(seconds: number): string {
-  if (!seconds || seconds <= 0) return '–';
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
-function fmtHeap(bytes: number): string {
-  if (!bytes) return '–';
-  return `${Math.round(bytes / 1024)} KB`;
-}
-
-function fmtRuntime(hours: number): string {
-  if (!hours) return '0h 0m';
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  return `${h}h ${m}m`;
-}
-
-function timeAgo(ts: unknown): string {
-  if (!ts) return '–';
-  const secs = (ts as { seconds: number })?.seconds;
-  if (!secs) return '–';
-  const diff = Math.floor(Date.now() / 1000) - secs;
-  if (diff < 5) return 'just now';
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
-// ─── Control row ─────────────────────────────────────────────────────────────
-function ControlRow({
-  icon,
-  iconBg,
-  label,
-  sublabel,
-  checked,
-  runtime,
-  onChange,
-  offline,
-}: {
-  icon: React.ReactNode;
-  iconBg: string;
-  label: string;
-  sublabel?: string;
-  checked: boolean;
-  runtime?: number;
-  onChange: (v: boolean) => void;
-  offline?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between py-3.5 px-4 rounded-xl border transition-all duration-200 ${
-        checked
-          ? 'bg-primary-50 border-primary-200'
-          : 'bg-white border-neutral-100 hover:border-neutral-200'
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 ${iconBg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-          {icon}
-        </div>
-        <div>
-          <p className="text-sm font-medium text-neutral-900">{label}</p>
-          <p className="text-xs text-neutral-400">
-            {sublabel || (checked ? 'ON' : 'OFF')}
-            {runtime !== undefined && runtime > 0 && (
-              <span className="ml-1.5 text-primary-500">· {fmtRuntime(runtime)}</span>
-            )}
-          </p>
-        </div>
-      </div>
-      <Toggle checked={checked} onChange={onChange} disabled={offline} />
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function DeviceDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { userData } = useAuth();
 
-  const [device, setDevice] = useState<Device | null>(null);
-  const [state, setState] = useState<DeviceState | null>(null);
-  const [analytics, setAnalytics] = useState<DeviceAnalytics[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [device, setDevice]     = useState<Device | null>(null);
+  const [outputs, setOutputs]   = useState<DeviceOutputs | null>(null);
+  const [health, setHealth]     = useState<DeviceHealth | null>(null);
+  const [analytics, setAnalytics] = useState<DeviceAnalyticsData | null>(null);
+  const [loading, setLoading]   = useState(true);
 
-  // OLED
-  const [oledMsg, setOledMsg] = useState('');
+  const [oledDraft, setOledDraft]   = useState('');
   const [sendingOled, setSendingOled] = useState(false);
 
-  // Buzzer
-  const [buzzerMode, setBuzzerMode] = useState<'idle' | 'single' | 'double' | 'alarm'>('idle');
+  const [buzzerMode, setBuzzerMode] = useState<'idle'|'single'|'double'|'alarm'>('idle');
+  const buzzerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Delete modal
   const [deleteModal, setDeleteModal] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting]       = useState(false);
 
-  // Load device metadata
+  const performer = userData?.name || 'User';
+  const isOffline  = device?.status === 'offline';
+
+  // ── Load device meta ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
     getDevice(id).then(dev => {
@@ -195,61 +269,52 @@ export default function DeviceDetails() {
     });
   }, [id]);
 
-  // Real-time state subscription
+  // ── Subscribe realtime ────────────────────────────────────────────────────
   useEffect(() => {
     if (!device) return;
-    const unsub = subscribeToDeviceState(device.deviceId, s => setState(s));
-    return unsub;
+    const did = device.deviceId;
+    const u1 = subscribeToOutputs(did, setOutputs);
+    const u2 = subscribeToHealth(did, setHealth);
+    const u3 = subscribeToAnalytics(did, setAnalytics);
+    return () => { u1(); u2(); u3(); };
   }, [device]);
 
-  // Real-time analytics subscription (last 7 days)
-  useEffect(() => {
-    if (!device) return;
-    const unsub = subscribeToDeviceAnalytics(device.deviceId, entries => setAnalytics(entries), 7);
-    return unsub;
-  }, [device]);
+  // ── Cleanup buzzer timer ──────────────────────────────────────────────────
+  useEffect(() => () => { if (buzzerTimer.current) clearTimeout(buzzerTimer.current); }, []);
 
-  const performer = userData?.name || 'User';
-  const isOffline = device?.status === 'offline';
-
-  // ── Toggle handler ────────────────────────────────────────────────────────
+  // ── Toggle output ─────────────────────────────────────────────────────────
   const toggle = useCallback(
-    async (key: keyof DeviceState, value: boolean, label: string) => {
+    async (key: keyof DeviceOutputs, value: boolean, label: string) => {
       if (!device) return;
-      await updateDeviceState(device.deviceId, { [key]: value } as Partial<DeviceState>, performer, label);
+      await setOutput(device.deviceId, key, value, performer, label);
     },
     [device, performer]
   );
 
   // ── OLED ──────────────────────────────────────────────────────────────────
   async function handleSendOled() {
-    if (!device || !oledMsg.trim()) return;
+    if (!device || !oledDraft.trim()) return;
     setSendingOled(true);
-    await updateDeviceState(
-      device.deviceId,
-      { oledMessage: oledMsg },
-      performer,
-      `OLED: "${oledMsg}"`
-    );
+    await setOutput(device.deviceId, 'oledMessage', oledDraft.trim(), performer, `OLED: "${oledDraft.trim()}"`);
     setSendingOled(false);
   }
 
   async function handleClearOled() {
     if (!device) return;
-    await updateDeviceState(device.deviceId, { oledMessage: '' }, performer, 'OLED cleared');
-    setOledMsg('');
+    await setOutput(device.deviceId, 'oledMessage', '', performer, 'OLED cleared');
+    setOledDraft('');
   }
 
   // ── Buzzer ────────────────────────────────────────────────────────────────
   async function triggerBuzzer(mode: 'single' | 'double' | 'alarm') {
-    if (!device) return;
+    if (!device || buzzerMode !== 'idle') return;
     setBuzzerMode(mode);
-    await updateDeviceState(device.deviceId, { buzzer: true }, performer, `Buzzer: ${mode} beep`);
-    const duration = mode === 'single' ? 500 : mode === 'double' ? 1000 : 3000;
-    setTimeout(async () => {
-      await updateDeviceState(device.deviceId, { buzzer: false }, performer);
+    await setOutput(device.deviceId, 'buzzer', true, performer, `Buzzer: ${mode}`);
+    const ms = mode === 'single' ? 600 : mode === 'double' ? 1200 : 3500;
+    buzzerTimer.current = setTimeout(async () => {
+      await setOutput(device.deviceId, 'buzzer', false, performer);
       setBuzzerMode('idle');
-    }, duration);
+    }, ms);
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -260,63 +325,70 @@ export default function DeviceDetails() {
     navigate('/devices');
   }
 
-  // ── Analytics aggregation ─────────────────────────────────────────────────
-  const agg = analytics.reduce(
-    (acc, e) => ({
-      light1: acc.light1 + (e.light1Runtime || 0),
-      light2: acc.light2 + (e.light2Runtime || 0),
-      light3: acc.light3 + (e.light3Runtime || 0),
-      fan1:   acc.fan1   + (e.fan1Runtime   || 0),
-      fan2:   acc.fan2   + (e.fan2Runtime   || 0),
-      custom1:acc.custom1+ (e.custom1Runtime|| 0),
-      energy: acc.energy + (e.energyUsage   || 0),
-      total:  acc.total  + (e.totalRuntime  || 0),
-    }),
-    { light1: 0, light2: 0, light3: 0, fan1: 0, fan2: 0, custom1: 0, energy: 0, total: 0 }
-  );
-  const maxRuntime = Math.max(agg.light1, agg.light2, agg.light3, agg.fan1, agg.fan2, agg.custom1, 0.1);
+  // ─────────────────────────────────────────────────────────────────────────
 
   if (loading) return <Loader fullPage />;
   if (!device) return (
-    <div className="text-center py-20">
-      <p className="text-neutral-500">Device not found.</p>
-      <Link to="/devices" className="text-primary-600 text-sm mt-2 block">← Back to Devices</Link>
+    <div className="text-center py-24">
+      <Cpu size={40} className="text-neutral-300 mx-auto mb-3" />
+      <p className="text-neutral-500 font-medium">Device not found</p>
+      <Link to="/devices" className="text-primary-600 text-sm mt-2 block hover:underline">
+        ← Back to Devices
+      </Link>
     </div>
   );
 
-  const s = state;
+  const o  = outputs;
+  const h  = health;
+  const an = analytics;
+  const maxRuntime = Math.max(
+    an?.light1Runtime || 0, an?.light2Runtime || 0, an?.light3Runtime || 0,
+    an?.fan1Runtime   || 0, an?.fan2Runtime   || 0, an?.customRuntime  || 0, 0.1
+  );
+  const totalRuntime = (
+    (an?.light1Runtime || 0) + (an?.light2Runtime || 0) + (an?.light3Runtime || 0) +
+    (an?.fan1Runtime   || 0) + (an?.fan2Runtime   || 0) + (an?.customRuntime  || 0)
+  );
 
   return (
     <div className="space-y-6 max-w-7xl">
 
       {/* ── Breadcrumb ── */}
-      <div className="flex items-center gap-2 text-sm text-neutral-400">
-        <Link to="/devices" className="hover:text-neutral-600 transition-colors">Devices</Link>
-        <ChevronRight size={14} />
+      <div className="flex items-center gap-1.5 text-sm">
+        <Link to="/devices" className="text-neutral-400 hover:text-neutral-700 transition-colors">
+          Devices
+        </Link>
+        <ChevronRight size={14} className="text-neutral-300" />
         <span className="text-neutral-900 font-medium">{device.name}</span>
       </div>
 
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between flex-wrap gap-4">
+      {/* ── Header card ── */}
+      <div className="bg-white border border-neutral-100 rounded-2xl p-5 flex items-start justify-between flex-wrap gap-4 shadow-sm">
         <div className="flex items-start gap-4">
-          <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm
+            ${device.status === 'online' ? 'bg-primary-600' : 'bg-neutral-400'}`}>
             <Cpu size={26} className="text-white" />
           </div>
           <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-2xl font-bold text-neutral-900">{device.name}</h2>
-              <StatusPill online={device.status === 'online'} />
+            <div className="flex items-center gap-3 flex-wrap mb-1">
+              <h2 className="text-xl font-bold text-neutral-900">{device.name}</h2>
+              <OnlinePill online={device.status === 'online'} />
             </div>
-            <div className="flex items-center gap-4 mt-1 text-xs text-neutral-400 flex-wrap">
-              <span className="font-mono font-medium text-neutral-600">{device.deviceId}</span>
-              <span>Firmware {device.firmware || 'v1.2.4'}</span>
-              <span className="flex items-center gap-1">
-                <Clock size={11} />
-                Last seen {timeAgo(s?.updatedAt)}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
+              <span className="flex items-center gap-1 font-mono font-semibold text-neutral-600">
+                <Cpu size={11} />{device.deviceId}
               </span>
               <span className="flex items-center gap-1">
-                <MapPin size={11} />
-                {device.room} · {device.location}
+                <Bolt size={11} />Firmware {device.firmware || 'v1.2.4'}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock size={11} />Last seen {timeAgo(h?.lastSeen)}
+              </span>
+              <span className="flex items-center gap-1">
+                <MapPin size={11} />{device.room} · {device.location}
+              </span>
+              <span className="flex items-center gap-1">
+                <Cpu size={11} />ESP32 · Controller
               </span>
             </div>
           </div>
@@ -331,276 +403,294 @@ export default function DeviceDetails() {
         </div>
       </div>
 
-      {/* ── 3-column grid ── */}
+      {/* ── Main 3-col grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
-        {/* ── LIGHTS ── */}
+        {/* ═══ LIGHTS ═══ */}
         <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-yellow-50 rounded-xl flex items-center justify-center">
-              <Lightbulb size={16} className="text-yellow-500" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-yellow-50 rounded-xl flex items-center justify-center">
+                <Lightbulb size={16} className="text-yellow-500" />
+              </div>
+              <h3 className="text-sm font-bold text-neutral-900">Lights</h3>
             </div>
-            <h3 className="text-sm font-semibold text-neutral-900">Lights</h3>
-            <span className="ml-auto text-xs text-neutral-400">
-              {[s?.light1, s?.light2, s?.light3].filter(Boolean).length} / 3 on
+            <span className="text-xs font-medium text-neutral-400 bg-neutral-50 px-2.5 py-1 rounded-full">
+              {[o?.light1, o?.light2, o?.light3].filter(Boolean).length} / 3 on
             </span>
           </div>
-          <div className="space-y-2">
-            <ControlRow
-              icon={<Lightbulb size={16} className="text-yellow-500" />}
-              iconBg="bg-yellow-50"
-              label="Light 1"
-              checked={s?.light1 || false}
-              runtime={agg.light1}
-              onChange={v => toggle('light1', v, `Light 1 turned ${v ? 'ON' : 'OFF'}`)}
-              offline={isOffline}
-            />
-            <ControlRow
-              icon={<Lightbulb size={16} className="text-yellow-500" />}
-              iconBg="bg-yellow-50"
-              label="Light 2"
-              checked={s?.light2 || false}
-              runtime={agg.light2}
-              onChange={v => toggle('light2', v, `Light 2 turned ${v ? 'ON' : 'OFF'}`)}
-              offline={isOffline}
-            />
-            <ControlRow
-              icon={<Lightbulb size={16} className="text-yellow-500" />}
-              iconBg="bg-yellow-50"
-              label="Light 3"
-              checked={s?.light3 || false}
-              runtime={agg.light3}
-              onChange={v => toggle('light3', v, `Light 3 turned ${v ? 'ON' : 'OFF'}`)}
-              offline={isOffline}
-            />
+          <div className="grid grid-cols-1 gap-3">
+            {([
+              { key: 'light1' as const, label: 'Light 1', runtime: an?.light1Runtime },
+              { key: 'light2' as const, label: 'Light 2', runtime: an?.light2Runtime },
+              { key: 'light3' as const, label: 'Light 3', runtime: an?.light3Runtime },
+            ]).map(item => (
+              <ControlCard
+                key={item.key}
+                icon={<Lightbulb size={18} />}
+                iconActiveBg="bg-yellow-100"
+                iconInactiveBg="bg-yellow-50"
+                iconActiveColor="text-yellow-600"
+                iconInactiveColor="text-yellow-400"
+                label={item.label}
+                runtime={item.runtime}
+                checked={o?.[item.key] || false}
+                onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
+                disabled={isOffline}
+              />
+            ))}
           </div>
         </Card>
 
-        {/* ── FANS ── */}
+        {/* ═══ FANS ═══ */}
         <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center">
-              <Wind size={16} className="text-blue-500" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center">
+                <Wind size={16} className="text-blue-500" />
+              </div>
+              <h3 className="text-sm font-bold text-neutral-900">Fans</h3>
             </div>
-            <h3 className="text-sm font-semibold text-neutral-900">Fans</h3>
-            <span className="ml-auto text-xs text-neutral-400">
-              {[s?.fan1, s?.fan2].filter(Boolean).length} / 2 on
+            <span className="text-xs font-medium text-neutral-400 bg-neutral-50 px-2.5 py-1 rounded-full">
+              {[o?.fan1, o?.fan2].filter(Boolean).length} / 2 on
             </span>
           </div>
-          <div className="space-y-2">
-            <ControlRow
-              icon={<Wind size={16} className="text-blue-500" />}
-              iconBg="bg-blue-50"
-              label="Fan 1"
-              checked={s?.fan1 || false}
-              runtime={agg.fan1}
-              onChange={v => toggle('fan1', v, `Fan 1 turned ${v ? 'ON' : 'OFF'}`)}
-              offline={isOffline}
-            />
-            <ControlRow
-              icon={<Wind size={16} className="text-blue-500" />}
-              iconBg="bg-blue-50"
-              label="Fan 2"
-              checked={s?.fan2 || false}
-              runtime={agg.fan2}
-              onChange={v => toggle('fan2', v, `Fan 2 turned ${v ? 'ON' : 'OFF'}`)}
-              offline={isOffline}
-            />
+          <div className="grid grid-cols-1 gap-3 mb-4">
+            {([
+              { key: 'fan1' as const, label: 'Fan 1', runtime: an?.fan1Runtime },
+              { key: 'fan2' as const, label: 'Fan 2', runtime: an?.fan2Runtime },
+            ]).map(item => (
+              <ControlCard
+                key={item.key}
+                icon={<Wind size={18} />}
+                iconActiveBg="bg-blue-100"
+                iconInactiveBg="bg-blue-50"
+                iconActiveColor="text-blue-600"
+                iconInactiveColor="text-blue-400"
+                label={item.label}
+                runtime={item.runtime}
+                checked={o?.[item.key] || false}
+                onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
+                disabled={isOffline}
+              />
+            ))}
           </div>
 
-          {/* ── CUSTOM DEVICE (inside fans card on md, own card on xl) ── */}
-          <div className="mt-4 pt-4 border-t border-neutral-100">
+          {/* Custom Device inside same column */}
+          <div className="pt-4 border-t border-neutral-100">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 bg-purple-50 rounded-xl flex items-center justify-center">
                 <Bolt size={16} className="text-purple-500" />
               </div>
-              <h3 className="text-sm font-semibold text-neutral-900">Custom Device</h3>
+              <h3 className="text-sm font-bold text-neutral-900">Custom Device</h3>
             </div>
-            <ControlRow
-              icon={<Bolt size={16} className="text-purple-500" />}
-              iconBg="bg-purple-50"
-              label="Custom Device 1"
-              checked={s?.custom1 || false}
-              runtime={agg.custom1}
-              onChange={v => toggle('custom1', v, `Custom Device 1 turned ${v ? 'ON' : 'OFF'}`)}
-              offline={isOffline}
+            <ControlCard
+              icon={<Bolt size={18} />}
+              iconActiveBg="bg-purple-100"
+              iconInactiveBg="bg-purple-50"
+              iconActiveColor="text-purple-600"
+              iconInactiveColor="text-purple-400"
+              label="Custom Device"
+              runtime={an?.customRuntime}
+              checked={o?.custom1 || false}
+              onChange={v => toggle('custom1', v, `Custom Device turned ${v ? 'ON' : 'OFF'}`)}
+              disabled={isOffline}
             />
           </div>
         </Card>
 
-        {/* ── DEVICE HEALTH ── */}
+        {/* ═══ DEVICE HEALTH ═══ */}
         <Card>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-green-50 rounded-xl flex items-center justify-center">
               <Activity size={16} className="text-green-500" />
             </div>
-            <h3 className="text-sm font-semibold text-neutral-900">Device Health</h3>
-            <span className={`ml-auto w-2 h-2 rounded-full ${device.status === 'online' ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'}`} />
+            <h3 className="text-sm font-bold text-neutral-900">Device Health</h3>
+            <span
+              className={`ml-auto w-2.5 h-2.5 rounded-full ${
+                device.status === 'online' ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'
+              }`}
+            />
           </div>
-          <div className="space-y-3">
-            {/* WiFi */}
-            <div className="flex items-center justify-between py-2 border-b border-neutral-50">
-              <div className="flex items-center gap-2">
-                <Wifi size={14} className="text-neutral-400" />
-                <span className="text-xs text-neutral-600">WiFi Status</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <HealthDot ok={s?.wifiStatus === 'connected'} />
-                <span className={`text-xs font-medium capitalize ${s?.wifiStatus === 'connected' ? 'text-success-600' : 'text-error-500'}`}>
-                  {s?.wifiStatus || 'Unknown'}
+          <div className="space-y-0">
+            <HealthRow
+              icon={<Wifi size={13} />}
+              label="WiFi Status"
+              ok={h?.wifiStatus === 'connected'}
+              value={
+                <span className={h?.wifiStatus === 'connected' ? 'text-success-600' : 'text-error-500'}>
+                  {h?.wifiStatus === 'connected' ? 'Connected' : 'Disconnected'}
                 </span>
-              </div>
-            </div>
-            {/* Firebase */}
-            <div className="flex items-center justify-between py-2 border-b border-neutral-50">
-              <div className="flex items-center gap-2">
-                <Server size={14} className="text-neutral-400" />
-                <span className="text-xs text-neutral-600">Firebase</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <HealthDot ok={s?.firebaseStatus === 'connected'} />
-                <span className={`text-xs font-medium capitalize ${s?.firebaseStatus === 'connected' ? 'text-success-600' : 'text-error-500'}`}>
-                  {s?.firebaseStatus || 'Unknown'}
+              }
+            />
+            <HealthRow
+              icon={<Server size={13} />}
+              label="Firebase"
+              ok={h?.firebaseStatus === 'connected'}
+              value={
+                <span className={h?.firebaseStatus === 'connected' ? 'text-success-600' : 'text-error-500'}>
+                  {h?.firebaseStatus === 'connected' ? 'Connected' : 'Disconnected'}
                 </span>
-              </div>
-            </div>
-            {/* RSSI */}
-            <div className="flex items-center justify-between py-2 border-b border-neutral-50">
-              <div className="flex items-center gap-2">
-                <Signal size={14} className="text-neutral-400" />
-                <span className="text-xs text-neutral-600">RSSI</span>
-              </div>
-              <span className="text-xs font-semibold text-neutral-900">
-                {s?.rssi ? `${s.rssi} dBm` : '–'}
-              </span>
-            </div>
-            {/* Heap */}
-            <div className="flex items-center justify-between py-2 border-b border-neutral-50">
-              <div className="flex items-center gap-2">
-                <MemoryStick size={14} className="text-neutral-400" />
-                <span className="text-xs text-neutral-600">Free Heap</span>
-              </div>
-              <span className="text-xs font-semibold text-neutral-900">{fmtHeap(s?.freeHeap || 0)}</span>
-            </div>
-            {/* Device Uptime */}
-            <div className="flex items-center justify-between py-2 border-b border-neutral-50">
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-neutral-400" />
-                <span className="text-xs text-neutral-600">Device Uptime</span>
-              </div>
-              <span className="text-xs font-semibold text-neutral-900">{fmtUptime(s?.deviceUptime || 0)}</span>
-            </div>
-            {/* WiFi Uptime */}
-            <div className="flex items-center justify-between py-2 border-b border-neutral-50">
-              <div className="flex items-center gap-2">
-                <Wifi size={14} className="text-neutral-400" />
-                <span className="text-xs text-neutral-600">WiFi Uptime</span>
-              </div>
-              <span className="text-xs font-semibold text-neutral-900">{fmtUptime(s?.wifiUptime || 0)}</span>
-            </div>
-            {/* Restart Count */}
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-2">
-                <RotateCcw size={14} className="text-neutral-400" />
-                <span className="text-xs text-neutral-600">Restarts</span>
-              </div>
-              <span className="text-xs font-semibold text-neutral-900">{s?.restartCount ?? '–'}</span>
-            </div>
+              }
+            />
+            <HealthRow
+              icon={<Signal size={13} />}
+              label="RSSI"
+              value={
+                h?.rssi ? (
+                  <span>
+                    {h.rssi} dBm{' '}
+                    <span className={`${rssiLabel(h.rssi).color} font-normal`}>
+                      ({rssiLabel(h.rssi).text})
+                    </span>
+                  </span>
+                ) : '–'
+              }
+            />
+            <HealthRow
+              icon={<MemoryStick size={13} />}
+              label="Free Heap"
+              value={fmtHeap(h?.heap || 0)}
+            />
+            <HealthRow
+              icon={<Clock size={13} />}
+              label="Device Uptime"
+              value={fmtUptime(h?.uptime || 0)}
+            />
+            <HealthRow
+              icon={<Wifi size={13} />}
+              label="WiFi Uptime"
+              value={fmtUptime(h?.wifiUptime || 0)}
+            />
+            <HealthRow
+              icon={<RotateCcw size={13} />}
+              label="Restart Count"
+              value={h?.restartCount ?? '–'}
+            />
           </div>
         </Card>
 
-        {/* ── ANALYTICS ── */}
-        <Card className="md:col-span-2 xl:col-span-2">
-          <div className="flex items-center gap-2 mb-5">
-            <div className="w-8 h-8 bg-primary-50 rounded-xl flex items-center justify-center">
-              <BarChart3 size={16} className="text-primary-600" />
+        {/* ═══ ANALYTICS (spans 2 cols on xl) ═══ */}
+        <div className="md:col-span-2 xl:col-span-2">
+          <Card>
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-8 h-8 bg-primary-50 rounded-xl flex items-center justify-center">
+                <BarChart3 size={16} className="text-primary-600" />
+              </div>
+              <h3 className="text-sm font-bold text-neutral-900">Runtime Analytics</h3>
+              <span className="ml-auto text-xs text-neutral-400">Cumulative</span>
             </div>
-            <h3 className="text-sm font-semibold text-neutral-900">Runtime Analytics</h3>
-            <span className="ml-auto text-xs text-neutral-400">Last 7 days</span>
-          </div>
 
-          {/* Top stats row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-            {[
-              { label: 'Total Runtime', value: fmtRuntime(agg.total), icon: <Clock size={14} className="text-primary-500" />, bg: 'bg-primary-50' },
-              { label: 'Energy Used', value: `${agg.energy.toFixed(3)} kWh`, icon: <Zap size={14} className="text-yellow-500" />, bg: 'bg-yellow-50' },
-              { label: 'Lights On', value: [s?.light1, s?.light2, s?.light3].filter(Boolean).length.toString(), icon: <Lightbulb size={14} className="text-yellow-500" />, bg: 'bg-yellow-50' },
-              { label: 'Fans On', value: [s?.fan1, s?.fan2].filter(Boolean).length.toString(), icon: <Wind size={14} className="text-blue-500" />, bg: 'bg-blue-50' },
-            ].map(item => (
-              <div key={item.label} className="bg-neutral-50 rounded-xl p-3">
-                <div className={`w-7 h-7 ${item.bg} rounded-lg flex items-center justify-center mb-2`}>
-                  {item.icon}
+            {/* Summary stat cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              {[
+                {
+                  label: 'Total Runtime',
+                  value: fmtRuntime(totalRuntime),
+                  icon: <Clock size={14} className="text-primary-500" />,
+                  bg: 'bg-primary-50',
+                },
+                {
+                  label: 'Energy Used',
+                  value: `${(an?.energyUsage || 0).toFixed(3)} kWh`,
+                  icon: <Zap size={14} className="text-yellow-500" />,
+                  bg: 'bg-yellow-50',
+                },
+                {
+                  label: 'Lights Active',
+                  value: `${[o?.light1, o?.light2, o?.light3].filter(Boolean).length} / 3`,
+                  icon: <Lightbulb size={14} className="text-yellow-500" />,
+                  bg: 'bg-yellow-50',
+                },
+                {
+                  label: 'Fans Active',
+                  value: `${[o?.fan1, o?.fan2].filter(Boolean).length} / 2`,
+                  icon: <Wind size={14} className="text-blue-500" />,
+                  bg: 'bg-blue-50',
+                },
+              ].map(item => (
+                <div key={item.label} className="bg-neutral-50 rounded-xl p-3.5">
+                  <div className={`w-7 h-7 ${item.bg} rounded-lg flex items-center justify-center mb-2.5`}>
+                    {item.icon}
+                  </div>
+                  <p className="text-base font-bold text-neutral-900 leading-tight">{item.value}</p>
+                  <p className="text-xs text-neutral-400 mt-0.5">{item.label}</p>
                 </div>
-                <p className="text-base font-bold text-neutral-900">{item.value}</p>
-                <p className="text-xs text-neutral-400 mt-0.5">{item.label}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          {/* Per-channel runtime bars */}
-          <div className="space-y-3">
-            {[
-              { label: 'Light 1', value: agg.light1, color: 'bg-yellow-400', icon: '💡' },
-              { label: 'Light 2', value: agg.light2, color: 'bg-yellow-400', icon: '💡' },
-              { label: 'Light 3', value: agg.light3, color: 'bg-yellow-400', icon: '💡' },
-              { label: 'Fan 1',   value: agg.fan1,   color: 'bg-blue-400',   icon: '🌀' },
-              { label: 'Fan 2',   value: agg.fan2,   color: 'bg-blue-400',   icon: '🌀' },
-              { label: 'Custom 1',value: agg.custom1,color: 'bg-purple-400', icon: '⚡' },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-3">
-                <span className="text-sm w-5">{item.icon}</span>
-                <span className="text-xs text-neutral-600 w-16">{item.label}</span>
-                <RuntimeBar value={item.value} max={maxRuntime} color={item.color} />
-                <span className="text-xs font-medium text-neutral-700 w-16 text-right">
-                  {fmtRuntime(item.value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
+            {/* Per-channel bars */}
+            <div className="space-y-3.5">
+              {[
+                { label: 'Light 1',  value: an?.light1Runtime  || 0, color: 'bg-yellow-400', dot: 'bg-yellow-400' },
+                { label: 'Light 2',  value: an?.light2Runtime  || 0, color: 'bg-yellow-400', dot: 'bg-yellow-400' },
+                { label: 'Light 3',  value: an?.light3Runtime  || 0, color: 'bg-amber-400',  dot: 'bg-amber-400'  },
+                { label: 'Fan 1',    value: an?.fan1Runtime    || 0, color: 'bg-blue-400',   dot: 'bg-blue-400'   },
+                { label: 'Fan 2',    value: an?.fan2Runtime    || 0, color: 'bg-sky-400',    dot: 'bg-sky-400'    },
+                { label: 'Custom',   value: an?.customRuntime  || 0, color: 'bg-purple-400', dot: 'bg-purple-400' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center gap-3">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.dot}`} />
+                  <span className="text-xs text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
+                  <RuntimeBar value={item.value} max={maxRuntime} color={item.color} />
+                  <span className="text-xs font-semibold text-neutral-700 w-16 text-right flex-shrink-0">
+                    {fmtRuntime(item.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
 
-        {/* ── OLED DISPLAY ── */}
+        {/* ═══ OLED ═══ */}
         <Card>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-purple-50 rounded-xl flex items-center justify-center">
-              <Monitor size={16} className="text-purple-500" />
+            <div className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
+              <Monitor size={16} className="text-slate-600" />
             </div>
-            <h3 className="text-sm font-semibold text-neutral-900">OLED Display</h3>
+            <h3 className="text-sm font-bold text-neutral-900">OLED Display</h3>
           </div>
 
-          {/* Preview */}
-          <div className="bg-neutral-900 rounded-xl p-4 mb-4 min-h-[72px] flex items-center justify-center font-mono text-center">
-            {s?.oledMessage ? (
-              <p className="text-green-400 text-sm leading-snug break-words">{s.oledMessage}</p>
+          {/* Screen preview */}
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 mb-4 min-h-[80px] flex items-center justify-center font-mono relative overflow-hidden">
+            <div className="absolute inset-0 opacity-5"
+              style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,.03) 2px, rgba(255,255,255,.03) 4px)' }}
+            />
+            {o?.oledMessage ? (
+              <p className="text-green-400 text-sm text-center leading-relaxed z-10 break-all">
+                {o.oledMessage}
+              </p>
             ) : (
-              <p className="text-neutral-600 text-xs">No message</p>
+              <p className="text-neutral-700 text-xs z-10">— display empty —</p>
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <textarea
-              className="form-input text-sm resize-none"
+              className="form-input text-sm resize-none font-mono"
               rows={2}
-              placeholder="Type a message to display..."
-              value={oledMsg}
-              onChange={e => setOledMsg(e.target.value.slice(0, 64))}
+              placeholder="Type a message..."
+              value={oledDraft}
+              onChange={e => setOledDraft(e.target.value.slice(0, 64))}
             />
-            <p className="text-xs text-neutral-400 text-right">{oledMsg.length}/64</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-neutral-400">{oledDraft.length} / 64 chars</span>
+            </div>
             <div className="flex gap-2">
               <Button
                 className="flex-1"
                 size="sm"
                 onClick={handleSendOled}
                 loading={sendingOled}
-                disabled={!oledMsg.trim() || isOffline}
+                disabled={!oledDraft.trim() || isOffline}
               >
-                Send
+                Send to Display
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={handleClearOled}
-                disabled={!s?.oledMessage || isOffline}
+                disabled={!o?.oledMessage || isOffline}
               >
                 Clear
               </Button>
@@ -608,64 +698,61 @@ export default function DeviceDetails() {
           </div>
         </Card>
 
-        {/* ── BUZZER ── */}
+        {/* ═══ BUZZER ═══ */}
         <Card>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center">
               <Volume2 size={16} className="text-orange-500" />
             </div>
-            <h3 className="text-sm font-semibold text-neutral-900">Buzzer</h3>
-            {s?.buzzer && (
-              <span className="ml-auto flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full animate-pulse">
+            <h3 className="text-sm font-bold text-neutral-900">Buzzer</h3>
+            {o?.buzzer && (
+              <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                Active
+                Sounding
               </span>
             )}
           </div>
 
-          <div className="space-y-2">
-            <button
-              onClick={() => triggerBuzzer('single')}
-              disabled={buzzerMode !== 'idle' || isOffline}
-              className="w-full flex items-center justify-between px-4 py-3 bg-neutral-50 hover:bg-orange-50 border border-neutral-100 hover:border-orange-200 rounded-xl text-sm font-medium text-neutral-700 hover:text-orange-700 transition-all disabled:opacity-40"
-            >
-              <span>Test Beep</span>
-              <span className="text-xs text-neutral-400">0.5s</span>
-            </button>
-            <button
-              onClick={() => triggerBuzzer('double')}
-              disabled={buzzerMode !== 'idle' || isOffline}
-              className="w-full flex items-center justify-between px-4 py-3 bg-neutral-50 hover:bg-orange-50 border border-neutral-100 hover:border-orange-200 rounded-xl text-sm font-medium text-neutral-700 hover:text-orange-700 transition-all disabled:opacity-40"
-            >
-              <span>Double Beep</span>
-              <span className="text-xs text-neutral-400">1s</span>
-            </button>
-            <button
-              onClick={() => triggerBuzzer('alarm')}
-              disabled={buzzerMode !== 'idle' || isOffline}
-              className="w-full flex items-center justify-between px-4 py-3 bg-neutral-50 hover:bg-red-50 border border-neutral-100 hover:border-red-200 rounded-xl text-sm font-medium text-neutral-700 hover:text-red-600 transition-all disabled:opacity-40"
-            >
-              <span>Alarm Beep</span>
-              <span className="text-xs text-neutral-400">3s</span>
-            </button>
+          <div className="space-y-2.5">
+            {([
+              { mode: 'single' as const,  label: 'Test Beep',    desc: 'Single short beep',   duration: '0.6s', hoverCls: 'hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700' },
+              { mode: 'double' as const,  label: 'Double Beep',  desc: 'Two consecutive beeps', duration: '1.2s', hoverCls: 'hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700' },
+              { mode: 'alarm'  as const,  label: 'Alarm Test',   desc: 'Long alarm sound',    duration: '3.5s', hoverCls: 'hover:bg-red-50 hover:border-red-200 hover:text-red-600'    },
+            ]).map(item => (
+              <button
+                key={item.mode}
+                onClick={() => triggerBuzzer(item.mode)}
+                disabled={buzzerMode !== 'idle' || isOffline}
+                className={`w-full flex items-center justify-between px-4 py-3.5 bg-neutral-50 border border-neutral-100 rounded-xl text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed ${item.hoverCls} ${buzzerMode === item.mode ? 'ring-2 ring-orange-300 bg-orange-50' : ''}`}
+              >
+                <div className="text-left">
+                  <p className="font-semibold text-neutral-800">{item.label}</p>
+                  <p className="text-xs text-neutral-400 mt-0.5">{item.desc}</p>
+                </div>
+                <span className="text-xs text-neutral-400 bg-white border border-neutral-100 px-2 py-1 rounded-lg">
+                  {item.duration}
+                </span>
+              </button>
+            ))}
           </div>
         </Card>
 
-        {/* ── DEVICE INFO ── */}
+        {/* ═══ CONTROLLER INFO ═══ */}
         <Card>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-neutral-100 rounded-xl flex items-center justify-center">
               <Cpu size={16} className="text-neutral-500" />
             </div>
-            <h3 className="text-sm font-semibold text-neutral-900">Controller Info</h3>
+            <h3 className="text-sm font-bold text-neutral-900">Controller Info</h3>
           </div>
-          <div className="space-y-3 text-sm">
+          <div className="space-y-0">
             {[
-              { label: 'Device ID',       value: device.deviceId,  mono: true },
-              { label: 'Room',            value: device.room },
-              { label: 'Location',        value: device.location },
-              { label: 'Firmware',        value: device.firmware || 'v1.2.4' },
-              { label: 'Controller',      value: 'ESP32' },
+              { label: 'Device ID',   value: device.deviceId, mono: true },
+              { label: 'Room',        value: device.room },
+              { label: 'Location',    value: device.location },
+              { label: 'Firmware',    value: device.firmware || 'v1.2.4' },
+              { label: 'Controller',  value: 'ESP32' },
+              { label: 'Channels',    value: '3 Lights · 2 Fans · 1 Custom' },
               {
                 label: 'Added On',
                 value: device.createdAt
@@ -674,34 +761,41 @@ export default function DeviceDetails() {
                   : '–',
               },
             ].map(item => (
-              <div key={item.label} className="flex items-center justify-between py-2 border-b border-neutral-50 last:border-0">
+              <div
+                key={item.label}
+                className="flex items-center justify-between py-2.5 border-b border-neutral-50 last:border-0"
+              >
                 <span className="text-xs text-neutral-400">{item.label}</span>
-                <span className={`text-xs font-semibold text-neutral-900 ${item.mono ? 'font-mono' : ''}`}>
+                <span
+                  className={`text-xs font-semibold text-neutral-900 max-w-[60%] text-right ${
+                    item.mono ? 'font-mono' : ''
+                  }`}
+                >
                   {item.value}
                 </span>
               </div>
             ))}
           </div>
-          <div className="mt-4 pt-3 border-t border-neutral-100">
-            <button
-              onClick={() => setDeleteModal(true)}
-              className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-error-500 hover:bg-error-50 rounded-lg transition-colors"
-            >
-              <Trash size={13} /> Remove Device
-            </button>
-          </div>
+          <button
+            onClick={() => setDeleteModal(true)}
+            className="mt-4 w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-error-500 hover:bg-error-50 rounded-xl transition-colors"
+          >
+            <Trash size={13} /> Remove This Device
+          </button>
         </Card>
 
-      </div>{/* end grid */}
+      </div>
 
       {/* ── Delete Modal ── */}
       <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Remove Device">
-        <p className="text-sm text-neutral-600 mb-5">
-          Remove <strong>{device.name}</strong>? This will delete all device data and cannot be undone.
+        <p className="text-sm text-neutral-600 mb-6">
+          Remove <strong>{device.name}</strong>? All device data will be permanently deleted.
         </p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
-          <Button variant="danger" loading={deleting} onClick={handleDelete}>Remove</Button>
+          <Button variant="danger" loading={deleting} onClick={handleDelete}>
+            Remove Device
+          </Button>
         </div>
       </Modal>
     </div>

@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronRight, Lightbulb, Wind, Trash2, Monitor, Volume2 } from 'lucide-react';
+import { Check, ChevronRight, Lightbulb, Wind, Monitor, Volume2, Bolt } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { addDevice } from '../../services/deviceService';
-import { logActivity } from '../../services/deviceService';
+import { addDevice, logActivity } from '../../services/deviceService';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 
@@ -11,12 +10,16 @@ const STEPS = ['Device ID', 'Room', 'Location', 'Review', 'Complete'];
 
 const ROOMS = ['Living Room', 'Bedroom', 'Kitchen', 'Office'];
 
+// Actual ESP32 firmware v1 channels
 const COMPONENTS = [
-  { key: 'light', label: 'Light', icon: <Lightbulb size={16} className="text-yellow-600" />, bg: 'bg-yellow-50' },
-  { key: 'fan', label: 'Fan', icon: <Wind size={16} className="text-blue-600" />, bg: 'bg-blue-50' },
-  { key: 'dustbin', label: 'Smart Dustbin', icon: <Trash2 size={16} className="text-green-600" />, bg: 'bg-green-50' },
-  { key: 'oled', label: 'OLED Display', icon: <Monitor size={16} className="text-purple-600" />, bg: 'bg-purple-50' },
-  { key: 'buzzer', label: 'Buzzer', icon: <Volume2 size={16} className="text-orange-600" />, bg: 'bg-orange-50' },
+  { key: 'light1',   label: 'Light 1',        icon: <Lightbulb size={16} className="text-yellow-600" />, bg: 'bg-yellow-50' },
+  { key: 'light2',   label: 'Light 2',        icon: <Lightbulb size={16} className="text-yellow-600" />, bg: 'bg-yellow-50' },
+  { key: 'light3',   label: 'Light 3',        icon: <Lightbulb size={16} className="text-yellow-600" />, bg: 'bg-yellow-50' },
+  { key: 'fan1',     label: 'Fan 1',          icon: <Wind size={16} className="text-blue-600" />,        bg: 'bg-blue-50'   },
+  { key: 'fan2',     label: 'Fan 2',          icon: <Wind size={16} className="text-blue-600" />,        bg: 'bg-blue-50'   },
+  { key: 'custom1',  label: 'Custom Device',  icon: <Bolt size={16} className="text-purple-600" />,      bg: 'bg-purple-50' },
+  { key: 'oled',     label: 'OLED Display',   icon: <Monitor size={16} className="text-slate-600" />,    bg: 'bg-slate-50'  },
+  { key: 'buzzer',   label: 'Buzzer',         icon: <Volume2 size={16} className="text-orange-600" />,   bg: 'bg-orange-50' },
 ];
 
 export default function AddDevice() {
