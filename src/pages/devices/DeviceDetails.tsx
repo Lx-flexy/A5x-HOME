@@ -267,7 +267,8 @@ export default function DeviceDetails() {
   const [deleting, setDeleting]       = useState(false);
 
   const performer = userData?.name || 'User';
-  const isOnline = liveStatus === 'online';
+  const isOnline  = liveStatus === 'online';
+  const isOffline = false; // controls always enabled — RTDB queues commands for ESP32
 
   // ── Load device meta ──────────────────────────────────────────────────────
   useEffect(() => {
