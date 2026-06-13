@@ -11,6 +11,7 @@ import {
   subscribeToOutputs,
   subscribeToHealth,
   subscribeToAnalytics,
+  subscribeToDeviceStatus,
   setOutput,
   deleteDevice,
   Device,
@@ -50,9 +51,16 @@ function fmtRuntime(h: number): string {
 
 function timeAgo(ts: unknown): string {
   if (!ts) return '–';
-  const secs = (ts as { seconds: number })?.seconds;
-  if (!secs) return '–';
-  const diff = Math.floor(Date.now() / 1000) - secs;
+  // RTDB stores unix ms; Firestore stores {seconds, nanoseconds}
+  let ms: number;
+  if (typeof ts === 'number') {
+    ms = ts > 1e10 ? ts : ts * 1000; // handle both ms and seconds
+  } else {
+    const secs = (ts as { seconds: number })?.seconds;
+    if (!secs) return '–';
+    ms = secs * 1000;
+  }
+  const diff = Math.floor((Date.now() - ms) / 1000);
   if (diff < 5) return 'just now';
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
@@ -246,6 +254,7 @@ export default function DeviceDetails() {
   const [outputs, setOutputs]   = useState<DeviceOutputs | null>(null);
   const [health, setHealth]     = useState<DeviceHealth | null>(null);
   const [analytics, setAnalytics] = useState<DeviceAnalyticsData | null>(null);
+  const [liveStatus, setLiveStatus] = useState<'online' | 'offline'>('offline');
   const [loading, setLoading]   = useState(true);
 
   const [oledDraft, setOledDraft]   = useState('');
@@ -258,9 +267,7 @@ export default function DeviceDetails() {
   const [deleting, setDeleting]       = useState(false);
 
   const performer = userData?.name || 'User';
-  // Controls are always enabled — commands are queued in Firestore
-  // and the ESP32 picks them up when it reconnects.
-  const isOffline = false;
+  const isOnline = liveStatus === 'online';
 
   // ── Load device meta ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -278,7 +285,8 @@ export default function DeviceDetails() {
     const u1 = subscribeToOutputs(did, setOutputs);
     const u2 = subscribeToHealth(did, setHealth);
     const u3 = subscribeToAnalytics(did, setAnalytics);
-    return () => { u1(); u2(); u3(); };
+    const u4 = subscribeToDeviceStatus(did, setLiveStatus);
+    return () => { u1(); u2(); u3(); u4(); };
   }, [device]);
 
   // ── Cleanup buzzer timer ──────────────────────────────────────────────────
@@ -368,13 +376,13 @@ export default function DeviceDetails() {
       <div className="bg-white border border-neutral-100 rounded-2xl p-5 flex items-start justify-between flex-wrap gap-4 shadow-sm">
         <div className="flex items-start gap-4">
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm
-            ${device.status === 'online' ? 'bg-primary-600' : 'bg-neutral-400'}`}>
+            ${isOnline ? 'bg-primary-600' : 'bg-neutral-400'}`}>
             <Cpu size={26} className="text-white" />
           </div>
           <div>
             <div className="flex items-center gap-3 flex-wrap mb-1">
               <h2 className="text-xl font-bold text-neutral-900">{device.name}</h2>
-              <OnlinePill online={device.status === 'online'} />
+              <OnlinePill online={isOnline} />
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
               <span className="flex items-center gap-1 font-mono font-semibold text-neutral-600">
@@ -384,7 +392,7 @@ export default function DeviceDetails() {
                 <Bolt size={11} />Firmware {device.firmware || 'v1.2.4'}
               </span>
               <span className="flex items-center gap-1">
-                <Clock size={11} />Last seen {timeAgo(h?.lastSeen)}
+                <Clock size={11} />Last seen {health?.lastSeen ? timeAgo(health.lastSeen) : '–'}
               </span>
               <span className="flex items-center gap-1">
                 <MapPin size={11} />{device.room} · {device.location}
@@ -510,7 +518,7 @@ export default function DeviceDetails() {
             <h3 className="text-sm font-bold text-neutral-900">Device Health</h3>
             <span
               className={`ml-auto w-2.5 h-2.5 rounded-full ${
-                device.status === 'online' ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'
+                isOnline ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'
               }`}
             />
           </div>

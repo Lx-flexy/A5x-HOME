@@ -1,72 +1,42 @@
-import {
-  collection,
-  doc,
-  addDoc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  serverTimestamp,
-  orderBy,
-  writeBatch,
-} from 'firebase/firestore';
-import { db } from './firebase';
+/**
+ * HYBRID ARCHITECTURE
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Firebase Realtime Database  →  live device state (outputs, health, analytics, status)
+ *   RTDB path: devices/{deviceId}/
+ *     status      "online" | "offline"
+ *     lastSeen    unix ms
+ *     outputs/    light1, light2, light3, fan1, fan2, custom1, oledMessage, buzzer
+ *     health/     rssi, heap, restartCount, uptime, wifiUptime, wifiStatus, firebaseStatus
+ *     analytics/  light1Runtime…customRuntime, energyUsage
+ *
+ * Firestore  →  persistent metadata & audit logs
+ *   devices_meta/{autoId}   device registration (ownerId, name, room, etc.)
+ *   activity_logs/{autoId}  every control action
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FIREBASE STRUCTURE
-//
-// devices/{deviceId}           ← keyed by deviceId string (e.g. "A5X-HA-2647")
-//   meta/                      ← written by web app
-//     name, room, location, ownerId, firmware, status, createdAt, updatedAt
-//   outputs/                   ← written by web app → read by ESP32
-//     light1, light2, light3   boolean
-//     fan1, fan2               boolean
-//     custom1                  boolean
-//     oledMessage              string
-//     buzzer                   boolean
-//     updatedAt
-//   health/                    ← written by ESP32 → read by web app
-//     rssi                     number  (dBm)
-//     heap                     number  (bytes)
-//     restartCount             number
-//     uptime                   number  (seconds – device uptime)
-//     wifiUptime               number  (seconds – wifi uptime)
-//     wifiStatus               "connected"|"disconnected"
-//     firebaseStatus           "connected"|"disconnected"
-//     lastSeen                 Timestamp
-//   analytics/                 ← written by web app, updated on each toggle-ON
-//     light1Runtime            number (hours)
-//     light2Runtime            number
-//     light3Runtime            number
-//     fan1Runtime              number
-//     fan2Runtime              number
-//     customRuntime            number
-//     energyUsage              number (kWh)
-//     updatedAt
-//
-// devices_meta/{autoId}        ← Firestore list for querying by ownerId
-//   deviceId, ownerId, name, room, location, firmware, status, createdAt
-//
-// activity_logs/{autoId}
-//   deviceId, action, performedBy, timestamp
-// ─────────────────────────────────────────────────────────────────────────────
+import {
+  collection, doc, addDoc, getDoc, getDocs,
+  setDoc, updateDoc, deleteDoc, onSnapshot,
+  query, where, serverTimestamp, orderBy,
+} from 'firebase/firestore';
+import {
+  ref, set, update, onValue, off,
+  get, remove, DataSnapshot,
+} from 'firebase/database';
+import { db, rtdb } from './firebase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Device {
-  id: string;          // Firestore auto-id of devices_meta doc
-  deviceId: string;    // e.g. "A5X-HA-2647"
+  id: string;        // Firestore devices_meta autoId
+  deviceId: string;  // e.g. "A5X-HA-2647"
   ownerId: string;
   name: string;
   room: string;
   location: string;
-  status: 'online' | 'offline';
-  dexBotId?: string;
   firmware: string;
+  dexBotId?: string;
   createdAt: unknown;
   updatedAt?: unknown;
 }
@@ -80,7 +50,6 @@ export interface DeviceOutputs {
   custom1: boolean;
   oledMessage: string;
   buzzer: boolean;
-  updatedAt?: unknown;
 }
 
 export interface DeviceHealth {
@@ -91,7 +60,7 @@ export interface DeviceHealth {
   wifiUptime: number;
   wifiStatus: 'connected' | 'disconnected';
   firebaseStatus: 'connected' | 'disconnected';
-  lastSeen?: unknown;
+  lastSeen?: number;
 }
 
 export interface DeviceAnalyticsData {
@@ -102,7 +71,6 @@ export interface DeviceAnalyticsData {
   fan2Runtime: number;
   customRuntime: number;
   energyUsage: number;
-  updatedAt?: unknown;
 }
 
 export interface ActivityLog {
@@ -113,15 +81,21 @@ export interface ActivityLog {
   timestamp: unknown;
 }
 
-// ─── Default factories ────────────────────────────────────────────────────────
+// ─── RTDB path helpers ────────────────────────────────────────────────────────
 
-function defaultOutputs(): Omit<DeviceOutputs, 'updatedAt'> {
+const rtdbDevice    = (did: string) => ref(rtdb, `devices/${did}`);
+const rtdbOutputs   = (did: string) => ref(rtdb, `devices/${did}/outputs`);
+const rtdbHealth    = (did: string) => ref(rtdb, `devices/${did}/health`);
+const rtdbAnalytics = (did: string) => ref(rtdb, `devices/${did}/analytics`);
+const rtdbStatus    = (did: string) => ref(rtdb, `devices/${did}/status`);
+
+// ─── Defaults ────────────────────────────────────────────────────────────────
+
+function defaultOutputs(): DeviceOutputs {
   return {
     light1: false, light2: false, light3: false,
-    fan1: false, fan2: false,
-    custom1: false,
-    oledMessage: '',
-    buzzer: false,
+    fan1: false, fan2: false, custom1: false,
+    oledMessage: '', buzzer: false,
   };
 }
 
@@ -129,72 +103,50 @@ function defaultHealth(): DeviceHealth {
   return {
     rssi: 0, heap: 0, restartCount: 0,
     uptime: 0, wifiUptime: 0,
-    wifiStatus: 'disconnected',
-    firebaseStatus: 'disconnected',
+    wifiStatus: 'disconnected', firebaseStatus: 'disconnected',
   };
 }
 
-function defaultAnalytics(): Omit<DeviceAnalyticsData, 'updatedAt'> {
+function defaultAnalytics(): DeviceAnalyticsData {
   return {
     light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-    fan1Runtime: 0, fan2Runtime: 0,
-    customRuntime: 0, energyUsage: 0,
+    fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
   };
 }
 
-// ─── Helper: sub-doc refs ─────────────────────────────────────────────────────
-
-const outputsRef  = (did: string) => doc(db, 'devices', did, 'state', 'outputs');
-const healthRef   = (did: string) => doc(db, 'devices', did, 'state', 'health');
-const analyticsRef= (did: string) => doc(db, 'devices', did, 'state', 'analytics');
-
-// ─── Device CRUD ──────────────────────────────────────────────────────────────
+// ─── Device registration ──────────────────────────────────────────────────────
 
 export async function addDevice(data: Omit<Device, 'id' | 'updatedAt'>) {
-  // 1. Create the top-level device document (keyed by deviceId for ESP32 access)
-  await setDoc(doc(db, 'devices', data.deviceId), {
-    deviceId: data.deviceId,
-    ownerId: data.ownerId,
-    name: data.name,
-    room: data.room,
-    location: data.location,
+  // 1. Seed RTDB node  — ESP32 reads outputs/, writes health/ + status
+  await set(rtdbDevice(data.deviceId), {
     status: 'offline',
-    dexBotId: data.dexBotId || '',
-    firmware: data.firmware || 'v1.2.4',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    lastSeen: 0,
+    outputs: defaultOutputs(),
+    health: defaultHealth(),
+    analytics: defaultAnalytics(),
   });
 
-  // 2. Seed sub-collections under devices/{deviceId}/state/
-  await setDoc(outputsRef(data.deviceId), {
-    ...defaultOutputs(),
-    updatedAt: serverTimestamp(),
-  });
-  await setDoc(healthRef(data.deviceId), {
-    ...defaultHealth(),
-    lastSeen: serverTimestamp(),
-  });
-  await setDoc(analyticsRef(data.deviceId), {
-    ...defaultAnalytics(),
-    updatedAt: serverTimestamp(),
-  });
-
-  // 3. Keep a queryable meta record (for listing devices by ownerId)
+  // 2. Register in Firestore for listing by ownerId
   const metaRef = await addDoc(collection(db, 'devices_meta'), {
-    deviceId: data.deviceId,
-    ownerId: data.ownerId,
-    name: data.name,
-    room: data.room,
-    location: data.location,
-    status: 'offline',
-    firmware: data.firmware || 'v1.2.4',
-    dexBotId: data.dexBotId || '',
+    deviceId:  data.deviceId,
+    ownerId:   data.ownerId,
+    name:      data.name,
+    room:      data.room,
+    location:  data.location,
+    firmware:  data.firmware || 'v1.2.4',
+    dexBotId:  data.dexBotId || '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
   await logActivity(data.deviceId, `Device "${data.name}" added to ${data.room}`, data.ownerId);
   return metaRef.id;
+}
+
+export async function getDevice(metaId: string): Promise<Device | null> {
+  const snap = await getDoc(doc(db, 'devices_meta', metaId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Device;
 }
 
 export async function getUserDevices(userId: string): Promise<Device[]> {
@@ -207,30 +159,25 @@ export async function getUserDevices(userId: string): Promise<Device[]> {
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Device));
 }
 
-export async function getDevice(metaId: string): Promise<Device | null> {
-  const snap = await getDoc(doc(db, 'devices_meta', metaId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Device;
-}
-
-export async function updateDevice(metaId: string, deviceId: string, data: Partial<Omit<Device, 'id'>>) {
-  const updates = { ...data, updatedAt: serverTimestamp() };
-  await updateDoc(doc(db, 'devices_meta', metaId), updates);
-  await updateDoc(doc(db, 'devices', deviceId), updates);
+export async function updateDevice(metaId: string, data: Partial<Omit<Device, 'id'>>) {
+  await updateDoc(doc(db, 'devices_meta', metaId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function deleteDevice(metaId: string, deviceId: string, ownerId: string) {
-  const batch = writeBatch(db);
-  batch.delete(doc(db, 'devices_meta', metaId));
-  // Note: subcollections must be deleted separately; delete parent doc for ESP32 access
-  batch.delete(doc(db, 'devices', deviceId));
-  await batch.commit();
+  await remove(rtdbDevice(deviceId)).catch(() => {});
+  await deleteDoc(doc(db, 'devices_meta', metaId));
   await logActivity(deviceId, 'Device removed', ownerId).catch(() => {});
 }
 
-// ─── Real-time: device list ───────────────────────────────────────────────────
+// ─── Firestore: list devices (real-time) ──────────────────────────────────────
 
-export function subscribeToUserDevices(userId: string, callback: (devices: Device[]) => void) {
+export function subscribeToUserDevices(
+  userId: string,
+  callback: (devices: Device[]) => void
+): () => void {
   const q = query(
     collection(db, 'devices_meta'),
     where('ownerId', '==', userId),
@@ -241,61 +188,131 @@ export function subscribeToUserDevices(userId: string, callback: (devices: Devic
   });
 }
 
-// ─── Real-time: outputs ───────────────────────────────────────────────────────
+// ─── RTDB: outputs ────────────────────────────────────────────────────────────
 
-export function subscribeToOutputs(deviceId: string, callback: (outputs: DeviceOutputs) => void) {
-  return onSnapshot(outputsRef(deviceId), async snap => {
-    if (snap.exists()) {
-      callback(snap.data() as DeviceOutputs);
+export function subscribeToOutputs(
+  deviceId: string,
+  callback: (outputs: DeviceOutputs) => void
+): () => void {
+  const r = rtdbOutputs(deviceId);
+  const handler = (snap: DataSnapshot) => {
+    const val = snap.val() as DeviceOutputs | null;
+    if (val) {
+      callback(val);
     } else {
-      // Auto-create outputs doc for devices added before migration
-      try {
-        await setDoc(outputsRef(deviceId), {
-          ...defaultOutputs(),
-          updatedAt: serverTimestamp(),
-        });
-      } catch { /* ignore race condition */ }
-      callback({ ...defaultOutputs() } as DeviceOutputs);
+      set(r, defaultOutputs()).catch(() => {});
+      callback(defaultOutputs());
     }
-  });
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
 }
 
-// ─── Real-time: health ────────────────────────────────────────────────────────
+// ─── RTDB: health ─────────────────────────────────────────────────────────────
 
-export function subscribeToHealth(deviceId: string, callback: (health: DeviceHealth) => void) {
-  return onSnapshot(healthRef(deviceId), async snap => {
-    if (snap.exists()) {
-      callback(snap.data() as DeviceHealth);
-    } else {
-      try {
-        await setDoc(healthRef(deviceId), { ...defaultHealth(), lastSeen: serverTimestamp() });
-      } catch { /* ignore */ }
-      callback(defaultHealth());
-    }
-  });
+export function subscribeToHealth(
+  deviceId: string,
+  callback: (health: DeviceHealth) => void
+): () => void {
+  const r = rtdbHealth(deviceId);
+  const handler = (snap: DataSnapshot) => {
+    callback((snap.val() as DeviceHealth) || defaultHealth());
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
 }
 
-// ─── Real-time: analytics ─────────────────────────────────────────────────────
+// ─── RTDB: analytics ──────────────────────────────────────────────────────────
 
 export function subscribeToAnalytics(
   deviceId: string,
   callback: (analytics: DeviceAnalyticsData) => void
-) {
-  return onSnapshot(analyticsRef(deviceId), async snap => {
-    if (snap.exists()) {
-      callback(snap.data() as DeviceAnalyticsData);
-    } else {
-      try {
-        await setDoc(analyticsRef(deviceId), { ...defaultAnalytics(), updatedAt: serverTimestamp() });
-      } catch { /* ignore */ }
-      callback({ ...defaultAnalytics() } as DeviceAnalyticsData);
-    }
-  });
+): () => void {
+  const r = rtdbAnalytics(deviceId);
+  const handler = (snap: DataSnapshot) => {
+    callback((snap.val() as DeviceAnalyticsData) || defaultAnalytics());
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
 }
 
-// ─── Real-time: activity logs ─────────────────────────────────────────────────
+// ─── RTDB: device online/offline status ──────────────────────────────────────
 
-export function subscribeToActivityLogs(deviceId: string, callback: (logs: ActivityLog[]) => void) {
+export function subscribeToDeviceStatus(
+  deviceId: string,
+  callback: (status: 'online' | 'offline') => void
+): () => void {
+  const r = rtdbStatus(deviceId);
+  const handler = (snap: DataSnapshot) => {
+    callback((snap.val() as 'online' | 'offline') || 'offline');
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
+}
+
+// ─── RTDB: write output toggle ────────────────────────────────────────────────
+
+const WATT: Record<string, number> = {
+  light1: 40, light2: 40, light3: 40,
+  fan1: 25, fan2: 25, custom1: 30,
+};
+
+export async function setOutput(
+  deviceId: string,
+  key: keyof DeviceOutputs,
+  value: boolean | string,
+  performedBy: string,
+  label?: string
+): Promise<void> {
+  // Write to RTDB — ESP32 onValue listener picks this up instantly
+  await update(rtdbOutputs(deviceId), { [key]: value });
+
+  if (label) {
+    await logActivity(deviceId, label, performedBy);
+    if (typeof value === 'boolean' && value === true && key in WATT) {
+      await incrementAnalytics(deviceId, key as string);
+    }
+  }
+}
+
+async function incrementAnalytics(deviceId: string, key: string): Promise<void> {
+  try {
+    const runtimeField = key === 'custom1' ? 'customRuntime' : `${key}Runtime`;
+    const snap = await get(rtdbAnalytics(deviceId));
+    const cur: DeviceAnalyticsData = (snap.val() as DeviceAnalyticsData) || defaultAnalytics();
+    const prevRuntime = (cur[runtimeField as keyof DeviceAnalyticsData] as number) || 0;
+    const prevEnergy  = cur.energyUsage || 0;
+    const inc = 0.5; // +0.5h estimated per toggle-ON
+    await update(rtdbAnalytics(deviceId), {
+      [runtimeField]: prevRuntime + inc,
+      energyUsage: prevEnergy + (WATT[key] / 1000) * inc,
+    });
+  } catch (err) {
+    console.warn('[incrementAnalytics] Failed:', err);
+  }
+}
+
+// ─── Firestore: activity logs ─────────────────────────────────────────────────
+
+export async function logActivity(
+  deviceId: string,
+  action: string,
+  performedBy: string
+): Promise<void> {
+  try {
+    await addDoc(collection(db, 'activity_logs'), {
+      deviceId, action, performedBy,
+      timestamp: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn('[logActivity] Failed:', err);
+  }
+}
+
+export function subscribeToActivityLogs(
+  deviceId: string,
+  callback: (logs: ActivityLog[]) => void
+): () => void {
   const q = query(
     collection(db, 'activity_logs'),
     where('deviceId', '==', deviceId),
@@ -306,135 +323,37 @@ export function subscribeToActivityLogs(deviceId: string, callback: (logs: Activ
   });
 }
 
-// ─── Output control ───────────────────────────────────────────────────────────
+// ─── Legacy shims (DexBot / old pages still import these) ────────────────────
 
-type OutputKey = keyof Omit<DeviceOutputs, 'updatedAt'>;
+export { subscribeToActivityLogs as subscribeToDeviceLogs };
 
-export async function setOutput(
-  deviceId: string,
-  key: OutputKey,
-  value: boolean | string,
-  performedBy: string,
-  label?: string
-) {
-  // Use setDoc with merge so it works even if the doc doesn't exist yet
-  await setDoc(outputsRef(deviceId), {
-    [key]: value,
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
-  if (label) {
-    await logActivity(deviceId, label, performedBy);
-    if (typeof value === 'boolean' && value === true) {
-      await incrementAnalytics(deviceId, key);
-    }
-  }
-}
-
-// ─── Analytics increment ──────────────────────────────────────────────────────
-
-const WATT: Record<string, number> = {
-  light1: 40, light2: 40, light3: 40,
-  fan1: 25, fan2: 25,
-  custom1: 30,
-};
-
-async function incrementAnalytics(deviceId: string, key: OutputKey) {
-  if (typeof key !== 'string' || !(key in WATT)) return;
-  try {
-    const ref = analyticsRef(deviceId);
-    const snap = await getDoc(ref);
-    const cur = snap.data() || {};
-
-    const runtimeField = key === 'custom1' ? 'customRuntime' : `${key}Runtime`;
-    const prevRuntime = (cur[runtimeField] as number) || 0;
-    const prevEnergy  = (cur.energyUsage  as number) || 0;
-    const runtimeInc  = 0.5;
-    const energyInc   = (WATT[key] / 1000) * runtimeInc;
-
-    await setDoc(ref, {
-      [runtimeField]: prevRuntime + runtimeInc,
-      energyUsage: prevEnergy + energyInc,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-  } catch (err) {
-    console.warn('[incrementAnalytics] Failed:', err);
-  }
-}
-
-// ─── Activity log write ───────────────────────────────────────────────────────
-
-export async function logActivity(deviceId: string, action: string, performedBy: string) {
-  try {
-    await addDoc(collection(db, 'activity_logs'), {
-      deviceId,
-      action,
-      performedBy,
-      timestamp: serverTimestamp(),
-    });
-  } catch (err) {
-    console.warn('[logActivity] Failed:', err);
-  }
-}
-
-// ─── Compatibility shims (used by analyticsService / dashboard) ───────────────
-
-export function subscribeToDeviceLogs(
-  deviceId: string,
-  callback: (logs: ActivityLog[]) => void
-) {
-  return subscribeToActivityLogs(deviceId, callback);
-}
-
-// Legacy flat-state subscriber kept for dashboard/dexbot pages
-// Maps new nested outputs back to flat shape
 export function subscribeToDeviceState(
   deviceId: string,
   callback: (state: LegacyDeviceState) => void
-) {
+): () => void {
   return subscribeToOutputs(deviceId, outputs => {
-    callback({
-      deviceId,
-      light1: outputs.light1,
-      light2: outputs.light2,
-      light3: outputs.light3,
-      fan1: outputs.fan1,
-      fan2: outputs.fan2,
-      custom1: outputs.custom1,
-      oledMessage: outputs.oledMessage,
-      buzzer: outputs.buzzer,
-      updatedAt: outputs.updatedAt,
-    });
+    callback({ deviceId, ...outputs });
   });
 }
 
-// Legacy updateDeviceState — maps flat calls to new setOutput
 export async function updateDeviceState(
   deviceId: string,
   data: Partial<LegacyDeviceState>,
-  performedBy: string,
+  performedBy = 'system',
   label?: string
-) {
-  const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
-  const keys: (keyof LegacyDeviceState)[] = [
-    'light1','light2','light3','fan1','fan2','custom1','oledMessage','buzzer'
+): Promise<void> {
+  const outputKeys: (keyof DeviceOutputs)[] = [
+    'light1', 'light2', 'light3', 'fan1', 'fan2', 'custom1', 'oledMessage', 'buzzer',
   ];
-  keys.forEach(k => { if (k in data) updates[k] = data[k]; });
-  await setDoc(outputsRef(deviceId), updates, { merge: true });
+  const patch: Partial<DeviceOutputs> = {};
+  outputKeys.forEach(k => {
+    if (k in data) (patch as Record<string, unknown>)[k] = (data as Record<string, unknown>)[k];
+  });
+  await update(rtdbOutputs(deviceId), patch);
   if (label) await logActivity(deviceId, label, performedBy);
 }
 
-export interface LegacyDeviceState {
+export interface LegacyDeviceState extends DeviceOutputs {
   deviceId: string;
-  light1: boolean;
-  light2: boolean;
-  light3: boolean;
-  fan1: boolean;
-  fan2: boolean;
-  custom1: boolean;
-  oledMessage: string;
-  buzzer: boolean;
-  updatedAt?: unknown;
 }
-
-// Keep old DeviceState alias pointing to LegacyDeviceState for pages not yet updated
 export type DeviceState = LegacyDeviceState;

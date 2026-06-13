@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Bot, Plug, X, Lightbulb, Wind, Trash2, BarChart2, Zap } from 'lucide-react';
+import { Bot, Plug, X, Lightbulb, Wind, BarChart2, Zap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { connectDexBot, disconnectDexBot, getUserDexBots, DexBot as DexBotType } from '../../services/dexbotService';
-import { subscribeToUserDevices, updateDeviceState, logActivity, Device } from '../../services/deviceService';
+import { subscribeToUserDevices, setOutput, Device } from '../../services/deviceService';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
 
 const SUGGESTED_COMMANDS = [
-  { label: 'Turn on living room light', icon: <Lightbulb size={14} className="text-yellow-600" />, bg: 'bg-yellow-50' },
-  { label: 'Turn off all lights', icon: <Lightbulb size={14} className="text-neutral-500" />, bg: 'bg-neutral-100' },
-  { label: 'Open dustbin', icon: <Trash2 size={14} className="text-green-600" />, bg: 'bg-green-50' },
-  { label: 'Turn off fan', icon: <Wind size={14} className="text-blue-600" />, bg: 'bg-blue-50' },
-  { label: 'Turn on fan', icon: <Wind size={14} className="text-blue-600" />, bg: 'bg-blue-50' },
-  { label: 'Show energy usage', icon: <BarChart2 size={14} className="text-primary-600" />, bg: 'bg-primary-50' },
+  { label: 'Turn on Light 1',  icon: <Lightbulb size={14} className="text-yellow-600" />, bg: 'bg-yellow-50' },
+  { label: 'Turn off Light 1', icon: <Lightbulb size={14} className="text-neutral-500" />, bg: 'bg-neutral-100' },
+  { label: 'Turn on Fan 1',    icon: <Wind size={14} className="text-blue-600" />,   bg: 'bg-blue-50' },
+  { label: 'Turn off Fan 1',   icon: <Wind size={14} className="text-blue-600" />,   bg: 'bg-blue-50' },
+  { label: 'Turn on Fan 2',    icon: <Wind size={14} className="text-sky-600" />,    bg: 'bg-sky-50' },
+  { label: 'Show energy usage',icon: <BarChart2 size={14} className="text-primary-600" />, bg: 'bg-primary-50' },
 ];
 
 export default function DexBot() {
@@ -76,39 +76,32 @@ export default function DexBot() {
     setCmdFeedback(`Executing: "${cmd}"...`);
     const lower = cmd.toLowerCase();
     const device = devices.find(d => connectedBot ? d.deviceId === connectedBot.linkedDevice : true);
-    if (!device) {
-      setCmdFeedback('No device linked.');
-      return;
-    }
+    if (!device) { setCmdFeedback('No device linked.'); return; }
+    const who = userData?.name || 'Bot';
 
-    if (lower.includes('turn on') && lower.includes('light')) {
-      await updateDeviceState(device.deviceId, { light: true });
-      await logActivity(device.deviceId, 'Light turned ON via Dex Bot', userData?.name || 'Bot');
-      setCmdFeedback('Light turned ON');
-    } else if (lower.includes('turn off') && lower.includes('light')) {
-      await updateDeviceState(device.deviceId, { light: false });
-      await logActivity(device.deviceId, 'Light turned OFF via Dex Bot', userData?.name || 'Bot');
-      setCmdFeedback('Light turned OFF');
-    } else if (lower.includes('turn on') && lower.includes('fan')) {
-      await updateDeviceState(device.deviceId, { fan: true });
-      await logActivity(device.deviceId, 'Fan turned ON via Dex Bot', userData?.name || 'Bot');
-      setCmdFeedback('Fan turned ON');
-    } else if (lower.includes('turn off') && lower.includes('fan')) {
-      await updateDeviceState(device.deviceId, { fan: false });
-      await logActivity(device.deviceId, 'Fan turned OFF via Dex Bot', userData?.name || 'Bot');
-      setCmdFeedback('Fan turned OFF');
-    } else if (lower.includes('open dustbin')) {
-      await updateDeviceState(device.deviceId, { dustbin: 'open' });
-      await logActivity(device.deviceId, 'Dustbin opened via Dex Bot', userData?.name || 'Bot');
-      setCmdFeedback('Dustbin opened');
-    } else if (lower.includes('close dustbin')) {
-      await updateDeviceState(device.deviceId, { dustbin: 'closed' });
-      await logActivity(device.deviceId, 'Dustbin closed via Dex Bot', userData?.name || 'Bot');
-      setCmdFeedback('Dustbin closed');
+    if (lower.includes('turn on') && lower.includes('light 1')) {
+      await setOutput(device.deviceId, 'light1', true, who, 'Light 1 ON via Dex Bot');
+      setCmdFeedback('Light 1 turned ON');
+    } else if (lower.includes('turn off') && lower.includes('light 1')) {
+      await setOutput(device.deviceId, 'light1', false, who, 'Light 1 OFF via Dex Bot');
+      setCmdFeedback('Light 1 turned OFF');
+    } else if (lower.includes('turn on') && lower.includes('fan 1')) {
+      await setOutput(device.deviceId, 'fan1', true, who, 'Fan 1 ON via Dex Bot');
+      setCmdFeedback('Fan 1 turned ON');
+    } else if (lower.includes('turn off') && lower.includes('fan 1')) {
+      await setOutput(device.deviceId, 'fan1', false, who, 'Fan 1 OFF via Dex Bot');
+      setCmdFeedback('Fan 1 turned OFF');
+    } else if (lower.includes('turn on') && lower.includes('fan 2')) {
+      await setOutput(device.deviceId, 'fan2', true, who, 'Fan 2 ON via Dex Bot');
+      setCmdFeedback('Fan 2 turned ON');
+    } else if (lower.includes('turn off') && lower.includes('fan 2')) {
+      await setOutput(device.deviceId, 'fan2', false, who, 'Fan 2 OFF via Dex Bot');
+      setCmdFeedback('Fan 2 turned OFF');
+    } else if (lower.includes('energy')) {
+      setCmdFeedback('Check Analytics page for energy usage');
     } else {
-      setCmdFeedback(`Command "${cmd}" received`);
+      setCmdFeedback(`Command received: "${cmd}"`);
     }
-
     setTimeout(() => setCmdFeedback(''), 3000);
   }
 
