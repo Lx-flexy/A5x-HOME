@@ -5,9 +5,10 @@ import {
   Bot, Activity, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { subscribeToUserDevices, subscribeToLastSeen, ONLINE_THRESHOLD_MS, Device } from '../../services/deviceService';
+import { subscribeToUserDevices, subscribeToLastSeen, Device } from '../../services/deviceService';
 import { subscribeToActivityLogs, ActivityLog } from '../../services/analyticsService';
 import { getTotalMembersForUser } from '../../services/memberService';
+import { calcIsOnline } from '../../hooks/useDeviceStatus';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
 
@@ -98,8 +99,7 @@ export default function Dashboard() {
   }, [devices, user]);
 
   const isDeviceOnline = (deviceId: string) => {
-    const ms = lastSeenMap[deviceId] || 0;
-    return ms > 0 && Date.now() - ms < ONLINE_THRESHOLD_MS;
+    return calcIsOnline(lastSeenMap[deviceId] || 0);
   };
 
   const onlineCount = devices.filter(d => isDeviceOnline(d.deviceId)).length;

@@ -87,7 +87,6 @@ const rtdbDevice    = (did: string) => ref(rtdb, `devices/${did}`);
 const rtdbOutputs   = (did: string) => ref(rtdb, `devices/${did}/outputs`);
 const rtdbHealth    = (did: string) => ref(rtdb, `devices/${did}/health`);
 const rtdbAnalytics = (did: string) => ref(rtdb, `devices/${did}/analytics`);
-const rtdbStatus    = (did: string) => ref(rtdb, `devices/${did}/status`);
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -236,37 +235,52 @@ export function subscribeToAnalytics(
   return () => off(r, 'value', handler);
 }
 
-// ─── RTDB: device online/offline status (lastSeen-based) ─────────────────────
-// ESP32 writes lastSeen (unix ms) every ~10s.
-// Online = lastSeen within 30s of now.
+// ─── RTDB: device online/offline status ──────────────────────────────────────
+// ESP32 writes devices/{deviceId}/health/lastSeen as unix SECONDS every ~10s.
+// Online = (now_ms - lastSeen_seconds * 1000) < 30 000 ms
 
-const ONLINE_THRESHOLD_MS = 30_000;
+export const ONLINE_THRESHOLD_MS = 30_000;
 
+/**
+ * Subscribe to health/lastSeen.
+ * Normalises the value to unix MILLISECONDS regardless of whether
+ * the ESP32 sends seconds (≤ 2 147 483 647) or ms (> 2 147 483 647).
+ */
 export function subscribeToLastSeen(
   deviceId: string,
   callback: (lastSeenMs: number) => void
 ): () => void {
-  const r = ref(rtdb, `devices/${deviceId}/lastSeen`);
+  // Primary path: health.lastSeen (written by ESP32)
+  const r = ref(rtdb, `devices/${deviceId}/health/lastSeen`);
   const handler = (snap: DataSnapshot) => {
-    callback((snap.val() as number) || 0);
+    const raw = (snap.val() as number) || 0;
+    if (!raw) { callback(0); return; }
+    // If value looks like seconds (< year 2100 in seconds = 4102444800)
+    const ms = raw < 4_102_444_800 ? raw * 1000 : raw;
+    callback(ms);
   };
   onValue(r, handler);
   return () => off(r, 'value', handler);
 }
 
-/** Kept for backwards compat — now derives status from lastSeen */
+/** Compat shim — derives online/offline from lastSeen */
 export function subscribeToDeviceStatus(
   deviceId: string,
   callback: (status: 'online' | 'offline') => void
 ): () => void {
-  return subscribeToLastSeen(deviceId, lastSeenMs => {
-    const online =
-      lastSeenMs > 0 && Date.now() - lastSeenMs < ONLINE_THRESHOLD_MS;
-    callback(online ? 'online' : 'offline');
+  return subscribeToLastSeen(deviceId, ms => {
+    callback(ms > 0 && Date.now() - ms < ONLINE_THRESHOLD_MS ? 'online' : 'offline');
   });
 }
 
-export { ONLINE_THRESHOLD_MS };
+/** One-shot helper — resolves to current online state */
+export async function getDeviceOnlineStatus(deviceId: string): Promise<boolean> {
+  const snap = await get(ref(rtdb, `devices/${deviceId}/health/lastSeen`));
+  const raw = (snap.val() as number) || 0;
+  if (!raw) return false;
+  const ms = raw < 4_102_444_800 ? raw * 1000 : raw;
+  return Date.now() - ms < ONLINE_THRESHOLD_MS;
+}
 
 // ─── RTDB: write output toggle ────────────────────────────────────────────────
 

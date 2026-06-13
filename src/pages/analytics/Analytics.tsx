@@ -9,6 +9,7 @@ import {
   Device,
   DeviceAnalyticsData,
 } from '../../services/deviceService';
+import { calcIsOnline } from '../../hooks/useDeviceStatus';
 import { getActivityLogs, ActivityLog } from '../../services/analyticsService';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
@@ -93,10 +94,7 @@ export default function Analytics() {
     return () => unsubscribers.forEach(u => u());
   }, [devices]);
 
-  const isDeviceOnline = (deviceId: string) => {
-    const ms = lastSeenMap[deviceId] || 0;
-    return ms > 0 && Date.now() - ms < ONLINE_THRESHOLD_MS;
-  };
+  const isDeviceOnline = (deviceId: string) => calcIsOnline(lastSeenMap[deviceId] || 0);
 
   // Load activity logs from Firestore
   useEffect(() => {

@@ -5,10 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 import {
   subscribeToUserDevices,
   subscribeToLastSeen,
-  ONLINE_THRESHOLD_MS,
   deleteDevice,
   Device,
 } from '../../services/deviceService';
+import { calcIsOnline } from '../../hooks/useDeviceStatus';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
@@ -52,10 +52,7 @@ export default function Devices() {
     return () => unsubscribers.forEach(u => u());
   }, [devices]);
 
-  const isDeviceOnline = (deviceId: string) => {
-    const ms = lastSeenMap[deviceId] || 0;
-    return ms > 0 && Date.now() - ms < ONLINE_THRESHOLD_MS;
-  };
+  const isDeviceOnline = (deviceId: string) => calcIsOnline(lastSeenMap[deviceId] || 0);
 
   async function handleDelete() {
     if (!deleteConfirm || !user) return;
