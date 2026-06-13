@@ -202,8 +202,8 @@ export default function DexBot() {
                   <p className="text-sm font-medium text-neutral-900">{linkedDevice.name}</p>
                   <p className="text-xs text-neutral-400">{linkedDevice.deviceId} · {linkedDevice.room} · {linkedDevice.location}</p>
                 </div>
-                <span className={`text-xs font-medium ${linkedDevice.status === 'online' ? 'text-success-600' : 'text-neutral-400'}`}>
-                  {linkedDevice.status === 'online' ? 'Online' : 'Offline'}
+                <span className="text-xs font-medium text-neutral-400">
+                  {linkedDevice.deviceId} · {linkedDevice.room}
                 </span>
               </div>
             </Card>

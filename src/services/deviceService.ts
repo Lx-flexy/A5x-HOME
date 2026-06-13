@@ -267,7 +267,6 @@ export function subscribeToDeviceStatus(
 }
 
 export { ONLINE_THRESHOLD_MS };
-}
 
 // ─── RTDB: write output toggle ────────────────────────────────────────────────
 

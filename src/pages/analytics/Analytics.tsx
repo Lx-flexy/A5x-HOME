@@ -51,11 +51,19 @@ function RuntimeBar({ value, max, color }: { value: number; max: number; color: 
 
 export default function Analytics() {
   const { user } = useAuth();
-  const [devices, setDevices]     = useState<Device[]>([]);
+  const [devices, setDevices]           = useState<Device[]>([]);
   const [analyticsMap, setAnalyticsMap] = useState<Record<string, DeviceAnalyticsData>>({});
-  const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
-  const [logs, setLogs]           = useState<ActivityLog[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [lastSeenMap, setLastSeenMap]   = useState<Record<string, number>>({});
+  const [, tick]                        = useState(0);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [logs, setLogs]                 = useState<ActivityLog[]>([]);
+  const [loading, setLoading]           = useState(true);
+
+  // 1s ticker
+  useEffect(() => {
+    tickRef.current = setInterval(() => tick(n => n + 1), 1000);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, []);
 
   // Load devices from Firestore
   useEffect(() => {
@@ -76,14 +84,19 @@ export default function Analytics() {
       const u1 = subscribeToAnalytics(dev.deviceId, data => {
         setAnalyticsMap(prev => ({ ...prev, [dev.deviceId]: data }));
       });
-      const u2 = subscribeToDeviceStatus(dev.deviceId, status => {
-        setOnlineMap(prev => ({ ...prev, [dev.deviceId]: status === 'online' }));
+      const u2 = subscribeToLastSeen(dev.deviceId, ms => {
+        setLastSeenMap(prev => ({ ...prev, [dev.deviceId]: ms }));
       });
       unsubscribers.push(u1, u2);
     });
 
     return () => unsubscribers.forEach(u => u());
   }, [devices]);
+
+  const isDeviceOnline = (deviceId: string) => {
+    const ms = lastSeenMap[deviceId] || 0;
+    return ms > 0 && Date.now() - ms < ONLINE_THRESHOLD_MS;
+  };
 
   // Load activity logs from Firestore
   useEffect(() => {
@@ -188,7 +201,7 @@ export default function Analytics() {
               {devices.map(device => {
                 const an = analyticsMap[device.deviceId];
                 const energy = an?.energyUsage || 0;
-                const isOnline = onlineMap[device.deviceId] || false;
+                const isOnline = isDeviceOnline(device.deviceId);
                 return (
                   <div key={device.id} className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
