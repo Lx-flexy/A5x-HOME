@@ -236,18 +236,37 @@ export function subscribeToAnalytics(
   return () => off(r, 'value', handler);
 }
 
-// ─── RTDB: device online/offline status ──────────────────────────────────────
+// ─── RTDB: device online/offline status (lastSeen-based) ─────────────────────
+// ESP32 writes lastSeen (unix ms) every ~10s.
+// Online = lastSeen within 30s of now.
 
+const ONLINE_THRESHOLD_MS = 30_000;
+
+export function subscribeToLastSeen(
+  deviceId: string,
+  callback: (lastSeenMs: number) => void
+): () => void {
+  const r = ref(rtdb, `devices/${deviceId}/lastSeen`);
+  const handler = (snap: DataSnapshot) => {
+    callback((snap.val() as number) || 0);
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
+}
+
+/** Kept for backwards compat — now derives status from lastSeen */
 export function subscribeToDeviceStatus(
   deviceId: string,
   callback: (status: 'online' | 'offline') => void
 ): () => void {
-  const r = rtdbStatus(deviceId);
-  const handler = (snap: DataSnapshot) => {
-    callback((snap.val() as 'online' | 'offline') || 'offline');
-  };
-  onValue(r, handler);
-  return () => off(r, 'value', handler);
+  return subscribeToLastSeen(deviceId, lastSeenMs => {
+    const online =
+      lastSeenMs > 0 && Date.now() - lastSeenMs < ONLINE_THRESHOLD_MS;
+    callback(online ? 'online' : 'offline');
+  });
+}
+
+export { ONLINE_THRESHOLD_MS };
 }
 
 // ─── RTDB: write output toggle ────────────────────────────────────────────────

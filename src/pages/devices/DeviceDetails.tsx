@@ -11,7 +11,6 @@ import {
   subscribeToOutputs,
   subscribeToHealth,
   subscribeToAnalytics,
-  subscribeToDeviceStatus,
   setOutput,
   deleteDevice,
   Device,
@@ -20,6 +19,7 @@ import {
   DeviceAnalyticsData,
 } from '../../services/deviceService';
 import { useAuth } from '../../context/AuthContext';
+import { useDeviceStatus } from '../../hooks/useDeviceStatus';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Loader from '../../components/ui/Loader';
@@ -250,12 +250,11 @@ export default function DeviceDetails() {
   const navigate = useNavigate();
   const { userData } = useAuth();
 
-  const [device, setDevice]     = useState<Device | null>(null);
-  const [outputs, setOutputs]   = useState<DeviceOutputs | null>(null);
-  const [health, setHealth]     = useState<DeviceHealth | null>(null);
+  const [device, setDevice]       = useState<Device | null>(null);
+  const [outputs, setOutputs]     = useState<DeviceOutputs | null>(null);
+  const [health, setHealth]       = useState<DeviceHealth | null>(null);
   const [analytics, setAnalytics] = useState<DeviceAnalyticsData | null>(null);
-  const [liveStatus, setLiveStatus] = useState<'online' | 'offline'>('offline');
-  const [loading, setLoading]   = useState(true);
+  const [loading, setLoading]     = useState(true);
 
   const [oledDraft, setOledDraft]   = useState('');
   const [sendingOled, setSendingOled] = useState(false);
@@ -267,8 +266,10 @@ export default function DeviceDetails() {
   const [deleting, setDeleting]       = useState(false);
 
   const performer = userData?.name || 'User';
-  const isOnline  = liveStatus === 'online';
-  const isOffline = false; // controls always enabled — RTDB queues commands for ESP32
+
+  // ── lastSeen-based online detection (updates every 1s) ───────────────────
+  const { isOnline, lastSeenLabel } = useDeviceStatus(device?.deviceId);
+  const isOffline = false; // controls always enabled — RTDB queues commands
 
   // ── Load device meta ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -286,8 +287,7 @@ export default function DeviceDetails() {
     const u1 = subscribeToOutputs(did, setOutputs);
     const u2 = subscribeToHealth(did, setHealth);
     const u3 = subscribeToAnalytics(did, setAnalytics);
-    const u4 = subscribeToDeviceStatus(did, setLiveStatus);
-    return () => { u1(); u2(); u3(); u4(); };
+    return () => { u1(); u2(); u3(); };
   }, [device]);
 
   // ── Cleanup buzzer timer ──────────────────────────────────────────────────
@@ -393,7 +393,7 @@ export default function DeviceDetails() {
                 <Bolt size={11} />Firmware {device.firmware || 'v1.2.4'}
               </span>
               <span className="flex items-center gap-1">
-                <Clock size={11} />Last seen {health?.lastSeen ? timeAgo(health.lastSeen) : '–'}
+                <Clock size={11} />Last seen {lastSeenLabel}
               </span>
               <span className="flex items-center gap-1">
                 <MapPin size={11} />{device.room} · {device.location}

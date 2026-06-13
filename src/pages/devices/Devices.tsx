@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Cpu, MoreVertical, Trash2, Edit2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   subscribeToUserDevices,
-  subscribeToDeviceStatus,
+  subscribeToLastSeen,
+  ONLINE_THRESHOLD_MS,
   deleteDevice,
   Device,
 } from '../../services/deviceService';
@@ -15,14 +16,22 @@ import Modal from '../../components/ui/Modal';
 
 export default function Devices() {
   const { user } = useAuth();
-  const [devices, setDevices]       = useState<Device[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [onlineMap, setOnlineMap]   = useState<Record<string, boolean>>({});
-  const [menuOpen, setMenuOpen]     = useState<string | null>(null);
+  const [devices, setDevices]         = useState<Device[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
+  const [, tick]                      = useState(0);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [menuOpen, setMenuOpen]       = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Device | null>(null);
-  const [deleting, setDeleting]     = useState(false);
+  const [deleting, setDeleting]       = useState(false);
 
-  // Subscribe to device list from Firestore
+  // 1s ticker so status re-evaluates without new RTDB push
+  useEffect(() => {
+    tickRef.current = setInterval(() => tick(n => n + 1), 1000);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, []);
+
+  // Firestore: device list
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToUserDevices(user.uid, devs => {
@@ -32,16 +41,21 @@ export default function Devices() {
     return unsub;
   }, [user]);
 
-  // Subscribe to live online/offline status from RTDB for each device
+  // RTDB: lastSeen per device
   useEffect(() => {
     if (!devices.length) return;
     const unsubscribers = devices.map(dev =>
-      subscribeToDeviceStatus(dev.deviceId, status => {
-        setOnlineMap(prev => ({ ...prev, [dev.deviceId]: status === 'online' }));
+      subscribeToLastSeen(dev.deviceId, ms => {
+        setLastSeenMap(prev => ({ ...prev, [dev.deviceId]: ms }));
       })
     );
     return () => unsubscribers.forEach(u => u());
   }, [devices]);
+
+  const isDeviceOnline = (deviceId: string) => {
+    const ms = lastSeenMap[deviceId] || 0;
+    return ms > 0 && Date.now() - ms < ONLINE_THRESHOLD_MS;
+  };
 
   async function handleDelete() {
     if (!deleteConfirm || !user) return;
@@ -91,7 +105,7 @@ export default function Devices() {
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
                   {devices.map(device => {
-                    const isOnline = onlineMap[device.deviceId] || false;
+                    const isOnline = isDeviceOnline(device.deviceId);
                     return (
                       <tr key={device.id} className="hover:bg-neutral-50 transition-colors">
                         <td className="py-3.5 px-5">
@@ -153,7 +167,7 @@ export default function Devices() {
             </div>
             <div className="px-5 py-3 border-t border-neutral-100">
               <p className="text-xs text-neutral-400">
-                {devices.length} device{devices.length !== 1 ? 's' : ''} · {Object.values(onlineMap).filter(Boolean).length} online
+                {devices.length} device{devices.length !== 1 ? 's' : ''} · {devices.filter(d => isDeviceOnline(d.deviceId)).length} online
               </p>
             </div>
           </>

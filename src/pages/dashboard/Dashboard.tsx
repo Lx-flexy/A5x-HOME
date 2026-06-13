@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Cpu, MapPin, Wifi, Users, Lightbulb, Wind,
   Bot, Activity, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { subscribeToUserDevices, subscribeToDeviceStatus, Device } from '../../services/deviceService';
+import { subscribeToUserDevices, subscribeToLastSeen, ONLINE_THRESHOLD_MS, Device } from '../../services/deviceService';
 import { subscribeToActivityLogs, ActivityLog } from '../../services/analyticsService';
 import { getTotalMembersForUser } from '../../services/memberService';
 import Card from '../../components/ui/Card';
@@ -49,42 +49,46 @@ function timeAgo(timestamp: unknown): string {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [devices, setDevices]       = useState<Device[]>([]);
-  const [logs, setLogs]             = useState<ActivityLog[]>([]);
-  const [memberCount, setMemberCount] = useState(0);
-  const [onlineMap, setOnlineMap]   = useState<Record<string, boolean>>({});
+  const [devices, setDevices]           = useState<Device[]>([]);
+  const [logs, setLogs]                 = useState<ActivityLog[]>([]);
+  const [memberCount, setMemberCount]   = useState(0);
+  const [lastSeenMap, setLastSeenMap]   = useState<Record<string, number>>({});
+  const [, tick]                        = useState(0); // 1s re-render for live status
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [loadingLogs, setLoadingLogs]       = useState(true);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Subscribe to device list (Firestore)
+  // 1s ticker so isOnline re-evaluates without new RTDB data
+  useEffect(() => {
+    tickRef.current = setInterval(() => tick(n => n + 1), 1000);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, []);
+
+  // Firestore: device list
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToUserDevices(user.uid, devs => {
       setDevices(devs);
       setLoadingDevices(false);
-      const ids = devs.map(d => d.deviceId);
-      getTotalMembersForUser(ids).then(setMemberCount);
+      getTotalMembersForUser(devs.map(d => d.deviceId)).then(setMemberCount);
     });
     return unsub;
   }, [user]);
 
-  // Subscribe to live status for each device from RTDB
+  // RTDB: subscribe to lastSeen for each device
   useEffect(() => {
     if (!devices.length) return;
     const unsubscribers = devices.map(dev =>
-      subscribeToDeviceStatus(dev.deviceId, status => {
-        setOnlineMap(prev => ({ ...prev, [dev.deviceId]: status === 'online' }));
+      subscribeToLastSeen(dev.deviceId, ms => {
+        setLastSeenMap(prev => ({ ...prev, [dev.deviceId]: ms }));
       })
     );
     return () => unsubscribers.forEach(u => u());
   }, [devices]);
 
-  // Subscribe to activity logs (Firestore)
+  // Firestore: activity logs
   useEffect(() => {
-    if (!user || !devices.length) {
-      setLoadingLogs(false);
-      return;
-    }
+    if (!user || !devices.length) { setLoadingLogs(false); return; }
     const ids = devices.map(d => d.deviceId);
     const unsub = subscribeToActivityLogs(ids, data => {
       setLogs(data.slice(0, 10));
@@ -93,8 +97,13 @@ export default function Dashboard() {
     return unsub;
   }, [devices, user]);
 
-  const onlineCount  = Object.values(onlineMap).filter(Boolean).length;
-  const uniqueRooms  = new Set(devices.map(d => d.room)).size;
+  const isDeviceOnline = (deviceId: string) => {
+    const ms = lastSeenMap[deviceId] || 0;
+    return ms > 0 && Date.now() - ms < ONLINE_THRESHOLD_MS;
+  };
+
+  const onlineCount = devices.filter(d => isDeviceOnline(d.deviceId)).length;
+  const uniqueRooms = new Set(devices.map(d => d.room)).size;
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -144,7 +153,7 @@ export default function Dashboard() {
             ) : (
               <div className="divide-y divide-neutral-100">
                 {devices.slice(0, 5).map(device => {
-                  const isOnline = onlineMap[device.deviceId] || false;
+                  const isOnline = isDeviceOnline(device.deviceId);
                   return (
                     <Link
                       key={device.id}

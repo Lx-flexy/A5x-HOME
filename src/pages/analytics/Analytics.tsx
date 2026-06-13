@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Lightbulb, Wind, Zap, Activity, Clock, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   subscribeToUserDevices,
   subscribeToAnalytics,
-  subscribeToDeviceStatus,
+  subscribeToLastSeen,
+  ONLINE_THRESHOLD_MS,
   Device,
   DeviceAnalyticsData,
 } from '../../services/deviceService';
