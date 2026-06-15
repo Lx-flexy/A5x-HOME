@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bot, Plug, X, Lightbulb, Wind, BarChart2, Zap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { connectDexBot, disconnectDexBot, getUserDexBots, DexBot as DexBotType } from '../../services/dexbotService';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { subscribeToUserDevices, setOutput, Device } from '../../services/deviceService';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -24,6 +25,7 @@ export default function DexBot() {
   const [selectedDevice, setSelectedDevice] = useState('');
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState('');
   const [cmdFeedback, setCmdFeedback] = useState('');
@@ -52,14 +54,21 @@ export default function DexBot() {
       setError('Bot ID must start with DEX-');
       return;
     }
-    setConnecting(true);
+
+    // Step 1: verify the Bot ID actually exists in Firestore
+    setVerifying(true);
     try {
       await connectDexBot(botIdInput.toUpperCase(), user.uid, selectedDevice);
       setConnectedBot({ id: botIdInput, dexBotId: botIdInput.toUpperCase(), ownerId: user.uid, status: 'connected', linkedDevice: selectedDevice });
       setBotIdInput('');
-    } catch {
-      setError('Failed to connect bot. Please try again.');
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'BOT_NOT_FOUND') {
+        setError('Bot ID not found. Please check the ID printed on your Dex Bot device.');
+      } else {
+        setError('Failed to connect bot. Please try again.');
+      }
     } finally {
+      setVerifying(false);
       setConnecting(false);
     }
   }
@@ -137,7 +146,29 @@ export default function DexBot() {
 
         {!connectedBot ? (
           <form onSubmit={handleConnect} className="space-y-4">
-            {error && <div className="p-3 bg-error-50 border border-red-200 rounded-lg text-sm text-error-600">{error}</div>}
+            {error && (
+              <div className="p-3 bg-error-50 border border-red-200 rounded-lg text-sm text-error-600 flex items-start gap-2">
+                <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-500" />
+                {error}
+              </div>
+            )}
+
+            {/* Verification steps indicator */}
+            {verifying && (
+              <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-blue-700">
+                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                  Verifying Bot ID in database…
+                </div>
+                <div className="flex items-center gap-2 text-xs text-blue-500">
+                  <CheckCircle2 size={13} className="opacity-40" /> Linking to home automation
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="form-label">Bot ID</label>
               <input
@@ -148,7 +179,7 @@ export default function DexBot() {
                 onChange={e => setBotIdInput(e.target.value.toUpperCase())}
                 required
               />
-              <p className="text-xs text-neutral-400 mt-1.5">Format: DEX-XXXX</p>
+              <p className="text-xs text-neutral-400 mt-1.5">Format: DEX-XXXX · Must match the ID on your device</p>
             </div>
             {devices.length > 0 && (
               <div>
@@ -164,8 +195,8 @@ export default function DexBot() {
                 </select>
               </div>
             )}
-            <Button type="submit" loading={connecting}>
-              <Plug size={16} /> Connect Bot
+            <Button type="submit" loading={verifying || connecting} disabled={verifying}>
+              <Plug size={16} /> {verifying ? 'Verifying…' : 'Connect Bot'}
             </Button>
           </form>
         ) : (
