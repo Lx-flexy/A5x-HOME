@@ -235,6 +235,31 @@ export function subscribeToAnalytics(
   return () => off(r, 'value', handler);
 }
 
+/**
+ * Subscribe to onAt timestamps — so UI can show live running clock
+ * devices/{deviceId}/onAt/{key} = unix ms when device was turned ON
+ */
+export function subscribeToOnAt(
+  deviceId: string,
+  callback: (onAt: Record<string, number>) => void
+): () => void {
+  const r = ref(rtdb, `devices/${deviceId}/onAt`);
+  const handler = (snap: DataSnapshot) => {
+    callback((snap.val() as Record<string, number>) || {});
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
+}
+
+/**
+ * Reset all analytics for a device back to zero.
+ * Also clears onAt timestamps.
+ */
+export async function resetAnalytics(deviceId: string): Promise<void> {
+  await set(rtdbAnalytics(deviceId), defaultAnalytics());
+  await remove(ref(rtdb, `devices/${deviceId}/onAt`));
+}
+
 // ─── RTDB: device online/offline status ──────────────────────────────────────
 // ESP32 writes devices/{deviceId}/health/lastSeen as unix SECONDS every ~10s.
 // Online = (now_ms - lastSeen_seconds * 1000) < 30 000 ms
@@ -245,17 +270,16 @@ export const ONLINE_THRESHOLD_MS = 30_000;
  * Subscribe to health/lastSeen.
  * Normalises the value to unix MILLISECONDS regardless of whether
  * the ESP32 sends seconds (≤ 2 147 483 647) or ms (> 2 147 483 647).
+ * Returns 0 if never written — device shows Offline correctly.
  */
 export function subscribeToLastSeen(
   deviceId: string,
   callback: (lastSeenMs: number) => void
 ): () => void {
-  // Primary path: health.lastSeen (written by ESP32)
   const r = ref(rtdb, `devices/${deviceId}/health/lastSeen`);
   const handler = (snap: DataSnapshot) => {
     const raw = (snap.val() as number) || 0;
     if (!raw) { callback(0); return; }
-    // If value looks like seconds (< year 2100 in seconds = 4102444800)
     const ms = raw < 4_102_444_800 ? raw * 1000 : raw;
     callback(ms);
   };
@@ -289,6 +313,10 @@ const WATT: Record<string, number> = {
   fan1: 25, fan2: 25, custom1: 30,
 };
 
+// Path where we store the "turned ON at" timestamp for each output
+// devices/{deviceId}/onAt/{key} = unix ms
+const rtdbOnAt = (deviceId: string) => ref(rtdb, `devices/${deviceId}/onAt`);
+
 export async function setOutput(
   deviceId: string,
   key: keyof DeviceOutputs,
@@ -299,28 +327,52 @@ export async function setOutput(
   // Write to RTDB — ESP32 onValue listener picks this up instantly
   await update(rtdbOutputs(deviceId), { [key]: value });
 
+  // Real-time runtime tracking for boolean outputs
+  if (typeof value === 'boolean' && key in WATT) {
+    if (value) {
+      // Device turned ON → save "onAt" timestamp
+      await update(rtdbOnAt(deviceId), { [key]: Date.now() });
+    } else {
+      // Device turned OFF → calculate elapsed time and add to analytics
+      const onAtSnap = await get(ref(rtdb, `devices/${deviceId}/onAt/${key}`));
+      const onAtMs   = (onAtSnap.val() as number) || 0;
+      if (onAtMs > 0) {
+        const elapsedHours = (Date.now() - onAtMs) / 3_600_000; // ms → hours
+        if (elapsedHours > 0) {
+          await addRuntimeToAnalytics(deviceId, key as string, elapsedHours);
+        }
+        // Clear onAt so it doesn't count again
+        await update(rtdbOnAt(deviceId), { [key]: null });
+      }
+    }
+  }
+
   if (label) {
     await logActivity(deviceId, label, performedBy);
-    if (typeof value === 'boolean' && value === true && key in WATT) {
-      await incrementAnalytics(deviceId, key as string);
-    }
   }
 }
 
-async function incrementAnalytics(deviceId: string, key: string): Promise<void> {
+/**
+ * Add actual elapsed hours to analytics runtime + energy.
+ * Called when a device is turned OFF with exact duration.
+ */
+async function addRuntimeToAnalytics(
+  deviceId: string,
+  key: string,
+  elapsedHours: number
+): Promise<void> {
   try {
     const runtimeField = key === 'custom1' ? 'customRuntime' : `${key}Runtime`;
     const snap = await get(rtdbAnalytics(deviceId));
     const cur: DeviceAnalyticsData = (snap.val() as DeviceAnalyticsData) || defaultAnalytics();
     const prevRuntime = (cur[runtimeField as keyof DeviceAnalyticsData] as number) || 0;
     const prevEnergy  = cur.energyUsage || 0;
-    const inc = 0.5; // +0.5h estimated per toggle-ON
     await update(rtdbAnalytics(deviceId), {
-      [runtimeField]: prevRuntime + inc,
-      energyUsage: prevEnergy + (WATT[key] / 1000) * inc,
+      [runtimeField]: prevRuntime + elapsedHours,
+      energyUsage:    prevEnergy  + (WATT[key] / 1000) * elapsedHours,
     });
   } catch (err) {
-    console.warn('[incrementAnalytics] Failed:', err);
+    console.warn('[addRuntimeToAnalytics] Failed:', err);
   }
 }
 
@@ -382,6 +434,41 @@ export async function updateDeviceState(
     if (k in data) (patch as Record<string, unknown>)[k] = (data as Record<string, unknown>)[k];
   });
   await update(rtdbOutputs(deviceId), patch);
+
+  // Track runtime for each boolean key being changed
+  const trackableKeys = ['light1','light2','light3','fan1','fan2','custom1'] as const;
+  const now = Date.now();
+
+  // Fetch all current onAt timestamps in one read
+  const onAtSnap = await get(rtdbOnAt(deviceId));
+  const onAtData = (onAtSnap.val() as Record<string, number>) || {};
+  const onAtPatch: Record<string, number | null> = {};
+
+  for (const k of trackableKeys) {
+    if (!(k in data)) continue;
+    const val = (data as Record<string, unknown>)[k];
+    if (typeof val !== 'boolean') continue;
+
+    if (val) {
+      // Turning ON — record timestamp
+      onAtPatch[k] = now;
+    } else {
+      // Turning OFF — calculate elapsed and add to analytics
+      const onAtMs = onAtData[k] || 0;
+      if (onAtMs > 0) {
+        const elapsedHours = (now - onAtMs) / 3_600_000;
+        if (elapsedHours > 0) {
+          await addRuntimeToAnalytics(deviceId, k, elapsedHours);
+        }
+        onAtPatch[k] = null; // clear
+      }
+    }
+  }
+
+  if (Object.keys(onAtPatch).length > 0) {
+    await update(rtdbOnAt(deviceId), onAtPatch);
+  }
+
   if (label) await logActivity(deviceId, label, performedBy);
 }
 

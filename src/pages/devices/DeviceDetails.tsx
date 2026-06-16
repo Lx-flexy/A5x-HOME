@@ -11,12 +11,15 @@ import {
   subscribeToOutputs,
   subscribeToHealth,
   subscribeToAnalytics,
+  subscribeToOnAt,
+  resetAnalytics,
   setOutput,
   deleteDevice,
   Device,
   DeviceOutputs,
   DeviceHealth,
   DeviceAnalyticsData,
+  updateDeviceState,
 } from '../../services/deviceService';
 import { useAuth } from '../../context/AuthContext';
 import { useDeviceStatus } from '../../hooks/useDeviceStatus';
@@ -43,10 +46,14 @@ function fmtHeap(b: number): string {
 }
 
 function fmtRuntime(h: number): string {
-  if (!h) return '0h 0m';
+  if (!h || h <= 0) return '0s';
+  const totalSec = Math.round(h * 3600);
+  if (totalSec < 60) return `${totalSec}s`;
   const hh = Math.floor(h);
-  const mm = Math.round((h - hh) * 60);
-  return `${hh}h ${mm}m`;
+  const mm = Math.floor((h - hh) * 60);
+  const ss = Math.round(((h - hh) * 60 - mm) * 60);
+  if (hh === 0) return ss > 0 ? `${mm}m ${ss}s` : `${mm}m`;
+  return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
 }
 
 function timeAgo(ts: unknown): string {
@@ -254,7 +261,10 @@ export default function DeviceDetails() {
   const [outputs, setOutputs]     = useState<DeviceOutputs | null>(null);
   const [health, setHealth]       = useState<DeviceHealth | null>(null);
   const [analytics, setAnalytics] = useState<DeviceAnalyticsData | null>(null);
+  const [onAt, setOnAt]           = useState<Record<string, number>>({});
+  const [now, setNow]             = useState<number>(Date.now());
   const [loading, setLoading]     = useState(true);
+  const [resetting, setResetting] = useState(false);
 
   const [oledDraft, setOledDraft]   = useState('');
   const [sendingOled, setSendingOled] = useState(false);
@@ -287,8 +297,15 @@ export default function DeviceDetails() {
     const u1 = subscribeToOutputs(did, setOutputs);
     const u2 = subscribeToHealth(did, setHealth);
     const u3 = subscribeToAnalytics(did, setAnalytics);
-    return () => { u1(); u2(); u3(); };
+    const u4 = subscribeToOnAt(did, setOnAt);
+    return () => { u1(); u2(); u3(); u4(); };
   }, [device]);
+
+  // ── Live 1-second tick for running clocks ─────────────────────────────────
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // ── Cleanup buzzer timer ──────────────────────────────────────────────────
   useEffect(() => () => { if (buzzerTimer.current) clearTimeout(buzzerTimer.current); }, []);
@@ -302,6 +319,37 @@ export default function DeviceDetails() {
     [device, performer]
   );
 
+  // ── Bulk toggle — All On / All Off ────────────────────────────────────────
+  const toggleAllLights = useCallback(async (value: boolean) => {
+    if (!device) return;
+    await updateDeviceState(
+      device.deviceId,
+      { light1: value, light2: value, light3: value },
+      performer,
+      `All Lights turned ${value ? 'ON' : 'OFF'}`
+    );
+  }, [device, performer]);
+
+  const toggleAllFans = useCallback(async (value: boolean) => {
+    if (!device) return;
+    await updateDeviceState(
+      device.deviceId,
+      { fan1: value, fan2: value },
+      performer,
+      `All Fans turned ${value ? 'ON' : 'OFF'}`
+    );
+  }, [device, performer]);
+
+  const toggleAllDevices = useCallback(async (value: boolean) => {
+    if (!device) return;
+    await updateDeviceState(
+      device.deviceId,
+      { light1: value, light2: value, light3: value, fan1: value, fan2: value, custom1: value },
+      performer,
+      `All Devices turned ${value ? 'ON' : 'OFF'}`
+    );
+  }, [device, performer]);
+
   // ── OLED ──────────────────────────────────────────────────────────────────
   async function handleSendOled() {
     if (!device || !oledDraft.trim()) return;
@@ -314,6 +362,14 @@ export default function DeviceDetails() {
     if (!device) return;
     await setOutput(device.deviceId, 'oledMessage', '', performer, 'OLED cleared');
     setOledDraft('');
+  }
+
+  // ── Reset analytics ───────────────────────────────────────────────────────
+  async function handleResetAnalytics() {
+    if (!device) return;
+    setResetting(true);
+    await resetAnalytics(device.deviceId);
+    setResetting(false);
   }
 
   // ── Buzzer ────────────────────────────────────────────────────────────────
@@ -352,14 +408,23 @@ export default function DeviceDetails() {
   const o  = outputs;
   const h  = health;
   const an = analytics;
-  const maxRuntime = Math.max(
-    an?.light1Runtime || 0, an?.light2Runtime || 0, an?.light3Runtime || 0,
-    an?.fan1Runtime   || 0, an?.fan2Runtime   || 0, an?.customRuntime  || 0, 0.1
-  );
-  const totalRuntime = (
-    (an?.light1Runtime || 0) + (an?.light2Runtime || 0) + (an?.light3Runtime || 0) +
-    (an?.fan1Runtime   || 0) + (an?.fan2Runtime   || 0) + (an?.customRuntime  || 0)
-  );
+
+  // Live runtime = stored + currently-running elapsed time
+  const liveRuntime = (key: string, stored: number, isOn: boolean | undefined) => {
+    const onAtMs = onAt[key] || 0;
+    const extra  = (isOn && onAtMs > 0) ? (now - onAtMs) / 3_600_000 : 0;
+    return stored + extra;
+  };
+
+  const liveLight1  = liveRuntime('light1',  an?.light1Runtime  || 0, o?.light1);
+  const liveLight2  = liveRuntime('light2',  an?.light2Runtime  || 0, o?.light2);
+  const liveLight3  = liveRuntime('light3',  an?.light3Runtime  || 0, o?.light3);
+  const liveFan1    = liveRuntime('fan1',    an?.fan1Runtime    || 0, o?.fan1);
+  const liveFan2    = liveRuntime('fan2',    an?.fan2Runtime    || 0, o?.fan2);
+  const liveCustom  = liveRuntime('custom1', an?.customRuntime  || 0, o?.custom1);
+
+  const totalRuntime = liveLight1 + liveLight2 + liveLight3 + liveFan1 + liveFan2 + liveCustom;
+  const maxRuntime   = Math.max(liveLight1, liveLight2, liveLight3, liveFan1, liveFan2, liveCustom, 0.001);
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -404,7 +469,37 @@ export default function DeviceDetails() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Master All On / All Off — highlight based on real RTDB state */}
+          {(() => {
+            const allOn  = !!(o?.light1 && o?.light2 && o?.light3 && o?.fan1 && o?.fan2 && o?.custom1);
+            const allOff = !o?.light1 && !o?.light2 && !o?.light3 && !o?.fan1 && !o?.fan2 && !o?.custom1;
+            return (
+              <>
+                <button
+                  onClick={() => toggleAllDevices(true)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
+                    allOn
+                      ? 'bg-primary-600 text-white border-primary-600 ring-2 ring-primary-300 shadow-md'
+                      : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200'
+                  }`}
+                >
+                  <Zap size={12} /> All On
+                </button>
+                <button
+                  onClick={() => toggleAllDevices(false)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
+                    allOff
+                      ? 'bg-neutral-800 text-white border-neutral-800 ring-2 ring-neutral-400 shadow-md'
+                      : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-800 hover:border-neutral-300'
+                  }`}
+                >
+                  <Zap size={12} /> All Off
+                </button>
+              </>
+            );
+          })()}
+          <div className="w-px h-5 bg-neutral-200" />
           <Button variant="secondary" size="sm">
             <Edit2 size={14} /> Edit
           </Button>
@@ -426,30 +521,58 @@ export default function DeviceDetails() {
               </div>
               <h3 className="text-sm font-bold text-neutral-900">Lights</h3>
             </div>
-            <span className="text-xs font-medium text-neutral-400 bg-neutral-50 px-2.5 py-1 rounded-full">
-              {[o?.light1, o?.light2, o?.light3].filter(Boolean).length} / 3 on
-            </span>
+            {(() => {
+              const allOn  = !!(o?.light1 && o?.light2 && o?.light3);
+              const allOff = !o?.light1 && !o?.light2 && !o?.light3;
+              return (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => toggleAllLights(true)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                      allOn
+                        ? 'bg-yellow-400 text-white border-yellow-400 ring-2 ring-yellow-200 shadow-sm'
+                        : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                    }`}
+                  >
+                    All On
+                  </button>
+                  <button
+                    onClick={() => toggleAllLights(false)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                      allOff
+                        ? 'bg-neutral-700 text-white border-neutral-700 ring-2 ring-neutral-300 shadow-sm'
+                        : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100'
+                    }`}
+                  >
+                    All Off
+                  </button>
+                </div>
+              );
+            })()}
           </div>
           <div className="grid grid-cols-1 gap-3">
             {([
-              { key: 'light1' as const, label: 'Light 1', runtime: an?.light1Runtime },
-              { key: 'light2' as const, label: 'Light 2', runtime: an?.light2Runtime },
-              { key: 'light3' as const, label: 'Light 3', runtime: an?.light3Runtime },
-            ]).map(item => (
-              <ControlCard
-                key={item.key}
-                icon={<Lightbulb size={18} />}
-                iconActiveBg="bg-yellow-100"
-                iconInactiveBg="bg-yellow-50"
-                iconActiveColor="text-yellow-600"
-                iconInactiveColor="text-yellow-400"
-                label={item.label}
-                runtime={item.runtime}
-                checked={o?.[item.key] || false}
-                onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
-                disabled={isOffline}
-              />
-            ))}
+              { key: 'light1' as const, label: 'Light 1', stored: an?.light1Runtime || 0 },
+              { key: 'light2' as const, label: 'Light 2', stored: an?.light2Runtime || 0 },
+              { key: 'light3' as const, label: 'Light 3', stored: an?.light3Runtime || 0 },
+            ]).map(item => {
+              const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
+              return (
+                <ControlCard
+                  key={item.key}
+                  icon={<Lightbulb size={18} />}
+                  iconActiveBg="bg-yellow-100"
+                  iconInactiveBg="bg-yellow-50"
+                  iconActiveColor="text-yellow-600"
+                  iconInactiveColor="text-yellow-400"
+                  label={item.label}
+                  runtime={item.stored + liveExtra}
+                  checked={o?.[item.key] || false}
+                  onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
+                  disabled={isOffline}
+                />
+              );
+            })}
           </div>
         </Card>
 
@@ -462,29 +585,57 @@ export default function DeviceDetails() {
               </div>
               <h3 className="text-sm font-bold text-neutral-900">Fans</h3>
             </div>
-            <span className="text-xs font-medium text-neutral-400 bg-neutral-50 px-2.5 py-1 rounded-full">
-              {[o?.fan1, o?.fan2].filter(Boolean).length} / 2 on
-            </span>
+            {(() => {
+              const allOn  = !!(o?.fan1 && o?.fan2);
+              const allOff = !o?.fan1 && !o?.fan2;
+              return (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => toggleAllFans(true)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                      allOn
+                        ? 'bg-blue-500 text-white border-blue-500 ring-2 ring-blue-200 shadow-sm'
+                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                    }`}
+                  >
+                    All On
+                  </button>
+                  <button
+                    onClick={() => toggleAllFans(false)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                      allOff
+                        ? 'bg-neutral-700 text-white border-neutral-700 ring-2 ring-neutral-300 shadow-sm'
+                        : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100'
+                    }`}
+                  >
+                    All Off
+                  </button>
+                </div>
+              );
+            })()}
           </div>
           <div className="grid grid-cols-1 gap-3 mb-4">
             {([
-              { key: 'fan1' as const, label: 'Fan 1', runtime: an?.fan1Runtime },
-              { key: 'fan2' as const, label: 'Fan 2', runtime: an?.fan2Runtime },
-            ]).map(item => (
-              <ControlCard
-                key={item.key}
-                icon={<Wind size={18} />}
-                iconActiveBg="bg-blue-100"
-                iconInactiveBg="bg-blue-50"
-                iconActiveColor="text-blue-600"
-                iconInactiveColor="text-blue-400"
-                label={item.label}
-                runtime={item.runtime}
-                checked={o?.[item.key] || false}
-                onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
-                disabled={isOffline}
-              />
-            ))}
+              { key: 'fan1' as const, label: 'Fan 1', stored: an?.fan1Runtime || 0 },
+              { key: 'fan2' as const, label: 'Fan 2', stored: an?.fan2Runtime || 0 },
+            ]).map(item => {
+              const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
+              return (
+                <ControlCard
+                  key={item.key}
+                  icon={<Wind size={18} />}
+                  iconActiveBg="bg-blue-100"
+                  iconInactiveBg="bg-blue-50"
+                  iconActiveColor="text-blue-600"
+                  iconInactiveColor="text-blue-400"
+                  label={item.label}
+                  runtime={item.stored + liveExtra}
+                  checked={o?.[item.key] || false}
+                  onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
+                  disabled={isOffline}
+                />
+              );
+            })}
           </div>
 
           {/* Custom Device inside same column */}
@@ -502,7 +653,7 @@ export default function DeviceDetails() {
               iconActiveColor="text-purple-600"
               iconInactiveColor="text-purple-400"
               label="Custom Device"
-              runtime={an?.customRuntime}
+              runtime={(an?.customRuntime || 0) + ((o?.custom1 && onAt['custom1']) ? (now - onAt['custom1']) / 3_600_000 : 0)}
               checked={o?.custom1 || false}
               onChange={v => toggle('custom1', v, `Custom Device turned ${v ? 'ON' : 'OFF'}`)}
               disabled={isOffline}
@@ -527,20 +678,20 @@ export default function DeviceDetails() {
             <HealthRow
               icon={<Wifi size={13} />}
               label="WiFi Status"
-              ok={h?.wifiStatus === 'connected'}
+              ok={isOnline || h?.wifiStatus === 'connected'}
               value={
-                <span className={h?.wifiStatus === 'connected' ? 'text-success-600' : 'text-error-500'}>
-                  {h?.wifiStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                <span className={(isOnline || h?.wifiStatus === 'connected') ? 'text-success-600' : 'text-error-500'}>
+                  {(isOnline || h?.wifiStatus === 'connected') ? 'Connected' : 'Disconnected'}
                 </span>
               }
             />
             <HealthRow
               icon={<Server size={13} />}
               label="Firebase"
-              ok={h?.firebaseStatus === 'connected'}
+              ok={isOnline || h?.firebaseStatus === 'connected'}
               value={
-                <span className={h?.firebaseStatus === 'connected' ? 'text-success-600' : 'text-error-500'}>
-                  {h?.firebaseStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                <span className={(isOnline || h?.firebaseStatus === 'connected') ? 'text-success-600' : 'text-error-500'}>
+                  {(isOnline || h?.firebaseStatus === 'connected') ? 'Connected' : 'Disconnected'}
                 </span>
               }
             />
@@ -589,7 +740,16 @@ export default function DeviceDetails() {
                 <BarChart3 size={16} className="text-primary-600" />
               </div>
               <h3 className="text-sm font-bold text-neutral-900">Runtime Analytics</h3>
-              <span className="ml-auto text-xs text-neutral-400">Cumulative</span>
+              <span className="ml-auto text-xs text-neutral-400">Live · Cumulative</span>
+              <button
+                onClick={handleResetAnalytics}
+                disabled={resetting}
+                title="Reset all analytics to zero"
+                className="ml-2 flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-red-600 hover:bg-red-50 border border-neutral-200 hover:border-red-200 rounded-lg transition-all disabled:opacity-40"
+              >
+                <RotateCcw size={11} className={resetting ? 'animate-spin' : ''} />
+                Reset
+              </button>
             </div>
 
             {/* Summary stat cards */}
@@ -630,25 +790,34 @@ export default function DeviceDetails() {
               ))}
             </div>
 
-            {/* Per-channel bars */}
-            <div className="space-y-3.5">
+            {/* Per-channel bars with live clock */}
+            <div className="space-y-3">
               {[
-                { label: 'Light 1',  value: an?.light1Runtime  || 0, color: 'bg-yellow-400', dot: 'bg-yellow-400' },
-                { label: 'Light 2',  value: an?.light2Runtime  || 0, color: 'bg-yellow-400', dot: 'bg-yellow-400' },
-                { label: 'Light 3',  value: an?.light3Runtime  || 0, color: 'bg-amber-400',  dot: 'bg-amber-400'  },
-                { label: 'Fan 1',    value: an?.fan1Runtime    || 0, color: 'bg-blue-400',   dot: 'bg-blue-400'   },
-                { label: 'Fan 2',    value: an?.fan2Runtime    || 0, color: 'bg-sky-400',    dot: 'bg-sky-400'    },
-                { label: 'Custom',   value: an?.customRuntime  || 0, color: 'bg-purple-400', dot: 'bg-purple-400' },
-              ].map(item => (
-                <div key={item.label} className="flex items-center gap-3">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.dot}`} />
-                  <span className="text-xs text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
-                  <RuntimeBar value={item.value} max={maxRuntime} color={item.color} />
-                  <span className="text-xs font-semibold text-neutral-700 w-16 text-right flex-shrink-0">
-                    {fmtRuntime(item.value)}
-                  </span>
-                </div>
-              ))}
+                { key: 'light1',  label: 'Light 1', total: liveLight1, color: 'bg-yellow-400', dot: 'bg-yellow-400', isOn: o?.light1  },
+                { key: 'light2',  label: 'Light 2', total: liveLight2, color: 'bg-yellow-400', dot: 'bg-yellow-400', isOn: o?.light2  },
+                { key: 'light3',  label: 'Light 3', total: liveLight3, color: 'bg-amber-400',  dot: 'bg-amber-400',  isOn: o?.light3  },
+                { key: 'fan1',    label: 'Fan 1',   total: liveFan1,   color: 'bg-blue-400',   dot: 'bg-blue-400',   isOn: o?.fan1    },
+                { key: 'fan2',    label: 'Fan 2',   total: liveFan2,   color: 'bg-sky-400',    dot: 'bg-sky-400',    isOn: o?.fan2    },
+                { key: 'custom1', label: 'Custom',  total: liveCustom, color: 'bg-purple-400', dot: 'bg-purple-400', isOn: o?.custom1 },
+              ].map(item => {
+                const total = item.total;
+
+                return (
+                  <div key={item.key} className="flex items-center gap-3">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.dot}`} />
+                    <span className="text-xs text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
+                    <RuntimeBar value={total} max={maxRuntime} color={item.color} />
+                    <div className="flex items-center gap-1.5 w-24 justify-end flex-shrink-0">
+                      {item.isOn && (
+                        <span className="w-1.5 h-1.5 bg-success-500 rounded-full animate-pulse flex-shrink-0" />
+                      )}
+                      <span className={`text-xs font-semibold ${item.isOn ? 'text-success-600' : 'text-neutral-700'}`}>
+                        {fmtRuntime(total)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </div>

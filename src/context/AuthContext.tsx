@@ -41,8 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadUserData(uid: string) {
-    const data = await getUserData(uid);
-    setUserData(data as UserData | null);
+    try {
+      const data = await getUserData(uid);
+      setUserData(data as UserData | null);
+    } catch (err) {
+      // Firestore blocked by ad-blocker — auth still works, just no profile data
+      console.warn('[AuthContext] Could not load user profile:', err);
+      setUserData(null);
+    }
   }
 
   async function refreshUserData() {
@@ -50,21 +56,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    // Safety timeout: unblock UI if Firebase doesn't respond (ad-blocker protection)
+    // Safety timeout: unblock UI if Firebase doesn't respond within 8s
+    // (handles ad-blocker blocking Firebase Auth requests)
     const timeout = setTimeout(() => {
       setLoading(false);
     }, 8000);
 
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      clearTimeout(timeout);
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        await loadUserData(firebaseUser.uid);
-      } else {
-        setUserData(null);
+    const unsub = onAuthStateChanged(
+      auth,
+      async (firebaseUser) => {
+        clearTimeout(timeout);
+        setUser(firebaseUser);
+        if (firebaseUser) {
+          await loadUserData(firebaseUser.uid);
+        } else {
+          setUserData(null);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        // Auth state change error (network/ad-blocker)
+        clearTimeout(timeout);
+        console.warn('[AuthContext] onAuthStateChanged error:', error);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
 
     return () => {
       clearTimeout(timeout);

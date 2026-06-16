@@ -1,43 +1,75 @@
 /**
- * DexbotBridge — Home Automation project ke liye
- * Dexbot Firebase (Realtime DB) se bot ID verify karta hai,
- * phir HA Firebase (Realtime DB) mein linked_bots mein save karta hai.
+ * DexbotBridge
+ * - Dexbot Firebase RTDB se bot ID verify karta hai (registered_bots/{botId})
+ * - HA Firebase RTDB mein linked_bots/{botId} mein save karta hai
  */
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getDatabase, ref, get, set, remove, onValue, off, DataSnapshot } from 'firebase/database';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import {
+  getDatabase,
+  ref,
+  get,
+  set,
+  remove,
+  onValue,
+  off,
+  DataSnapshot,
+  Database,
+} from 'firebase/database';
 
-// ── Dexbot Firebase config (read-only — bot verify karne ke liye) ─────────────
+// ── Dexbot Firebase config ────────────────────────────────────────────────────
 const DEXBOT_CONFIG = {
-  apiKey:            import.meta.env.VITE_DEXBOT_API_KEY,
-  authDomain:        import.meta.env.VITE_DEXBOT_AUTH_DOMAIN,
-  databaseURL:       import.meta.env.VITE_DEXBOT_DATABASE_URL,
-  projectId:         import.meta.env.VITE_DEXBOT_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_DEXBOT_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_DEXBOT_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_DEXBOT_APP_ID,
+  apiKey:            import.meta.env.VITE_DEXBOT_API_KEY        as string,
+  authDomain:        import.meta.env.VITE_DEXBOT_AUTH_DOMAIN    as string,
+  databaseURL:       import.meta.env.VITE_DEXBOT_DATABASE_URL   as string,
+  projectId:         import.meta.env.VITE_DEXBOT_PROJECT_ID     as string,
+  storageBucket:     import.meta.env.VITE_DEXBOT_STORAGE_BUCKET as string,
+  messagingSenderId: import.meta.env.VITE_DEXBOT_MESSAGING_SENDER_ID as string,
+  appId:             import.meta.env.VITE_DEXBOT_APP_ID         as string,
 };
 
-// ── HA Firebase config (read + write) ────────────────────────────────────────
+// ── HA Firebase config ────────────────────────────────────────────────────────
 const HA_CONFIG = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL:       import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY            as string,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN        as string,
+  databaseURL:       import.meta.env.VITE_FIREBASE_DATABASE_URL       as string,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID         as string,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET     as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID             as string,
 };
 
-// ── Firebase app initialize (duplicate avoid karne ke liye) ──────────────────
-function getOrCreate(name: string, config: object) {
-  return getApps().find((a) => a.name === name)
-    ? getApp(name)
-    : initializeApp(config, name);
+// ── Safe app init ─────────────────────────────────────────────────────────────
+function getOrCreateApp(name: string, config: object): FirebaseApp {
+  const existing = getApps().find(a => a.name === name);
+  return existing ?? initializeApp(config, name);
 }
 
-const _dexbotDb = getDatabase(getOrCreate('dexbot-reader', DEXBOT_CONFIG));
-const _haDb     = getDatabase(getOrCreate('home-auto',     HA_CONFIG));
+// ── DB instances ──────────────────────────────────────────────────────────────
+let _dexbotDb: Database;
+let _haDb: Database;
+
+function getDexbotDb(): Database {
+  if (!_dexbotDb) {
+    if (!DEXBOT_CONFIG.databaseURL) {
+      throw new Error('[DexbotBridge] VITE_DEXBOT_DATABASE_URL is not set in .env');
+    }
+    const app = getOrCreateApp('dexbot-reader', DEXBOT_CONFIG);
+    _dexbotDb = getDatabase(app);
+  }
+  return _dexbotDb;
+}
+
+function getHaDb(): Database {
+  if (!_haDb) {
+    if (!HA_CONFIG.databaseURL) {
+      throw new Error('[DexbotBridge] VITE_FIREBASE_DATABASE_URL is not set in .env');
+    }
+    const app = getOrCreateApp('ha-bridge', HA_CONFIG);
+    _haDb = getDatabase(app);
+  }
+  return _haDb;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface DexbotInfo {
@@ -45,63 +77,102 @@ export interface DexbotInfo {
   name?: string;
   ip?: string;
   ownerUid?: string;
+  [key: string]: unknown;
 }
 
 export interface LinkedBot extends DexbotInfo {
   linkedAt: number;
 }
 
-// ── DexbotBridge Service ──────────────────────────────────────────────────────
+// ── Bridge ────────────────────────────────────────────────────────────────────
 const DexbotBridge = {
+
   /**
-   * Dexbot Firebase mein bot ID exist karta hai check karo.
-   * registered_bots/{botId} node read karta hai.
+   * Dexbot RTDB mein bot ID dhundho — case-insensitive.
+   * registered_bots/ aur bots/ dono check karta hai.
+   * DB keys lowercase hain (dex_1, dex2) — input ka case ignore karo.
    */
   async verifyDexbotId(botId: string): Promise<DexbotInfo | null> {
-    const snap = await get(ref(_dexbotDb, `registered_bots/${botId}`));
-    if (!snap.exists()) return null;
-    return { botId, ...snap.val() };
+    try {
+      const db  = getDexbotDb();
+      const key = botId.trim(); // original case preserve
+      console.log(`[DexbotBridge] Verifying bot ID: "${key}"`);
+
+      // Helper: try exact + lowercase + uppercase variants
+      const tryPaths = async (root: string): Promise<DexbotInfo | null> => {
+        const variants = [key, key.toLowerCase(), key.toUpperCase()];
+        for (const v of variants) {
+          const snap = await get(ref(db, `${root}/${v}`));
+          console.log(`[DexbotBridge] ${root}/${v} exists:`, snap.exists());
+          if (snap.exists()) {
+            const data = snap.val();
+            console.log('[DexbotBridge] Found bot data:', data);
+            // Return with the actual matched key so linking uses correct casing
+            return { botId: v, ...(typeof data === 'object' && data !== null ? data : {}) };
+          }
+        }
+
+        // Last resort: fetch entire root and do case-insensitive key compare
+        const allSnap = await get(ref(db, root));
+        if (allSnap.exists()) {
+          const all = allSnap.val() as Record<string, unknown>;
+          const matchedKey = Object.keys(all).find(
+            k => k.toLowerCase() === key.toLowerCase()
+          );
+          if (matchedKey) {
+            const data = all[matchedKey];
+            console.log(`[DexbotBridge] Case-insensitive match: ${root}/${matchedKey}`, data);
+            return { botId: matchedKey, ...(typeof data === 'object' && data !== null ? data : {}) };
+          }
+        }
+        return null;
+      };
+
+      // Try registered_bots first, then bots/ as fallback
+      const result = (await tryPaths('registered_bots')) ?? (await tryPaths('bots'));
+      if (!result) console.warn(`[DexbotBridge] Bot "${key}" not found in registered_bots/ or bots/`);
+      return result;
+    } catch (err) {
+      console.error('[DexbotBridge] verifyDexbotId error:', err);
+      throw err;
+    }
   },
 
   /**
-   * HA Firebase mein dexbot bot ko link karo.
-   * linked_bots/{botId} mein bot info save karta hai.
+   * HA RTDB mein linked_bots/{botId} mein save karo.
    */
   async linkDexbot(botId: string, botData: DexbotInfo): Promise<void> {
-    await set(ref(_haDb, `linked_bots/${botId}`), {
-      botId,
-      name:     botData.name     ?? botId,
-      ip:       botData.ip       ?? '',
-      ownerUid: botData.ownerUid ?? '',
-      linkedAt: Date.now(),
-    });
+    try {
+      const db = getHaDb();
+      await set(ref(db, `linked_bots/${botId}`), {
+        botId,
+        name:     (botData.name as string)     ?? botId,
+        ip:       (botData.ip as string)       ?? '',
+        ownerUid: (botData.ownerUid as string) ?? '',
+        linkedAt: Date.now(),
+      });
+      console.log(`[DexbotBridge] Linked bot "${botId}" in HA RTDB`);
+    } catch (err) {
+      console.error('[DexbotBridge] linkDexbot error:', err);
+      throw err;
+    }
   },
 
-  /**
-   * HA Firebase se check karo — ye bot pehle se linked hai?
-   */
   async isAlreadyLinked(botId: string): Promise<boolean> {
-    const snap = await get(ref(_haDb, `linked_bots/${botId}`));
+    const snap = await get(ref(getHaDb(), `linked_bots/${botId}`));
     return snap.exists();
   },
 
-  /**
-   * Saare linked dexbots fetch karo.
-   */
   async getLinkedBots(): Promise<LinkedBot[]> {
-    const snap = await get(ref(_haDb, 'linked_bots'));
+    const snap = await get(ref(getHaDb(), 'linked_bots'));
     if (!snap.exists()) return [];
     return Object.entries(snap.val() as Record<string, LinkedBot>).map(
       ([botId, data]) => ({ botId, ...data })
     );
   },
 
-  /**
-   * Real-time listener — linked bots change hone pe callback fire hoga.
-   * Returns unsubscribe function.
-   */
   listenToLinkedBots(callback: (bots: LinkedBot[]) => void): () => void {
-    const r = ref(_haDb, 'linked_bots');
+    const r = ref(getHaDb(), 'linked_bots');
     const handler = (snap: DataSnapshot) => {
       if (!snap.exists()) { callback([]); return; }
       callback(
@@ -114,11 +185,9 @@ const DexbotBridge = {
     return () => off(r, 'value', handler);
   },
 
-  /**
-   * Bot unlink karo HA DB se.
-   */
   async unlinkDexbot(botId: string): Promise<void> {
-    await remove(ref(_haDb, `linked_bots/${botId}`));
+    await remove(ref(getHaDb(), `linked_bots/${botId}`));
+    console.log(`[DexbotBridge] Unlinked bot "${botId}" from HA RTDB`);
   },
 };
 

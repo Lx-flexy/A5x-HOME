@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
 
@@ -25,8 +25,19 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const auth    = getAuth(app);
-export const db      = getFirestore(app);   // Firestore — users, meta, logs, members
+export const auth = getAuth(app);
+
+// Firestore with persistent cache (multi-tab) + long-polling fallback.
+// - persistentLocalCache: survives page refresh, works offline
+// - experimentalForceLongPolling: fallback when WebChannel is blocked by ad-blockers
+//   (fixes ERR_BLOCKED_BY_CLIENT for firestore.googleapis.com requests)
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+  experimentalForceLongPolling: true,
+});
+
 export const rtdb    = getDatabase(app);    // Realtime DB — live device state
 export const storage = getStorage(app);
 

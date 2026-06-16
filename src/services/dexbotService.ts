@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   updateDoc,
   setDoc,
@@ -22,49 +21,56 @@ export interface DexBot {
 }
 
 /**
- * Dexbot Firebase (Realtime DB) mein bot ID verify karta hai.
- * registered_bots/{botId} node check karta hai — Firestore nahi.
+ * Connect flow:
+ * 1. Dexbot RTDB ke registered_bots/{botId} mein verify karo
+ * 2. HA RTDB ke linked_bots/{botId} mein save karo
+ * 3. HA Firestore ke dex_bots/{botId} mein record rakho
  */
-export async function verifyDexBotExists(dexBotId: string): Promise<boolean> {
-  const botData = await DexbotBridge.verifyDexbotId(dexBotId);
-  return botData !== null;
-}
+export async function connectDexBot(
+  dexBotId: string,
+  ownerId: string,
+  linkedDevice: string
+): Promise<void> {
+  console.log('[dexbotService] connectDexBot called:', { dexBotId, ownerId, linkedDevice });
 
-export async function connectDexBot(dexBotId: string, ownerId: string, linkedDevice: string) {
-  // Step 1: Dexbot Firebase (Realtime DB) mein verify karo
+  // Step 1: Verify in Dexbot Firebase
   const botData = await DexbotBridge.verifyDexbotId(dexBotId);
   if (!botData) {
     throw new Error('BOT_NOT_FOUND');
   }
 
-  // Step 2: HA Realtime DB mein linked_bots mein save karo
+  // Step 2: Link in HA RTDB
   await DexbotBridge.linkDexbot(dexBotId, botData);
 
-  // Step 3: HA Firestore mein bhi dex_bots record update karo (existing flow)
-  const ref = doc(db, 'dex_bots', dexBotId);
-  await setDoc(ref, {
+  // Step 3: Save in HA Firestore (linkedDevice can be empty string if no device)
+  const docRef = doc(db, 'dex_bots', dexBotId);
+  await setDoc(docRef, {
     dexBotId,
     ownerId,
     status: 'connected',
-    linkedDevice,
+    linkedDevice: linkedDevice || '',
     connectedAt: serverTimestamp(),
-  });
+  }, { merge: true });
+
+  console.log('[dexbotService] connectDexBot success:', dexBotId);
 }
 
-export async function disconnectDexBot(dexBotId: string) {
+export async function disconnectDexBot(dexBotId: string): Promise<void> {
+  // Remove from HA RTDB
+  await DexbotBridge.unlinkDexbot(dexBotId).catch(err =>
+    console.warn('[dexbotService] unlinkDexbot warning:', err)
+  );
+
+  // Update Firestore status
   await updateDoc(doc(db, 'dex_bots', dexBotId), {
     status: 'disconnected',
   });
+
+  console.log('[dexbotService] disconnectDexBot success:', dexBotId);
 }
 
 export async function getUserDexBots(ownerId: string): Promise<DexBot[]> {
   const q = query(collection(db, 'dex_bots'), where('ownerId', '==', ownerId));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as DexBot));
-}
-
-export async function getDexBot(dexBotId: string): Promise<DexBot | null> {
-  const snap = await getDoc(doc(db, 'dex_bots', dexBotId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as DexBot;
 }

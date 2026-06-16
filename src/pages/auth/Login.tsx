@@ -3,6 +3,25 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Home } from 'lucide-react';
 import { loginWithEmail, loginWithGoogle, loginWithFacebook, forgotPassword } from '../../services/authService';
 import Button from '../../components/ui/Button';
+import { toast } from '../../components/ui/Toast';
+
+// Map Firebase auth error codes to user-friendly messages
+function friendlyAuthError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential'))
+    return 'Incorrect email or password.';
+  if (msg.includes('too-many-requests'))
+    return 'Too many attempts. Please try again later.';
+  if (msg.includes('network-request-failed') || msg.includes('ERR_BLOCKED'))
+    return 'Network error. Check your connection or disable ad blocker.';
+  if (msg.includes('popup-closed-by-user'))
+    return 'Sign-in popup was closed. Please try again.';
+  if (msg.includes('popup-blocked'))
+    return 'Popup blocked by browser. Allow popups for this site.';
+  if (msg.includes('cancelled-popup-request'))
+    return ''; // silent — user opened another popup
+  return msg.replace('Firebase: ', '').replace(/\(.*\)/, '').trim();
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,9 +42,10 @@ export default function Login() {
       await forgotPassword(email);
       setResetSent(true);
       setError('');
+      toast.success('Password reset email sent!');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send reset email';
-      setError(msg.replace('Firebase: ', '').replace(/\(.*\)/, '').trim());
+      const msg = friendlyAuthError(err);
+      setError(msg);
     }
   }
 
@@ -37,8 +57,8 @@ export default function Login() {
       await loginWithEmail(email, password);
       navigate('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
-      setError(msg.replace('Firebase: ', '').replace(/\(.*\)/, '').trim());
+      const msg = friendlyAuthError(err);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -51,8 +71,8 @@ export default function Login() {
       await loginWithGoogle();
       navigate('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Google login failed';
-      setError(msg.replace('Firebase: ', '').replace(/\(.*\)/, '').trim());
+      const msg = friendlyAuthError(err);
+      if (msg) setError(msg); // silent on cancelled-popup-request
     } finally {
       setLoading(false);
     }
@@ -65,8 +85,8 @@ export default function Login() {
       await loginWithFacebook();
       navigate('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Facebook login failed';
-      setError(msg.replace('Firebase: ', '').replace(/\(.*\)/, '').trim());
+      const msg = friendlyAuthError(err);
+      if (msg) setError(msg);
     } finally {
       setLoading(false);
     }
