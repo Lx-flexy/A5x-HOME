@@ -323,11 +323,11 @@ export function subscribeToOnAt(
 
 /**
  * Reset all analytics for a device back to zero.
- * Also clears onAt timestamps.
+ * Delegates to analyticsService.resetTodayAnalytics.
  */
 export async function resetAnalytics(deviceId: string): Promise<void> {
-  await set(rtdbAnalytics(deviceId), defaultAnalytics());
-  await remove(ref(rtdb, `devices/${deviceId}/onAt`));
+  const { resetTodayAnalytics } = await import('./analyticsService');
+  await resetTodayAnalytics(deviceId);
 }
 
 // ─── RTDB: device online/offline status ──────────────────────────────────────
@@ -378,14 +378,7 @@ export async function getDeviceOnlineStatus(deviceId: string): Promise<boolean> 
 
 // ─── RTDB: write output toggle ────────────────────────────────────────────────
 
-const WATT: Record<string, number> = {
-  light1: 40, light2: 40, light3: 40,
-  fan1: 25, fan2: 25, custom1: 30,
-};
-
-// Path where we store the "turned ON at" timestamp for each output
-// devices/{deviceId}/onAt/{key} = unix ms
-const rtdbOnAt = (deviceId: string) => ref(rtdb, `devices/${deviceId}/onAt`);
+const TRACKABLE_KEYS = new Set(['light1','light2','light3','fan1','fan2','custom1']);
 
 export async function setOutput(
   deviceId: string,
@@ -397,52 +390,16 @@ export async function setOutput(
   // Write to RTDB — ESP32 onValue listener picks this up instantly
   await update(rtdbOutputs(deviceId), { [key]: value });
 
-  // Real-time runtime tracking for boolean outputs
-  if (typeof value === 'boolean' && key in WATT) {
-    if (value) {
-      // Device turned ON → save "onAt" timestamp
-      await update(rtdbOnAt(deviceId), { [key]: Date.now() });
-    } else {
-      // Device turned OFF → calculate elapsed time and add to analytics
-      const onAtSnap = await get(ref(rtdb, `devices/${deviceId}/onAt/${key}`));
-      const onAtMs   = (onAtSnap.val() as number) || 0;
-      if (onAtMs > 0) {
-        const elapsedHours = (Date.now() - onAtMs) / 3_600_000; // ms → hours
-        if (elapsedHours > 0) {
-          await addRuntimeToAnalytics(deviceId, key as string, elapsedHours);
-        }
-        // Clear onAt so it doesn't count again
-        await update(rtdbOnAt(deviceId), { [key]: null });
-      }
-    }
+  // Runtime tracking — only for boolean trackable keys
+  if (typeof value === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
+    const { trackOutputChange } = await import('./analyticsService');
+    await trackOutputChange(deviceId, key as 'light1'|'light2'|'light3'|'fan1'|'fan2'|'custom1', value).catch(err =>
+      console.warn('[setOutput] trackOutputChange failed:', err)
+    );
   }
 
   if (label) {
     await logActivity(deviceId, label, performedBy);
-  }
-}
-
-/**
- * Add actual elapsed hours to analytics runtime + energy.
- * Called when a device is turned OFF with exact duration.
- */
-async function addRuntimeToAnalytics(
-  deviceId: string,
-  key: string,
-  elapsedHours: number
-): Promise<void> {
-  try {
-    const runtimeField = key === 'custom1' ? 'customRuntime' : `${key}Runtime`;
-    const snap = await get(rtdbAnalytics(deviceId));
-    const cur: DeviceAnalyticsData = (snap.val() as DeviceAnalyticsData) || defaultAnalytics();
-    const prevRuntime = (cur[runtimeField as keyof DeviceAnalyticsData] as number) || 0;
-    const prevEnergy  = cur.energyUsage || 0;
-    await update(rtdbAnalytics(deviceId), {
-      [runtimeField]: prevRuntime + elapsedHours,
-      energyUsage:    prevEnergy  + (WATT[key] / 1000) * elapsedHours,
-    });
-  } catch (err) {
-    console.warn('[addRuntimeToAnalytics] Failed:', err);
   }
 }
 
@@ -505,38 +462,20 @@ export async function updateDeviceState(
   });
   await update(rtdbOutputs(deviceId), patch);
 
-  // Track runtime for each boolean key being changed
-  const trackableKeys = ['light1','light2','light3','fan1','fan2','custom1'] as const;
-  const now = Date.now();
-
-  // Fetch all current onAt timestamps in one read
-  const onAtSnap = await get(rtdbOnAt(deviceId));
-  const onAtData = (onAtSnap.val() as Record<string, number>) || {};
-  const onAtPatch: Record<string, number | null> = {};
-
-  for (const k of trackableKeys) {
-    if (!(k in data)) continue;
-    const val = (data as Record<string, unknown>)[k];
-    if (typeof val !== 'boolean') continue;
-
-    if (val) {
-      // Turning ON — record timestamp
-      onAtPatch[k] = now;
-    } else {
-      // Turning OFF — calculate elapsed and add to analytics
-      const onAtMs = onAtData[k] || 0;
-      if (onAtMs > 0) {
-        const elapsedHours = (now - onAtMs) / 3_600_000;
-        if (elapsedHours > 0) {
-          await addRuntimeToAnalytics(deviceId, k, elapsedHours);
-        }
-        onAtPatch[k] = null; // clear
-      }
+  // Track runtime for trackable boolean keys via analyticsService
+  type TK = 'light1'|'light2'|'light3'|'fan1'|'fan2'|'custom1';
+  const trackable: TK[] = ['light1','light2','light3','fan1','fan2','custom1'];
+  const changes: Partial<Record<TK, boolean>> = {};
+  for (const k of trackable) {
+    if (k in data && typeof (data as Record<string, unknown>)[k] === 'boolean') {
+      changes[k] = (data as Record<string, unknown>)[k] as boolean;
     }
   }
-
-  if (Object.keys(onAtPatch).length > 0) {
-    await update(rtdbOnAt(deviceId), onAtPatch);
+  if (Object.keys(changes).length > 0) {
+    const { trackBulkOutputChange } = await import('./analyticsService');
+    await trackBulkOutputChange(deviceId, changes).catch(err =>
+      console.warn('[updateDeviceState] trackBulkOutputChange failed:', err)
+    );
   }
 
   if (label) await logActivity(deviceId, label, performedBy);

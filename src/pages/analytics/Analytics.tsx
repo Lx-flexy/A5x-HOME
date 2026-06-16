@@ -5,20 +5,31 @@ import {
   subscribeToUserDevices,
   subscribeToAnalytics,
   subscribeToLastSeen,
-  ONLINE_THRESHOLD_MS,
   Device,
   DeviceAnalyticsData,
 } from '../../services/deviceService';
 import { calcIsOnline } from '../../hooks/useDeviceStatus';
-import { getActivityLogs, ActivityLog } from '../../services/analyticsService';
+import {
+  getActivityLogs,
+  getDailyAnalytics,
+  aggregateDailyRecords,
+  DailyAnalytics,
+  ActivityLog,
+  todayStr,
+} from '../../services/analyticsService';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
 
+type TabKey = 'today' | '7d' | '30d';
+
 function fmtRuntime(h: number): string {
-  if (!h) return '0h 0m';
+  if (!h || h <= 0) return '0s';
+  const totalSec = Math.round(h * 3600);
+  if (totalSec < 60) return `${totalSec}s`;
   const hh = Math.floor(h);
-  const mm = Math.round((h - hh) * 60);
-  return `${hh}h ${mm}m`;
+  const mm = Math.floor((h - hh) * 60);
+  if (hh === 0) return `${mm}m`;
+  return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
 }
 
 function timeAgo(timestamp: unknown): string {
@@ -53,20 +64,23 @@ function RuntimeBar({ value, max, color }: { value: number; max: number; color: 
 export default function Analytics() {
   const { user } = useAuth();
   const [devices, setDevices]           = useState<Device[]>([]);
-  const [analyticsMap, setAnalyticsMap] = useState<Record<string, DeviceAnalyticsData>>({});
+  const [todayRtdb, setTodayRtdb]       = useState<Record<string, DeviceAnalyticsData>>({});
   const [lastSeenMap, setLastSeenMap]   = useState<Record<string, number>>({});
   const [, tick]                        = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [logs, setLogs]                 = useState<ActivityLog[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [tab, setTab]                   = useState<TabKey>('today');
+  const [historyMap, setHistoryMap]     = useState<Record<string, DailyAnalytics[]>>({});
+  const [histLoading, setHistLoading]   = useState(false);
 
-  // 1s ticker
+  // 1s ticker for live updates
   useEffect(() => {
     tickRef.current = setInterval(() => tick(n => n + 1), 1000);
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, []);
 
-  // Load devices from Firestore
+  // Load devices
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToUserDevices(user.uid, devs => {
@@ -76,186 +90,257 @@ export default function Analytics() {
     return unsub;
   }, [user]);
 
-  // Subscribe to RTDB analytics + status for each device
+  // Subscribe to today's RTDB analytics + lastSeen for each device
   useEffect(() => {
     if (!devices.length) return;
-    const unsubscribers: (() => void)[] = [];
-
+    const unsubs: (() => void)[] = [];
     devices.forEach(dev => {
       const u1 = subscribeToAnalytics(dev.deviceId, data => {
-        setAnalyticsMap(prev => ({ ...prev, [dev.deviceId]: data }));
+        setTodayRtdb(prev => ({ ...prev, [dev.deviceId]: data }));
       });
       const u2 = subscribeToLastSeen(dev.deviceId, ms => {
         setLastSeenMap(prev => ({ ...prev, [dev.deviceId]: ms }));
       });
-      unsubscribers.push(u1, u2);
+      unsubs.push(u1, u2);
     });
+    return () => unsubs.forEach(u => u());
+  }, [devices]);
 
-    return () => unsubscribers.forEach(u => u());
+  // Load Firestore history when tab changes to 7d/30d
+  useEffect(() => {
+    if (tab === 'today' || !devices.length) return;
+    const days = tab === '7d' ? 7 : 30;
+    setHistLoading(true);
+    Promise.all(
+      devices.map(dev =>
+        getDailyAnalytics(dev.deviceId, days).then(records => ({ deviceId: dev.deviceId, records }))
+      )
+    ).then(results => {
+      const map: Record<string, DailyAnalytics[]> = {};
+      results.forEach(r => { map[r.deviceId] = r.records; });
+      setHistoryMap(map);
+      setHistLoading(false);
+    });
+  }, [tab, devices]);
+
+  // Activity logs
+  useEffect(() => {
+    if (!devices.length) return;
+    getActivityLogs(devices.map(d => d.deviceId), 30).then(setLogs);
   }, [devices]);
 
   const isDeviceOnline = (deviceId: string) => calcIsOnline(lastSeenMap[deviceId] || 0);
 
-  // Load activity logs from Firestore
-  useEffect(() => {
-    if (!devices.length) return;
-    const ids = devices.map(d => d.deviceId);
-    getActivityLogs(ids, 30).then(setLogs);
-  }, [devices]);
+  // ── Compute totals for current tab ──────────────────────────────────────
+  const computeTotals = () => {
+    if (tab === 'today') {
+      // Use live RTDB data (today's window)
+      return Object.values(todayRtdb).reduce((acc, a) => ({
+        light1Runtime: acc.light1Runtime + (a.light1Runtime || 0),
+        light2Runtime: acc.light2Runtime + (a.light2Runtime || 0),
+        light3Runtime: acc.light3Runtime + (a.light3Runtime || 0),
+        fan1Runtime:   acc.fan1Runtime   + (a.fan1Runtime   || 0),
+        fan2Runtime:   acc.fan2Runtime   + (a.fan2Runtime   || 0),
+        customRuntime: acc.customRuntime + (a.customRuntime || 0),
+        energyUsage:   acc.energyUsage   + (a.energyUsage   || 0),
+      }), { light1Runtime:0, light2Runtime:0, light3Runtime:0, fan1Runtime:0, fan2Runtime:0, customRuntime:0, energyUsage:0 });
+    }
+    // Use Firestore history
+    const allRecords = Object.values(historyMap).flat();
+    return aggregateDailyRecords(allRecords);
+  };
 
-  // Aggregate totals across all devices
-  const totals = Object.values(analyticsMap).reduce(
-    (acc, a) => ({
-      light1Runtime:  acc.light1Runtime  + (a.light1Runtime  || 0),
-      light2Runtime:  acc.light2Runtime  + (a.light2Runtime  || 0),
-      light3Runtime:  acc.light3Runtime  + (a.light3Runtime  || 0),
-      fan1Runtime:    acc.fan1Runtime    + (a.fan1Runtime    || 0),
-      fan2Runtime:    acc.fan2Runtime    + (a.fan2Runtime    || 0),
-      customRuntime:  acc.customRuntime  + (a.customRuntime  || 0),
-      energyUsage:    acc.energyUsage    + (a.energyUsage    || 0),
-    }),
-    { light1Runtime: 0, light2Runtime: 0, light3Runtime: 0, fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0 }
-  );
+  const totals = computeTotals();
   const totalRuntime = totals.light1Runtime + totals.light2Runtime + totals.light3Runtime +
-                       totals.fan1Runtime   + totals.fan2Runtime   + totals.customRuntime;
+                       totals.fan1Runtime + totals.fan2Runtime + totals.customRuntime;
   const maxRuntime = Math.max(
     totals.light1Runtime, totals.light2Runtime, totals.light3Runtime,
-    totals.fan1Runtime, totals.fan2Runtime, totals.customRuntime, 0.1
+    totals.fan1Runtime, totals.fan2Runtime, totals.customRuntime, 0.001
   );
 
+  const today = todayStr();
+  const tabLabel = tab === 'today' ? 'Today' : tab === '7d' ? 'Last 7 Days' : 'Last 30 Days';
   const ROOMS = [...new Set(devices.map(d => d.room))];
 
   if (loading) return <Loader fullPage />;
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <h2 className="text-lg font-semibold text-neutral-900">Analytics</h2>
-        <p className="text-sm text-neutral-500 mt-0.5">Live runtime data from RTDB · Activity logs from Firestore</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">Analytics</h2>
+          <p className="text-sm text-neutral-500 mt-0.5">
+            {tab === 'today'
+              ? `Today · ${today} · Live from RTDB`
+              : `${tabLabel} · Historical from Firestore`}
+          </p>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="flex bg-neutral-100 rounded-xl p-1 gap-1">
+          {(['today', '7d', '30d'] as TabKey[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                tab === t
+                  ? 'bg-white text-neutral-900 shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              {t === 'today' ? 'Today' : t === '7d' ? '7 Days' : '30 Days'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Runtime',  value: fmtRuntime(totalRuntime), unit: '',    icon: <Clock size={18} className="text-primary-600" />,  color: 'bg-primary-50' },
-          { label: 'Energy Used',    value: totals.energyUsage.toFixed(3), unit: 'kWh', icon: <Zap size={18} className="text-yellow-600" />,  color: 'bg-yellow-50'  },
-          { label: 'Light Runtime',  value: fmtRuntime(totals.light1Runtime + totals.light2Runtime + totals.light3Runtime), unit: '', icon: <Lightbulb size={18} className="text-yellow-600" />, color: 'bg-yellow-50' },
-          { label: 'Fan Runtime',    value: fmtRuntime(totals.fan1Runtime + totals.fan2Runtime), unit: '', icon: <Wind size={18} className="text-blue-600" />, color: 'bg-blue-50' },
-        ].map(item => (
-          <Card key={item.label}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`w-9 h-9 ${item.color} rounded-xl flex items-center justify-center`}>
-                {item.icon}
-              </div>
-              <p className="text-xs text-neutral-500">{item.label}</p>
-            </div>
-            <p className="text-2xl font-bold text-neutral-900">
-              {item.value}
-              {item.unit && <span className="text-sm font-normal text-neutral-400 ml-1">{item.unit}</span>}
-            </p>
-          </Card>
-        ))}
-      </div>
-
-      {/* ── Runtime bars + per-device ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Runtime breakdown */}
-        <Card>
-          <div className="flex items-center gap-2 mb-5">
-            <BarChart3 size={16} className="text-primary-600" />
-            <h3 className="text-sm font-semibold text-neutral-900">Channel Runtimes</h3>
-            <span className="ml-auto text-xs text-neutral-400">Cumulative</span>
-          </div>
-          <div className="space-y-3.5">
-            {[
-              { label: 'Light 1', value: totals.light1Runtime, color: 'bg-yellow-400' },
-              { label: 'Light 2', value: totals.light2Runtime, color: 'bg-yellow-400' },
-              { label: 'Light 3', value: totals.light3Runtime, color: 'bg-amber-400' },
-              { label: 'Fan 1',   value: totals.fan1Runtime,   color: 'bg-blue-400' },
-              { label: 'Fan 2',   value: totals.fan2Runtime,   color: 'bg-sky-400' },
-              { label: 'Custom',  value: totals.customRuntime, color: 'bg-purple-400' },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-3">
-                <span className="text-xs text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
-                <RuntimeBar value={item.value} max={maxRuntime} color={item.color} />
-                <span className="text-xs font-semibold text-neutral-700 w-16 text-right flex-shrink-0">
-                  {fmtRuntime(item.value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Per-device energy */}
-        <Card>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-semibold text-neutral-900">Devices Overview</h3>
-            <span className="text-xs text-neutral-400">{devices.length} devices</span>
-          </div>
-          {devices.length === 0 ? (
-            <p className="text-sm text-neutral-400 text-center py-8">No devices</p>
-          ) : (
-            <div className="space-y-3">
-              {devices.map(device => {
-                const an = analyticsMap[device.deviceId];
-                const energy = an?.energyUsage || 0;
-                const isOnline = isDeviceOnline(device.deviceId);
-                return (
-                  <div key={device.id} className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Zap size={14} className="text-primary-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-neutral-900 truncate">{device.name}</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-neutral-400">{device.room}</p>
-                        <span className={`flex items-center gap-1 text-xs ${isOnline ? 'text-success-600' : 'text-neutral-400'}`}>
-                          <span className={`w-1 h-1 rounded-full ${isOnline ? 'bg-success-500' : 'bg-neutral-300'}`} />
-                          {isOnline ? 'Online' : 'Offline'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-neutral-900">{energy.toFixed(3)}</p>
-                      <p className="text-xs text-neutral-400">kWh</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* ── By Room ── */}
-      {ROOMS.length > 0 && (
-        <Card>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-semibold text-neutral-900">Energy by Room</h3>
-            <span className="text-xs text-neutral-400">kWh</span>
-          </div>
-          <div className="space-y-4">
-            {ROOMS.map(room => {
-              const roomDevices = devices.filter(d => d.room === room);
-              const energy = roomDevices.reduce((sum, d) => sum + (analyticsMap[d.deviceId]?.energyUsage || 0), 0);
-              const maxE = Math.max(...ROOMS.map(r =>
-                devices.filter(d => d.room === r).reduce((s, d) => s + (analyticsMap[d.deviceId]?.energyUsage || 0), 0)
-              ), 0.001);
-              return (
-                <div key={room}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-neutral-700">{room}</span>
-                    <span className="text-xs text-neutral-500">{energy.toFixed(3)} kWh</span>
-                  </div>
-                  <RuntimeBar value={energy} max={maxE} color="bg-primary-500" />
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+      {/* Loading overlay for history */}
+      {histLoading && (
+        <div className="flex items-center justify-center py-8">
+          <svg className="animate-spin w-5 h-5 text-primary-600 mr-2" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span className="text-sm text-neutral-500">Loading {tabLabel}...</span>
+        </div>
       )}
 
-      {/* ── Activity Logs ── */}
+      {!histLoading && (
+        <>
+          {/* ── Summary cards ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: `${tabLabel} Runtime`,  value: fmtRuntime(totalRuntime),  unit: '',    icon: <Clock size={18} className="text-primary-600" />,  color: 'bg-primary-50' },
+              { label: 'Energy Used',          value: totals.energyUsage.toFixed(3), unit: 'kWh', icon: <Zap size={18} className="text-yellow-600" />, color: 'bg-yellow-50'  },
+              { label: 'Light Runtime',        value: fmtRuntime(totals.light1Runtime + totals.light2Runtime + totals.light3Runtime), unit: '', icon: <Lightbulb size={18} className="text-yellow-600" />, color: 'bg-yellow-50' },
+              { label: 'Fan Runtime',          value: fmtRuntime(totals.fan1Runtime + totals.fan2Runtime), unit: '', icon: <Wind size={18} className="text-blue-600" />, color: 'bg-blue-50' },
+            ].map(item => (
+              <Card key={item.label}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-9 h-9 ${item.color} rounded-xl flex items-center justify-center`}>
+                    {item.icon}
+                  </div>
+                  <p className="text-xs text-neutral-500">{item.label}</p>
+                </div>
+                <p className="text-2xl font-bold text-neutral-900">
+                  {item.value}
+                  {item.unit && <span className="text-sm font-normal text-neutral-400 ml-1">{item.unit}</span>}
+                </p>
+              </Card>
+            ))}
+          </div>
+
+          {/* ── Channel runtimes + Devices overview ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <div className="flex items-center gap-2 mb-5">
+                <BarChart3 size={16} className="text-primary-600" />
+                <h3 className="text-sm font-semibold text-neutral-900">Channel Runtimes</h3>
+                <span className="ml-auto text-xs text-neutral-400">{tabLabel}</span>
+              </div>
+              <div className="space-y-3.5">
+                {[
+                  { label: 'Light 1', value: totals.light1Runtime, color: 'bg-yellow-400' },
+                  { label: 'Light 2', value: totals.light2Runtime, color: 'bg-yellow-400' },
+                  { label: 'Light 3', value: totals.light3Runtime, color: 'bg-amber-400' },
+                  { label: 'Fan 1',   value: totals.fan1Runtime,   color: 'bg-blue-400' },
+                  { label: 'Fan 2',   value: totals.fan2Runtime,   color: 'bg-sky-400' },
+                  { label: 'Custom',  value: totals.customRuntime, color: 'bg-purple-400' },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <span className="text-xs text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
+                    <RuntimeBar value={item.value} max={maxRuntime} color={item.color} />
+                    <span className="text-xs font-semibold text-neutral-700 w-16 text-right flex-shrink-0">
+                      {fmtRuntime(item.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-sm font-semibold text-neutral-900">Devices Overview</h3>
+                <span className="text-xs text-neutral-400">{devices.length} devices</span>
+              </div>
+              {devices.length === 0 ? (
+                <p className="text-sm text-neutral-400 text-center py-8">No devices</p>
+              ) : (
+                <div className="space-y-3">
+                  {devices.map(device => {
+                    const an = tab === 'today'
+                      ? todayRtdb[device.deviceId]
+                      : aggregateDailyRecords(historyMap[device.deviceId] || []);
+                    const energy = an?.energyUsage || 0;
+                    const isOnline = isDeviceOnline(device.deviceId);
+                    return (
+                      <div key={device.id} className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Zap size={14} className="text-primary-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-neutral-900 truncate">{device.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-neutral-400">{device.room}</p>
+                            <span className={`flex items-center gap-1 text-xs ${isOnline ? 'text-success-600' : 'text-neutral-400'}`}>
+                              <span className={`w-1 h-1 rounded-full ${isOnline ? 'bg-success-500' : 'bg-neutral-300'}`} />
+                              {isOnline ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-neutral-900">{energy.toFixed(3)}</p>
+                          <p className="text-xs text-neutral-400">kWh</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* ── Energy by Room ── */}
+          {ROOMS.length > 0 && (
+            <Card>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-sm font-semibold text-neutral-900">Energy by Room</h3>
+                <span className="text-xs text-neutral-400">kWh · {tabLabel}</span>
+              </div>
+              <div className="space-y-4">
+                {ROOMS.map(room => {
+                  const roomDevices = devices.filter(d => d.room === room);
+                  const energy = roomDevices.reduce((sum, d) => {
+                    const an = tab === 'today'
+                      ? todayRtdb[d.deviceId]
+                      : aggregateDailyRecords(historyMap[d.deviceId] || []);
+                    return sum + (an?.energyUsage || 0);
+                  }, 0);
+                  const maxE = Math.max(...ROOMS.map(r =>
+                    devices.filter(d => d.room === r).reduce((s, d) => {
+                      const an = tab === 'today'
+                        ? todayRtdb[d.deviceId]
+                        : aggregateDailyRecords(historyMap[d.deviceId] || []);
+                      return s + (an?.energyUsage || 0);
+                    }, 0)
+                  ), 0.001);
+                  return (
+                    <div key={room}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm text-neutral-700">{room}</span>
+                        <span className="text-xs text-neutral-500">{energy.toFixed(3)} kWh</span>
+                      </div>
+                      <RuntimeBar value={energy} max={maxE} color="bg-primary-500" />
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* ── Activity Logs (always shown) ── */}
       <Card padding={false}>
         <div className="px-5 py-4 border-b border-neutral-100">
           <h3 className="text-sm font-semibold text-neutral-900">Activity Logs</h3>

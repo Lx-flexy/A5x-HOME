@@ -21,6 +21,7 @@ import {
   DeviceAnalyticsData,
   updateDeviceState,
 } from '../../services/deviceService';
+import { ensureTodayWindow } from '../../services/analyticsService';
 import { useAuth } from '../../context/AuthContext';
 import { useDeviceStatus } from '../../hooks/useDeviceStatus';
 import Card from '../../components/ui/Card';
@@ -294,6 +295,14 @@ export default function DeviceDetails() {
   useEffect(() => {
     if (!device) return;
     const did = device.deviceId;
+
+    // Ensure today's analytics window — this flushes yesterday's data
+    // to Firestore and resets RTDB counters if date has changed.
+    // Also clears any stale onAt timestamps from old sessions.
+    ensureTodayWindow(did).catch(err =>
+      console.warn('[DeviceDetails] ensureTodayWindow failed:', err)
+    );
+
     const u1 = subscribeToOutputs(did, setOutputs);
     const u2 = subscribeToHealth(did, setHealth);
     const u3 = subscribeToAnalytics(did, setAnalytics);
