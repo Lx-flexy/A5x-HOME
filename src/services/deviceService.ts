@@ -172,19 +172,89 @@ export async function deleteDevice(metaId: string, deviceId: string, ownerId: st
 }
 
 // ─── Firestore: list devices (real-time) ──────────────────────────────────────
+// Returns BOTH owned devices AND devices shared with this user via members collection.
 
 export function subscribeToUserDevices(
   userId: string,
   callback: (devices: Device[]) => void
 ): () => void {
-  const q = query(
+  let ownedDevices:  Device[] = [];
+  let sharedDevices: Device[] = [];
+
+  // Merge + deduplicate, owned first
+  const emit = () => {
+    const seen  = new Set<string>();
+    const merged: Device[] = [];
+    for (const d of [...ownedDevices, ...sharedDevices]) {
+      if (!seen.has(d.id)) { seen.add(d.id); merged.push(d); }
+    }
+    callback(merged);
+  };
+
+  // 1. Owned devices (user is the owner)
+  const ownedQ = query(
     collection(db, 'devices_meta'),
     where('ownerId', '==', userId),
     orderBy('createdAt', 'desc')
   );
-  return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Device)));
+  const unsubOwned = onSnapshot(ownedQ, snap => {
+    ownedDevices = snap.docs.map(d => ({ id: d.id, ...d.data() } as Device));
+    emit();
   });
+
+  // 2. Shared devices (user is a member — look up via members collection)
+  const membersQ = query(
+    collection(db, 'members'),
+    where('uid', '==', userId)
+  );
+  let unsubShared: (() => void) | null = null;
+
+  const unsubMembers = onSnapshot(membersQ, async membersSnap => {
+    // Unsubscribe previous shared device listener
+    if (unsubShared) { unsubShared(); unsubShared = null; }
+
+    const deviceIds = membersSnap.docs
+      .map(d => d.data().deviceId as string)
+      .filter(Boolean);
+
+    if (deviceIds.length === 0) {
+      sharedDevices = [];
+      emit();
+      return;
+    }
+
+    // Fetch devices_meta for each shared deviceId
+    // Firestore 'in' limit is 30 — batch if needed
+    const chunks: string[][] = [];
+    for (let i = 0; i < deviceIds.length; i += 30) {
+      chunks.push(deviceIds.slice(i, i + 30));
+    }
+
+    try {
+      const results: Device[] = [];
+      for (const chunk of chunks) {
+        const q = query(
+          collection(db, 'devices_meta'),
+          where('deviceId', 'in', chunk)
+        );
+        const snap = await getDocs(q);
+        snap.docs.forEach(d => results.push({ id: d.id, ...d.data() } as Device));
+      }
+      // Exclude devices already owned by this user
+      sharedDevices = results.filter(d => d.ownerId !== userId);
+      emit();
+    } catch (err) {
+      console.warn('[subscribeToUserDevices] shared fetch failed:', err);
+      sharedDevices = [];
+      emit();
+    }
+  });
+
+  return () => {
+    unsubOwned();
+    unsubMembers();
+    if (unsubShared) unsubShared();
+  };
 }
 
 // ─── RTDB: outputs ────────────────────────────────────────────────────────────
