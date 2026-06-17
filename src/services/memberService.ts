@@ -12,6 +12,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { sanitizeName, isValidUserId, isNonEmptyString } from '../lib/sanitize';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,20 +50,44 @@ export async function findUserByA5xId(userId: string): Promise<{ uid: string; na
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 
+const MAX_MEMBERS_PER_DEVICE = 5;
+const VALID_ROLES = new Set<string>(['owner', 'member']);
+
 export async function addMember(data: Omit<Member, 'id' | 'joinedAt'>) {
-  // Prevent duplicate members on same device
+  // ── Input validation ──────────────────────────────────────────────────────
+  if (!isValidUserId(data.userId)) throw new Error('Invalid A5X User ID format.');
+  if (!isNonEmptyString(data.uid))      throw new Error('Missing Firebase UID.');
+  if (!isNonEmptyString(data.deviceId)) throw new Error('Missing device ID.');
+  if (!VALID_ROLES.has(data.role))      throw new Error('Invalid role. Must be owner or member.');
+
+  const safeName  = sanitizeName(data.name);
+  const safeEmail = sanitizeName(data.email).toLowerCase().slice(0, 254);
+
+  // ── Enforce max 5 members per device (server-side) ───────────────────────
+  const currentMembers = await getDocs(
+    query(collection(db, 'members'), where('deviceId', '==', data.deviceId))
+  );
+  if (currentMembers.size >= MAX_MEMBERS_PER_DEVICE) {
+    throw new Error(`Maximum ${MAX_MEMBERS_PER_DEVICE} members per device allowed.`);
+  }
+
+  // ── Prevent duplicate members on same device ──────────────────────────────
   const existing = await getDocs(
-    query(collection(db, 'members'), where('deviceId', '==', data.deviceId), where('userId', '==', data.userId))
+    query(
+      collection(db, 'members'),
+      where('deviceId', '==', data.deviceId),
+      where('userId', '==', data.userId.trim().toUpperCase())
+    )
   );
   if (!existing.empty) throw new Error('This user is already a member of this device.');
 
   return addDoc(collection(db, 'members'), {
     deviceId: data.deviceId,
-    userId: data.userId,
-    uid: data.uid,
-    name: data.name,
-    email: data.email,
-    role: data.role,
+    userId:   data.userId.trim().toUpperCase(),
+    uid:      data.uid,
+    name:     safeName,
+    email:    safeEmail,
+    role:     data.role,
     joinedAt: serverTimestamp(),
   });
 }
@@ -90,6 +115,7 @@ export async function removeMember(memberId: string) {
 }
 
 export async function updateMemberRole(memberId: string, role: 'owner' | 'member') {
+  if (!VALID_ROLES.has(role)) throw new Error('Invalid role.');
   await updateDoc(doc(db, 'members', memberId), { role });
 }
 

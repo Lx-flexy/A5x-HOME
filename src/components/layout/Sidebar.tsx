@@ -7,7 +7,6 @@ import {
   BarChart2,
   Settings,
   LogOut,
-  Home,
   X,
 } from 'lucide-react';
 import { logout } from '../../services/authService';
@@ -65,17 +64,18 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           style={{ borderBottom: '1px solid rgba(166,180,200,0.25)' }}
         >
           <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
+            {/* A5X Logo — responsive sizing */}
+            <img
+              src="/logo.png"
+              alt="A5X Home Logo"
+              className="flex-shrink-0 object-contain"
               style={{
-                background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
-                boxShadow: '3px 3px 8px rgba(37,99,235,0.3), -1px -1px 4px rgba(255,255,255,0.4)',
+                width: 'clamp(32px, 5vw, 44px)',
+                height: 'clamp(32px, 5vw, 44px)',
               }}
-            >
-              <Home size={17} className="text-white" />
-            </div>
+            />
             <div>
-              <span className="font-bold text-neutral-900 text-base tracking-tight leading-none">A5X</span>
+              <span className="font-bold text-neutral-900 text-base tracking-tight leading-none">A5X Home</span>
               <p className="text-[10px] text-neutral-400 font-medium leading-none mt-0.5">Smart Home</p>
             </div>
           </div>

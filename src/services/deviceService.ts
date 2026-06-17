@@ -25,6 +25,7 @@ import {
   get, remove, DataSnapshot,
 } from 'firebase/database';
 import { db, rtdb } from './firebase';
+import { sanitizeString, sanitizeMessage, sanitizeName, isValidDeviceId, isNonEmptyString } from '../lib/sanitize';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,8 +123,29 @@ function defaultAnalytics(): DeviceAnalyticsData {
 // ─── Device registration ──────────────────────────────────────────────────────
 
 export async function addDevice(data: Omit<Device, 'id' | 'updatedAt'>) {
+  // ── Validate inputs before any write ──────────────────────────────────────
+  const deviceId = sanitizeString(data.deviceId, 32).toUpperCase();
+  if (!isValidDeviceId(deviceId)) {
+    throw new Error(`Invalid device ID format: "${deviceId}". Expected A5X-HA-XXXX.`);
+  }
+  if (!isNonEmptyString(data.ownerId)) throw new Error('Missing ownerId.');
+  if (!isNonEmptyString(data.name))    throw new Error('Device name is required.');
+  if (!isNonEmptyString(data.room))    throw new Error('Room is required.');
+
+  const safeName     = sanitizeName(data.name);
+  const safeRoom     = sanitizeName(data.room);
+  const safeLocation = sanitizeName(data.location);
+
+  // ── Prevent duplicate device ID registration ──────────────────────────────
+  const existing = await getDocs(
+    query(collection(db, 'devices_meta'), where('deviceId', '==', deviceId))
+  );
+  if (!existing.empty) {
+    throw new Error(`Device ID "${deviceId}" is already registered.`);
+  }
+
   // 1. Seed RTDB node  — ESP32 reads outputs/, writes health/ + status
-  await set(rtdbDevice(data.deviceId), {
+  await set(rtdbDevice(deviceId), {
     status: 'offline',
     lastSeen: 0,
     outputs: defaultOutputs(),
@@ -133,18 +155,18 @@ export async function addDevice(data: Omit<Device, 'id' | 'updatedAt'>) {
 
   // 2. Register in Firestore for listing by ownerId
   const metaRef = await addDoc(collection(db, 'devices_meta'), {
-    deviceId:  data.deviceId,
+    deviceId,
     ownerId:   data.ownerId,
-    name:      data.name,
-    room:      data.room,
-    location:  data.location,
+    name:      safeName,
+    room:      safeRoom,
+    location:  safeLocation,
     firmware:  data.firmware || 'v1.2.4',
     dexBotId:  data.dexBotId || '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  await logActivity(data.deviceId, `Device "${data.name}" added to ${data.room}`, data.ownerId);
+  await logActivity(deviceId, `Device "${safeName}" added to ${safeRoom}`, data.ownerId);
   return metaRef.id;
 }
 
@@ -172,6 +194,11 @@ export async function updateDevice(metaId: string, data: Partial<Omit<Device, 'i
 }
 
 export async function deleteDevice(metaId: string, deviceId: string, ownerId: string) {
+  // ── Verify ownership before deleting ────────────────────────────────────
+  const snap = await getDoc(doc(db, 'devices_meta', metaId));
+  if (!snap.exists()) throw new Error('Device not found.');
+  if (snap.data().ownerId !== ownerId) throw new Error('Not authorized to delete this device.');
+
   await remove(rtdbDevice(deviceId)).catch(() => {});
   await deleteDoc(doc(db, 'devices_meta', metaId));
   await logActivity(deviceId, 'Device removed', ownerId).catch(() => {});
@@ -393,19 +420,22 @@ export async function setOutput(
   performedBy: string,
   label?: string
 ): Promise<void> {
+  // Sanitize string outputs (OLED message) to prevent malicious content
+  const safeValue = typeof value === 'string' ? sanitizeMessage(value) : value;
+
   // Write to RTDB — ESP32 onValue listener picks this up instantly
-  await update(rtdbOutputs(deviceId), { [key]: value });
+  await update(rtdbOutputs(deviceId), { [key]: safeValue });
 
   // Runtime tracking — only for boolean trackable keys
-  if (typeof value === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
+  if (typeof safeValue === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
     const { trackOutputChange } = await import('./analyticsService');
-    await trackOutputChange(deviceId, key as 'light1'|'light2'|'light3'|'fan1'|'fan2'|'custom1', value).catch(err =>
+    await trackOutputChange(deviceId, key as 'light1'|'light2'|'light3'|'fan1'|'fan2'|'custom1', safeValue).catch(err =>
       console.warn('[setOutput] trackOutputChange failed:', err)
     );
   }
 
   if (label) {
-    await logActivity(deviceId, label, performedBy);
+    await logActivity(deviceId, sanitizeString(label, 200), sanitizeName(performedBy));
   }
 }
 

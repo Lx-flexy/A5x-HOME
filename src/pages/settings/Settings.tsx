@@ -62,8 +62,8 @@ export default function Settings() {
       setPwError('New passwords do not match.');
       return;
     }
-    if (pwForm.newPw.length < 6) {
-      setPwError('Password must be at least 6 characters.');
+    if (pwForm.newPw.length < 8) {
+      setPwError('Password must be at least 8 characters.');
       return;
     }
     setSavingPw(true);
@@ -212,7 +212,7 @@ export default function Settings() {
                   <input
                     type={showPw ? 'text' : 'password'}
                     className="form-input"
-                    placeholder="New password (min 6 chars)"
+                    placeholder="New password (min 8 chars)"
                     value={pwForm.newPw}
                     onChange={e => setPwForm(p => ({ ...p, newPw: e.target.value }))}
                     required

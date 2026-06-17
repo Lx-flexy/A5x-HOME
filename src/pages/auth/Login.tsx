@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Home } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { loginWithEmail, loginWithGoogle, loginWithFacebook, forgotPassword } from '../../services/authService';
 import Button from '../../components/ui/Button';
 import { toast } from '../../components/ui/Toast';
@@ -96,9 +96,12 @@ export default function Login() {
     <div className="min-h-screen flex bg-neutral-50">
       <div className="hidden lg:flex lg:w-1/2 bg-white border-r border-neutral-200 items-center justify-center p-12">
         <div className="max-w-sm text-center">
-          <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Home size={28} className="text-white" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="A5X Home"
+            className="object-contain mx-auto mb-6"
+            style={{ width: 80, height: 80 }}
+          />
           <h2 className="text-2xl font-bold text-neutral-900 mb-2">A5X Home</h2>
           <p className="text-neutral-500 mb-8">Smart Home. Simplified.</p>
 
@@ -155,10 +158,13 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Home size={16} className="text-white" />
-            </div>
-            <span className="font-bold text-neutral-900 text-lg">A5X</span>
+            <img
+              src="/logo.png"
+              alt="A5X Home"
+              className="object-contain flex-shrink-0"
+              style={{ width: 34, height: 34 }}
+            />
+            <span className="font-bold text-neutral-900 text-lg">A5X Home</span>
           </div>
 
           <h2 className="text-2xl font-bold text-neutral-900 mb-1">Welcome Back</h2>
