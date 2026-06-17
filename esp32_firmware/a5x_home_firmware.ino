@@ -16,6 +16,10 @@
  *   devices/{DEVICE_ID}/outputs/buzzer        ← bool
  *   devices/{DEVICE_ID}/outputs/oledMessage   ← string
  *
+ * Dex Bot paths (bots/{DEX_BOT_ID}/...):
+ *   bots/{DEX_BOT_ID}/message   ← { text, timestamp } — web writes → ESP32 reads → display
+ *   bots/{DEX_BOT_ID}/emotion   ← string              — web writes → ESP32 reads → face
+ *
  * Libraries needed (install via Arduino Library Manager):
  *   - Firebase ESP32 Client  by Mobizt  (v4.x)
  *   - ArduinoJson             by Benoit Blanchon
@@ -40,6 +44,11 @@
 // This device's unique ID — MUST match what you registered in the app
 #define DEVICE_ID        "A5X-HA-2847"
 
+// ── DEX BOT CONFIG ───────────────────────────────────────────────────────────
+// Set this to the Dex Bot ID registered in the dashboard.
+// The bot listens on: bots/{DEX_BOT_ID}/message  and  bots/{DEX_BOT_ID}/emotion
+#define DEX_BOT_ID       "YOUR_DEX_BOT_ID"
+
 // Firebase Auth — use anonymous sign-in or email/password
 // Leave blank if your RTDB rules allow public read/write (not recommended for prod)
 #define USER_EMAIL    ""
@@ -55,18 +64,24 @@
 #define PIN_BUZZER   4
 
 // ── RTDB base path ───────────────────────────────────────────────────────────
-String DB_PATH = "devices/" + String(DEVICE_ID);
+String DB_PATH     = "devices/" + String(DEVICE_ID);
+String DEX_BOT_PATH = "bots/" + String(DEX_BOT_ID);
 
 // ── Firebase objects ─────────────────────────────────────────────────────────
 FirebaseData   fbdo;
-FirebaseData   fbdo_stream;     // separate stream object
+FirebaseData   fbdo_stream;       // device outputs stream
+FirebaseData   fbdo_dexbot_stream; // dex bot message+emotion stream
 FirebaseAuth   auth;
 FirebaseConfig config;
 
 // ── State ────────────────────────────────────────────────────────────────────
 unsigned long lastHealthMs   = 0;
 const unsigned long HEALTH_INTERVAL = 10000; // 10 seconds
-bool streamReady = false;
+bool streamReady    = false;
+bool dexStreamReady = false;
+
+// Last seen message timestamp — used to avoid re-processing stale values on reconnect
+unsigned long lastMsgTimestamp = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -74,6 +89,50 @@ bool streamReady = false;
 
 void setPin(int pin, bool state) {
   digitalWrite(pin, state ? HIGH : LOW);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISPLAY HELPERS — replace these with your actual display library calls
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Called when the web dashboard sends a new message.
+ * Replace the Serial.println body with your actual display code.
+ *
+ * DEBUG LOG: "[DexBot][Message] Received: <text>"  appears in Serial Monitor
+ *            when a message arrives from the web dashboard.
+ */
+void displayMessage(const String& text) {
+  Serial.println("[DexBot][Message] ✅ Received from web dashboard: \"" + text + "\"");
+  Serial.println("[DexBot][Message] Calling display update...");
+
+  // ── TODO: replace with your display library ──────────────────────────────
+  // display.clearDisplay();
+  // display.setTextSize(1);
+  // display.setCursor(0, 0);
+  // display.println(text);
+  // display.display();
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Serial.println("[DexBot][Message] ✅ Display update called for: \"" + text + "\"");
+}
+
+/**
+ * Called when the web dashboard changes the emotion.
+ * Replace the Serial.println body with your actual face/emotion render code.
+ *
+ * DEBUG LOG: "[DexBot][Emotion] Received: <emotion>"  appears in Serial Monitor
+ *            when an emotion update arrives from the web dashboard.
+ */
+void displayEmotion(const String& emotion) {
+  Serial.println("[DexBot][Emotion] ✅ Received from web dashboard: \"" + emotion + "\"");
+  Serial.println("[DexBot][Emotion] Calling face update...");
+
+  // ── TODO: replace with your face/emotion renderer ────────────────────────
+  // e.g. drawFace(emotion);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Serial.println("[DexBot][Emotion] ✅ Face update called for: \"" + emotion + "\"");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,6 +211,102 @@ void streamTimeoutCallback(bool timeout) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DEX BOT STREAM CALLBACK — fires when bots/{DEX_BOT_ID}/ changes
+// Listens to both /message and /emotion under the bot's node.
+// ─────────────────────────────────────────────────────────────────────────────
+void dexBotStreamCallback(FirebaseStream data) {
+  String path = data.dataPath();
+  String type = data.dataType();
+
+  Serial.println("[DexBot][Stream] Path: " + path + "  Type: " + type);
+
+  // ── /message node: { text: "...", timestamp: 12345 } ─────────────────────
+  // Web dashboard writes bots/{botId}/message as an object with text + timestamp.
+  // We use the timestamp to skip stale values replayed on reconnect.
+  if (path == "/message") {
+    if (type == "json") {
+      FirebaseJson json;
+      json.setJsonData(data.jsonString());
+
+      FirebaseJsonData textResult;
+      FirebaseJsonData tsResult;
+
+      json.get(textResult, "text");
+      json.get(tsResult,   "timestamp");
+
+      unsigned long incomingTs = tsResult.success ? (unsigned long)tsResult.intValue : 0;
+      String msgText = textResult.success ? textResult.stringValue : "";
+
+      Serial.println("[DexBot][Message] Received — text=\"" + msgText
+                     + "\"  timestamp=" + String(incomingTs)
+                     + "  lastSeen=" + String(lastMsgTimestamp));
+
+      // Skip if this is a stale value from before the last reboot / reconnect
+      if (incomingTs > lastMsgTimestamp) {
+        lastMsgTimestamp = incomingTs;
+        Serial.println("[DexBot][Message] ✅ New message — forwarding to display");
+        displayMessage(msgText);
+      } else {
+        Serial.println("[DexBot][Message] ⏭  Skipped stale message (already processed)");
+      }
+    }
+    // Fallback: plain string value (older firmware format)
+    else if (type == "string") {
+      String msgText = data.stringData();
+      Serial.println("[DexBot][Message] Received plain string: \"" + msgText + "\"");
+      displayMessage(msgText);
+    }
+  }
+
+  // ── /emotion node: plain string e.g. "happy", "normal", "cool" ───────────
+  // Web dashboard writes bots/{botId}/emotion as a plain string.
+  // This path already works — logging added for parity with message debug flow.
+  else if (path == "/emotion") {
+    if (type == "string") {
+      String emo = data.stringData();
+      Serial.println("[DexBot][Emotion] Received: \"" + emo + "\"");
+      displayEmotion(emo);
+    }
+  }
+
+  // ── Root node received (full object on first connect / reconnect) ─────────
+  else if (path == "/" && type == "json") {
+    Serial.println("[DexBot][Stream] Root snapshot received — parsing initial state");
+
+    FirebaseJson json;
+    json.setJsonData(data.jsonString());
+
+    // Restore emotion
+    FirebaseJsonData emoResult;
+    if (json.get(emoResult, "emotion") && emoResult.success) {
+      Serial.println("[DexBot][Emotion] Initial state: \"" + emoResult.stringValue + "\"");
+      displayEmotion(emoResult.stringValue);
+    }
+
+    // Restore message (only if timestamp is newer than last seen)
+    FirebaseJsonData msgTextResult, msgTsResult;
+    if (json.get(msgTextResult, "message/text") && msgTextResult.success) {
+      json.get(msgTsResult, "message/timestamp");
+      unsigned long incomingTs = msgTsResult.success ? (unsigned long)msgTsResult.intValue : 0;
+
+      Serial.println("[DexBot][Message] Initial state — text=\"" + msgTextResult.stringValue
+                     + "\"  timestamp=" + String(incomingTs));
+
+      if (incomingTs > lastMsgTimestamp) {
+        lastMsgTimestamp = incomingTs;
+        displayMessage(msgTextResult.stringValue);
+      }
+    }
+  }
+}
+
+void dexBotStreamTimeoutCallback(bool timeout) {
+  if (timeout) {
+    Serial.println("[DexBot][Stream] Timeout — will reconnect automatically");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SETUP
 // ─────────────────────────────────────────────────────────────────────────────
 void setup() {
@@ -209,6 +364,25 @@ void setup() {
     Firebase.setStreamCallback(fbdo_stream, streamCallback, streamTimeoutCallback);
     streamReady = true;
     Serial.println("[Stream] Listening on: " + streamPath);
+  }
+
+  // ── Start Dex Bot stream: bots/{DEX_BOT_ID}/ ─────────────────────────────
+  // Listens to /message and /emotion under the bot node in RTDB.
+  // This is the same Firebase project as the device outputs stream.
+  // Web dashboard writes:
+  //   bots/{botId}/message  → { text, timestamp }  — triggers displayMessage()
+  //   bots/{botId}/emotion  → "happy" | "normal" … — triggers displayEmotion()
+  //
+  // DEBUG: open Serial Monitor at 115200 baud to see incoming values.
+  String dexBotStreamPath = DEX_BOT_PATH;
+  if (!Firebase.beginStream(fbdo_dexbot_stream, dexBotStreamPath.c_str())) {
+    Serial.println("[DexBot][Stream] Begin failed: " + fbdo_dexbot_stream.errorReason());
+  } else {
+    Firebase.setStreamCallback(fbdo_dexbot_stream, dexBotStreamCallback, dexBotStreamTimeoutCallback);
+    dexStreamReady = true;
+    Serial.println("[DexBot][Stream] ✅ Listening on: " + dexBotStreamPath);
+    Serial.println("[DexBot][Stream]   /message → displayMessage()");
+    Serial.println("[DexBot][Stream]   /emotion → displayEmotion()");
   }
 }
 
