@@ -14,6 +14,7 @@ import {
   subscribeToOnAt,
   resetAnalytics,
   setOutput,
+  setOutputValue,
   deleteDevice,
   Device,
   DeviceOutputs,
@@ -24,7 +25,6 @@ import {
 import { ensureTodayWindow } from '../../services/analyticsService';
 import { useAuth } from '../../context/AuthContext';
 import { useDeviceStatus } from '../../hooks/useDeviceStatus';
-import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Loader from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
@@ -57,35 +57,17 @@ function fmtRuntime(h: number): string {
   return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
 }
 
-function timeAgo(ts: unknown): string {
-  if (!ts) return '–';
-  // RTDB stores unix ms; Firestore stores {seconds, nanoseconds}
-  let ms: number;
-  if (typeof ts === 'number') {
-    ms = ts > 1e10 ? ts : ts * 1000; // handle both ms and seconds
-  } else {
-    const secs = (ts as { seconds: number })?.seconds;
-    if (!secs) return '–';
-    ms = secs * 1000;
-  }
-  const diff = Math.floor((Date.now() - ms) / 1000);
-  if (diff < 5) return 'just now';
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
 
 function rssiLabel(rssi: number): { text: string; color: string } {
-  if (rssi >= -50) return { text: 'Excellent', color: 'text-success-600' };
-  if (rssi >= -60) return { text: 'Good', color: 'text-success-600' };
-  if (rssi >= -70) return { text: 'Fair', color: 'text-yellow-600' };
-  return { text: 'Weak', color: 'text-error-500' };
+  if (rssi >= -50) return { text: 'Excellent', color: '#16a34a' };
+  if (rssi >= -60) return { text: 'Good',      color: '#16a34a' };
+  if (rssi >= -70) return { text: 'Fair',      color: '#d97706' };
+  return               { text: 'Weak',      color: '#ef4444' };
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── iOS Toggle ───────────────────────────────────────────────────────────────
 
-function Toggle({
+function IOSToggle({
   checked,
   onChange,
   disabled,
@@ -95,54 +77,43 @@ function Toggle({
   disabled?: boolean;
 }) {
   return (
-    <label
-      className={`relative inline-flex items-center ${
-        disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
-      }`}
-    >
+    <label className={`ios-toggle${disabled ? ' disabled' : ''}`}>
       <input
         type="checkbox"
-        className="sr-only peer"
         checked={checked}
         onChange={e => onChange(e.target.checked)}
         disabled={disabled}
       />
-      <div
-        className={`w-11 h-6 rounded-full border-2 transition-all duration-200 peer-checked:border-primary-600
-          ${checked ? 'bg-primary-600 border-primary-600' : 'bg-neutral-200 border-neutral-300'}
-        `}
-      />
-      <div
-        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200
-          ${checked ? 'translate-x-5' : 'translate-x-0'}
-        `}
-      />
+      <div className="ios-track" />
+      <div className="ios-thumb" />
     </label>
   );
 }
 
+// ─── Online Pill ──────────────────────────────────────────────────────────────
+
 function OnlinePill({ online }: { online: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-        online ? 'bg-success-50 text-success-700' : 'bg-neutral-100 text-neutral-500'
-      }`}
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+      style={{
+        background: online ? 'rgba(22,163,74,0.1)' : 'rgba(156,163,175,0.15)',
+        color: online ? '#16a34a' : '#6b7280',
+      }}
     >
       <span
-        className={`w-1.5 h-1.5 rounded-full ${
-          online ? 'bg-success-500 animate-pulse' : 'bg-neutral-400'
-        }`}
+        className={`w-1.5 h-1.5 rounded-full ${online ? 'animate-pulse' : ''}`}
+        style={{ background: online ? '#22c55e' : '#9ca3af' }}
       />
       {online ? 'Online' : 'Offline'}
     </span>
   );
 }
 
+// ─── Health Row ───────────────────────────────────────────────────────────────
+
 function HealthRow({
-  icon,
-  label,
-  value,
-  ok,
+  icon, label, value, ok,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -150,108 +121,279 @@ function HealthRow({
   ok?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-neutral-50 last:border-0">
+    <div
+      className="flex items-center justify-between px-4 py-3 rounded-2xl mb-2"
+      style={{
+        background: '#EEF2F7',
+        boxShadow: 'inset 2px 2px 5px rgba(166,180,200,0.4), inset -2px -2px 5px rgba(255,255,255,0.75)',
+      }}
+    >
       <div className="flex items-center gap-2.5">
-        <span className="text-neutral-400">{icon}</span>
-        <span className="text-xs text-neutral-600">{label}</span>
+        <span style={{ color: '#9ca3af' }}>{icon}</span>
+        <span className="text-xs font-medium text-neutral-600">{label}</span>
       </div>
       <div className="flex items-center gap-1.5">
-        {ok !== undefined &&
-          (ok ? (
-            <CheckCircle2 size={13} className="text-success-500" />
-          ) : (
-            <XCircle size={13} className="text-error-500" />
-          ))}
-        <span className="text-xs font-semibold text-neutral-900">{value}</span>
-      </div>
-    </div>
-  );
-}
-
-function ControlCard({
-  icon,
-  iconActiveBg,
-  iconInactiveBg,
-  iconActiveColor,
-  iconInactiveColor,
-  label,
-  runtime,
-  checked,
-  onChange,
-  disabled,
-  lastUpdate,
-}: {
-  icon: React.ReactNode;
-  iconActiveBg: string;
-  iconInactiveBg: string;
-  iconActiveColor: string;
-  iconInactiveColor: string;
-  label: string;
-  runtime?: number;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-  lastUpdate?: string;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border-2 p-4 transition-all duration-200 ${
-        checked
-          ? `border-primary-200 bg-gradient-to-br from-primary-50 to-white`
-          : 'border-neutral-100 bg-white hover:border-neutral-200'
-      }`}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
-            checked ? iconActiveBg : iconInactiveBg
-          }`}
-        >
-          <span className={checked ? iconActiveColor : iconInactiveColor}>{icon}</span>
-        </div>
-        <Toggle checked={checked} onChange={onChange} disabled={disabled} />
-      </div>
-      <p className="text-sm font-semibold text-neutral-900">{label}</p>
-      <div className="flex items-center justify-between mt-1">
-        <span
-          className={`text-xs font-medium ${
-            checked ? 'text-primary-600' : 'text-neutral-400'
-          }`}
-        >
-          {checked ? '● ON' : '○ OFF'}
-        </span>
-        {runtime !== undefined && runtime > 0 && (
-          <span className="text-xs text-neutral-400">{fmtRuntime(runtime)}</span>
+        {ok !== undefined && (
+          ok
+            ? <CheckCircle2 size={13} style={{ color: '#16a34a' }} />
+            : <XCircle size={13} style={{ color: '#ef4444' }} />
         )}
+        <span className="text-xs font-bold text-neutral-800">{value}</span>
       </div>
-      {lastUpdate && (
-        <p className="text-xs text-neutral-300 mt-1">{lastUpdate}</p>
-      )}
     </div>
   );
 }
 
-function RuntimeBar({
-  value,
-  max,
-  color,
-}: {
-  value: number;
-  max: number;
-  color: string;
-}) {
+// ─── Runtime Bar ──────────────────────────────────────────────────────────────
+
+function RuntimeBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="flex-1 h-2 bg-neutral-100 rounded-full overflow-hidden">
+    <div
+      className="flex-1 h-2.5 rounded-full overflow-hidden"
+      style={{
+        background: '#E0E6EF',
+        boxShadow: 'inset 1px 1px 3px rgba(166,180,200,0.5), inset -1px -1px 3px rgba(255,255,255,0.7)',
+      }}
+    >
       <div
-        className={`h-full ${color} rounded-full transition-all duration-700 ease-out`}
-        style={{ width: `${pct}%` }}
+        className="h-full rounded-full transition-all duration-700 ease-out"
+        style={{ width: `${pct}%`, background: color }}
       />
     </div>
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Neomorphic Slider ────────────────────────────────────────────────────────
+
+function NeoSlider({
+  value,
+  onChange,
+  disabled,
+  accentColor,
+  label,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+  accentColor: string;
+  label: string;
+}) {
+  const pct = Math.round(value);
+  return (
+    <div className={`mt-3 px-1 transition-opacity duration-200 ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-semibold" style={{ color: '#9ca3af' }}>{label}</span>
+        <span
+          className="text-[11px] font-bold px-2 py-0.5 rounded-lg"
+          style={{
+            background: disabled ? '#EEF2F7' : `${accentColor}18`,
+            color: disabled ? '#9ca3af' : accentColor,
+          }}
+        >
+          {pct}%
+        </span>
+      </div>
+      <div className="relative h-6 flex items-center">
+        {/* Track background */}
+        <div
+          className="absolute w-full h-2 rounded-full"
+          style={{
+            background: '#E0E6EF',
+            boxShadow: 'inset 1px 1px 3px rgba(166,180,200,0.55), inset -1px -1px 3px rgba(255,255,255,0.7)',
+          }}
+        />
+        {/* Fill */}
+        <div
+          className="absolute h-2 rounded-full transition-all duration-150"
+          style={{
+            width: `${pct}%`,
+            background: disabled
+              ? 'linear-gradient(90deg, #c8d0db, #d1d9e6)'
+              : `linear-gradient(90deg, ${accentColor}99, ${accentColor})`,
+          }}
+        />
+        {/* Native input overlaid — invisible but interactive */}
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={value}
+          disabled={disabled}
+          onChange={e => onChange(Number(e.target.value))}
+          className="neo-slider-input"
+          style={{ '--accent': accentColor } as React.CSSProperties}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Control Card (premium neomorphic device card) ────────────────────────────
+
+function ControlCard({
+  icon, accentColor, accentBg, accentGlow,
+  label, runtime, checked, onChange, disabled,
+  sliderValue, onSliderChange, sliderLabel,
+}: {
+  icon: React.ReactNode;
+  accentColor: string;
+  accentBg: string;
+  accentGlow: string;
+  label: string;
+  runtime?: number;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  sliderValue?: number;
+  onSliderChange?: (v: number) => void;
+  sliderLabel?: string;
+}) {
+  return (
+    <div
+      className="rounded-2xl p-4 transition-all duration-300"
+      style={
+        checked
+          ? {
+              background: `linear-gradient(135deg, ${accentBg} 0%, #F4F7FB 100%)`,
+              boxShadow: `4px 4px 12px ${accentGlow}, -4px -4px 10px rgba(255,255,255,0.9)`,
+              border: `1.5px solid ${accentColor}30`,
+            }
+          : {
+              background: '#F4F7FB',
+              boxShadow: '4px 4px 10px rgba(166,180,200,0.4), -4px -4px 10px rgba(255,255,255,0.85)',
+              border: '1.5px solid transparent',
+            }
+      }
+    >
+      <div className="flex items-start justify-between mb-3">
+        {/* Icon */}
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all duration-300"
+          style={
+            checked
+              ? { background: accentBg, boxShadow: `2px 2px 8px ${accentGlow}` }
+              : {
+                  background: '#EEF2F7',
+                  boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
+                }
+          }
+        >
+          <span style={{ color: checked ? accentColor : '#9ca3af' }}>{icon}</span>
+        </div>
+        <IOSToggle checked={checked} onChange={onChange} disabled={disabled} />
+      </div>
+      <p className="text-sm font-bold text-neutral-800 mb-1">{label}</p>
+      <div className="flex items-center justify-between">
+        <span
+          className="text-xs font-semibold"
+          style={{ color: checked ? accentColor : '#9ca3af' }}
+        >
+          {checked ? '● ON' : '○ OFF'}
+        </span>
+        {runtime !== undefined && runtime > 0 && (
+          <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>
+            {fmtRuntime(runtime)}
+          </span>
+        )}
+      </div>
+      {sliderValue !== undefined && onSliderChange && sliderLabel && (
+        <NeoSlider
+          value={sliderValue}
+          onChange={onSliderChange}
+          disabled={!checked || disabled}
+          accentColor={accentColor}
+          label={sliderLabel}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── NeoCard wrapper ──────────────────────────────────────────────────────────
+
+function NeoCard({ children, className = '', style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      className={`rounded-[22px] p-5 ${className}`}
+      style={{
+        background: '#F4F7FB',
+        boxShadow: '6px 6px 16px rgba(166,180,200,0.45), -6px -6px 16px rgba(255,255,255,0.85)',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+function SectionHeader({
+  icon, iconBg, iconColor, title, actions,
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center gap-3">
+        <div
+          className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{
+            background: iconBg,
+            boxShadow: '3px 3px 8px rgba(166,180,200,0.35), -3px -3px 8px rgba(255,255,255,0.8)',
+          }}
+        >
+          <span style={{ color: iconColor }}>{icon}</span>
+        </div>
+        <h3 className="text-sm font-bold text-neutral-900">{title}</h3>
+      </div>
+      {actions}
+    </div>
+  );
+}
+
+// ─── Mini pill toggle button ──────────────────────────────────────────────────
+
+function PillBtn({
+  label, active, activeColor, activeBg, activeGlow, onClick,
+}: {
+  label: string;
+  active: boolean;
+  activeColor: string;
+  activeBg: string;
+  activeGlow: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-3 py-1 text-xs font-bold rounded-xl transition-all duration-200"
+      style={
+        active
+          ? {
+              background: activeBg,
+              color: activeColor,
+              boxShadow: `2px 2px 6px ${activeGlow}, -1px -1px 4px rgba(255,255,255,0.6)`,
+            }
+          : {
+              background: '#EEF2F7',
+              color: '#6b7280',
+              boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
+            }
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DeviceDetails() {
   const { id } = useParams<{ id: string }>();
@@ -267,8 +409,18 @@ export default function DeviceDetails() {
   const [loading, setLoading]     = useState(true);
   const [resetting, setResetting] = useState(false);
 
-  const [oledDraft, setOledDraft]   = useState('');
+  const [oledDraft, setOledDraft]     = useState('');
   const [sendingOled, setSendingOled] = useState(false);
+
+  // ── Brightness / Speed local state (synced from RTDB outputs) ────────────
+  // We keep local state so the slider is smooth; we debounce the RTDB write.
+  const [brightness, setBrightness] = useState<Record<string, number>>({
+    light1Brightness: 100, light2Brightness: 100, light3Brightness: 100,
+  });
+  const [fanSpeed, setFanSpeed] = useState<Record<string, number>>({
+    fan1Speed: 100, fan2Speed: 100,
+  });
+  const sliderDebounce = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const [buzzerMode, setBuzzerMode] = useState<'idle'|'single'|'double'|'alarm'>('idle');
   const buzzerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -278,48 +430,45 @@ export default function DeviceDetails() {
 
   const performer = userData?.name || 'User';
 
-  // ── lastSeen-based online detection (updates every 1s) ───────────────────
   const { isOnline, lastSeenLabel } = useDeviceStatus(device?.deviceId);
-  const isOffline = false; // controls always enabled — RTDB queues commands
+  const isOffline = false;
 
-  // ── Load device meta ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
-    getDevice(id).then(dev => {
-      setDevice(dev);
-      setLoading(false);
-    });
+    getDevice(id).then(dev => { setDevice(dev); setLoading(false); });
   }, [id]);
 
-  // ── Subscribe realtime ────────────────────────────────────────────────────
   useEffect(() => {
     if (!device) return;
     const did = device.deviceId;
-
-    // Ensure today's analytics window — this flushes yesterday's data
-    // to Firestore and resets RTDB counters if date has changed.
-    // Also clears any stale onAt timestamps from old sessions.
-    ensureTodayWindow(did).catch(err =>
-      console.warn('[DeviceDetails] ensureTodayWindow failed:', err)
-    );
-
-    const u1 = subscribeToOutputs(did, setOutputs);
+    ensureTodayWindow(did).catch(err => console.warn('[DeviceDetails] ensureTodayWindow failed:', err));
+    const u1 = subscribeToOutputs(did, (out) => {
+      setOutputs(out);
+      // Sync brightness/speed defaults from RTDB (fallback to 100 if not set)
+      setBrightness({
+        light1Brightness: out.light1Brightness ?? 100,
+        light2Brightness: out.light2Brightness ?? 100,
+        light3Brightness: out.light3Brightness ?? 100,
+      });
+      setFanSpeed({
+        fan1Speed: out.fan1Speed ?? 100,
+        fan2Speed: out.fan2Speed ?? 100,
+      });
+    });
     const u2 = subscribeToHealth(did, setHealth);
     const u3 = subscribeToAnalytics(did, setAnalytics);
     const u4 = subscribeToOnAt(did, setOnAt);
     return () => { u1(); u2(); u3(); u4(); };
   }, [device]);
 
-  // ── Live 1-second tick for running clocks ─────────────────────────────────
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // ── Cleanup buzzer timer ──────────────────────────────────────────────────
   useEffect(() => () => { if (buzzerTimer.current) clearTimeout(buzzerTimer.current); }, []);
+  useEffect(() => () => { Object.values(sliderDebounce.current).forEach(clearTimeout); }, []);
 
-  // ── Toggle output ─────────────────────────────────────────────────────────
   const toggle = useCallback(
     async (key: keyof DeviceOutputs, value: boolean, label: string) => {
       if (!device) return;
@@ -328,38 +477,39 @@ export default function DeviceDetails() {
     [device, performer]
   );
 
-  // ── Bulk toggle — All On / All Off ────────────────────────────────────────
   const toggleAllLights = useCallback(async (value: boolean) => {
     if (!device) return;
-    await updateDeviceState(
-      device.deviceId,
-      { light1: value, light2: value, light3: value },
-      performer,
-      `All Lights turned ${value ? 'ON' : 'OFF'}`
-    );
+    await updateDeviceState(device.deviceId, { light1: value, light2: value, light3: value }, performer, `All Lights turned ${value ? 'ON' : 'OFF'}`);
   }, [device, performer]);
 
   const toggleAllFans = useCallback(async (value: boolean) => {
     if (!device) return;
-    await updateDeviceState(
-      device.deviceId,
-      { fan1: value, fan2: value },
-      performer,
-      `All Fans turned ${value ? 'ON' : 'OFF'}`
-    );
+    await updateDeviceState(device.deviceId, { fan1: value, fan2: value }, performer, `All Fans turned ${value ? 'ON' : 'OFF'}`);
   }, [device, performer]);
 
   const toggleAllDevices = useCallback(async (value: boolean) => {
     if (!device) return;
-    await updateDeviceState(
-      device.deviceId,
-      { light1: value, light2: value, light3: value, fan1: value, fan2: value, custom1: value },
-      performer,
-      `All Devices turned ${value ? 'ON' : 'OFF'}`
-    );
+    await updateDeviceState(device.deviceId, { light1: value, light2: value, light3: value, fan1: value, fan2: value, custom1: value }, performer, `All Devices turned ${value ? 'ON' : 'OFF'}`);
   }, [device, performer]);
 
-  // ── OLED ──────────────────────────────────────────────────────────────────
+  // ── Slider handler — debounced RTDB write ────────────────────────────────
+  const handleSlider = useCallback(
+    (
+      key: 'light1Brightness' | 'light2Brightness' | 'light3Brightness' | 'fan1Speed' | 'fan2Speed',
+      value: number,
+      setFn: React.Dispatch<React.SetStateAction<Record<string, number>>>
+    ) => {
+      // Instant local update for smooth UI
+      setFn(prev => ({ ...prev, [key]: value }));
+      // Debounce RTDB write by 120ms
+      if (sliderDebounce.current[key]) clearTimeout(sliderDebounce.current[key]);
+      sliderDebounce.current[key] = setTimeout(() => {
+        if (device) setOutputValue(device.deviceId, key, value).catch(console.warn);
+      }, 120);
+    },
+    [device]
+  );
+
   async function handleSendOled() {
     if (!device || !oledDraft.trim()) return;
     setSendingOled(true);
@@ -373,7 +523,6 @@ export default function DeviceDetails() {
     setOledDraft('');
   }
 
-  // ── Reset analytics ───────────────────────────────────────────────────────
   async function handleResetAnalytics() {
     if (!device) return;
     setResetting(true);
@@ -381,7 +530,6 @@ export default function DeviceDetails() {
     setResetting(false);
   }
 
-  // ── Buzzer ────────────────────────────────────────────────────────────────
   async function triggerBuzzer(mode: 'single' | 'double' | 'alarm') {
     if (!device || buzzerMode !== 'idle') return;
     setBuzzerMode(mode);
@@ -393,7 +541,6 @@ export default function DeviceDetails() {
     }, ms);
   }
 
-  // ── Delete ────────────────────────────────────────────────────────────────
   async function handleDelete() {
     if (!device) return;
     setDeleting(true);
@@ -401,16 +548,12 @@ export default function DeviceDetails() {
     navigate('/devices');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-
   if (loading) return <Loader fullPage />;
   if (!device) return (
     <div className="text-center py-24">
       <Cpu size={40} className="text-neutral-300 mx-auto mb-3" />
       <p className="text-neutral-500 font-medium">Device not found</p>
-      <Link to="/devices" className="text-primary-600 text-sm mt-2 block hover:underline">
-        ← Back to Devices
-      </Link>
+      <Link to="/devices" className="text-primary-600 text-sm mt-2 block hover:underline">← Back to Devices</Link>
     </div>
   );
 
@@ -418,7 +561,6 @@ export default function DeviceDetails() {
   const h  = health;
   const an = analytics;
 
-  // Live runtime = stored + currently-running elapsed time
   const liveRuntime = (key: string, stored: number, isOn: boolean | undefined) => {
     const onAtMs = onAt[key] || 0;
     const extra  = (isOn && onAtMs > 0) ? (now - onAtMs) / 3_600_000 : 0;
@@ -435,261 +577,236 @@ export default function DeviceDetails() {
   const totalRuntime = liveLight1 + liveLight2 + liveLight3 + liveFan1 + liveFan2 + liveCustom;
   const maxRuntime   = Math.max(liveLight1, liveLight2, liveLight3, liveFan1, liveFan2, liveCustom, 0.001);
 
+  const allOn  = !!(o?.light1 && o?.light2 && o?.light3 && o?.fan1 && o?.fan2 && o?.custom1);
+  const allOff = !o?.light1 && !o?.light2 && !o?.light3 && !o?.fan1 && !o?.fan2 && !o?.custom1;
+  const allLightsOn  = !!(o?.light1 && o?.light2 && o?.light3);
+  const allLightsOff = !o?.light1 && !o?.light2 && !o?.light3;
+  const allFansOn  = !!(o?.fan1 && o?.fan2);
+  const allFansOff = !o?.fan1 && !o?.fan2;
+
   return (
-    <div className="space-y-6 max-w-7xl">
+    <div className="space-y-6 max-w-7xl pb-8">
 
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-1.5 text-sm">
-        <Link to="/devices" className="text-neutral-400 hover:text-neutral-700 transition-colors">
+        <Link to="/devices" className="text-neutral-400 hover:text-neutral-700 transition-colors font-medium">
           Devices
         </Link>
         <ChevronRight size={14} className="text-neutral-300" />
-        <span className="text-neutral-900 font-medium">{device.name}</span>
+        <span className="text-neutral-900 font-semibold">{device.name}</span>
       </div>
 
-      {/* ── Header card ── */}
-      <div className="bg-white border border-neutral-100 rounded-2xl p-5 flex items-start justify-between flex-wrap gap-4 shadow-sm">
-        <div className="flex items-start gap-4">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm
-            ${isOnline ? 'bg-primary-600' : 'bg-neutral-400'}`}>
-            <Cpu size={26} className="text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap mb-1">
-              <h2 className="text-xl font-bold text-neutral-900">{device.name}</h2>
-              <OnlinePill online={isOnline} />
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
-              <span className="flex items-center gap-1 font-mono font-semibold text-neutral-600">
-                <Cpu size={11} />{device.deviceId}
-              </span>
-              <span className="flex items-center gap-1">
-                <Bolt size={11} />Firmware {device.firmware || 'v1.2.4'}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock size={11} />Last seen {lastSeenLabel}
-              </span>
-              <span className="flex items-center gap-1">
-                <MapPin size={11} />{device.room} · {device.location}
-              </span>
-              <span className="flex items-center gap-1">
-                <Cpu size={11} />ESP32 · Controller
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Master All On / All Off — highlight based on real RTDB state */}
-          {(() => {
-            const allOn  = !!(o?.light1 && o?.light2 && o?.light3 && o?.fan1 && o?.fan2 && o?.custom1);
-            const allOff = !o?.light1 && !o?.light2 && !o?.light3 && !o?.fan1 && !o?.fan2 && !o?.custom1;
-            return (
-              <>
-                <button
-                  onClick={() => toggleAllDevices(true)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
-                    allOn
-                      ? 'bg-primary-600 text-white border-primary-600 ring-2 ring-primary-300 shadow-md'
-                      : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200'
-                  }`}
-                >
-                  <Zap size={12} /> All On
-                </button>
-                <button
-                  onClick={() => toggleAllDevices(false)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
-                    allOff
-                      ? 'bg-neutral-800 text-white border-neutral-800 ring-2 ring-neutral-400 shadow-md'
-                      : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-800 hover:border-neutral-300'
-                  }`}
-                >
-                  <Zap size={12} /> All Off
-                </button>
-              </>
-            );
-          })()}
-          <div className="w-px h-5 bg-neutral-200" />
-          <Button variant="secondary" size="sm">
-            <Edit2 size={14} /> Edit
-          </Button>
-          <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>
-            <Trash size={14} /> Remove
-          </Button>
-        </div>
-      </div>
+      {/* ══════════════════════════════════════════════════════
+          HEADER CARD
+      ══════════════════════════════════════════════════════ */}
+      <NeoCard>
+        <div className="flex items-start justify-between flex-wrap gap-5">
 
-      {/* ── Main 3-col grid ── */}
+          {/* Left: icon + info */}
+          <div className="flex items-start gap-4">
+            {/* Device Icon */}
+            <div
+              className="w-16 h-16 rounded-[22px] flex items-center justify-center flex-shrink-0"
+              style={
+                isOnline
+                  ? {
+                      background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                      boxShadow: '4px 4px 12px rgba(37,99,235,0.35), -2px -2px 6px rgba(255,255,255,0.4)',
+                    }
+                  : {
+                      background: '#D1D5DB',
+                      boxShadow: '4px 4px 10px rgba(166,180,200,0.4), -4px -4px 10px rgba(255,255,255,0.8)',
+                    }
+              }
+            >
+              <Cpu size={28} className="text-white" />
+            </div>
+
+            {/* Info */}
+            <div>
+              <div className="flex items-center gap-3 flex-wrap mb-2">
+                <h2 className="text-xl font-bold text-neutral-900">{device.name}</h2>
+                <OnlinePill online={isOnline} />
+              </div>
+              {/* Meta grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-1.5">
+                {[
+                  { icon: <Cpu size={11} />,    text: device.deviceId,              mono: true  },
+                  { icon: <Bolt size={11} />,   text: `Firmware ${device.firmware || 'v1.2.4'}` },
+                  { icon: <Clock size={11} />,  text: `Last seen ${lastSeenLabel}`              },
+                  { icon: <MapPin size={11} />, text: `${device.room} · ${device.location}`     },
+                  { icon: <Cpu size={11} />,    text: 'ESP32 · Controller'                      },
+                ].map((item, i) => (
+                  <span
+                    key={i}
+                    className={`flex items-center gap-1.5 text-xs text-neutral-500 ${item.mono ? 'font-mono font-semibold text-neutral-700' : ''}`}
+                  >
+                    <span className="text-neutral-400">{item.icon}</span>
+                    {item.text}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: actions */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <PillBtn
+              label="⚡ All On"
+              active={allOn}
+              activeColor="#ffffff"
+              activeBg="linear-gradient(135deg,#2563eb,#3b82f6)"
+              activeGlow="rgba(37,99,235,0.35)"
+              onClick={() => toggleAllDevices(true)}
+            />
+            <PillBtn
+              label="⚡ All Off"
+              active={allOff}
+              activeColor="#ffffff"
+              activeBg="linear-gradient(135deg,#374151,#4b5563)"
+              activeGlow="rgba(55,65,81,0.3)"
+              onClick={() => toggleAllDevices(false)}
+            />
+            <div className="w-px h-5" style={{ background: 'rgba(166,180,200,0.4)' }} />
+            <Button variant="secondary" size="sm">
+              <Edit2 size={13} /> Edit
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>
+              <Trash size={13} /> Remove
+            </Button>
+          </div>
+        </div>
+      </NeoCard>
+
+      {/* ══════════════════════════════════════════════════════
+          MAIN GRID
+      ══════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
         {/* ═══ LIGHTS ═══ */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-yellow-50 rounded-xl flex items-center justify-center">
-                <Lightbulb size={16} className="text-yellow-500" />
+        <NeoCard>
+          <SectionHeader
+            icon={<Lightbulb size={17} />}
+            iconBg="linear-gradient(135deg,#fef9c3,#fde68a)"
+            iconColor="#d97706"
+            title="Lights"
+            actions={
+              <div className="flex gap-1.5">
+                <PillBtn label="All On"  active={allLightsOn}  activeColor="#92400e" activeBg="linear-gradient(135deg,#fde68a,#fcd34d)" activeGlow="rgba(217,119,6,0.3)" onClick={() => toggleAllLights(true)} />
+                <PillBtn label="All Off" active={allLightsOff} activeColor="#ffffff" activeBg="linear-gradient(135deg,#374151,#4b5563)" activeGlow="rgba(55,65,81,0.3)"   onClick={() => toggleAllLights(false)} />
               </div>
-              <h3 className="text-sm font-bold text-neutral-900">Lights</h3>
-            </div>
-            {(() => {
-              const allOn  = !!(o?.light1 && o?.light2 && o?.light3);
-              const allOff = !o?.light1 && !o?.light2 && !o?.light3;
-              return (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => toggleAllLights(true)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
-                      allOn
-                        ? 'bg-yellow-400 text-white border-yellow-400 ring-2 ring-yellow-200 shadow-sm'
-                        : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
-                    }`}
-                  >
-                    All On
-                  </button>
-                  <button
-                    onClick={() => toggleAllLights(false)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
-                      allOff
-                        ? 'bg-neutral-700 text-white border-neutral-700 ring-2 ring-neutral-300 shadow-sm'
-                        : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100'
-                    }`}
-                  >
-                    All Off
-                  </button>
-                </div>
-              );
-            })()}
-          </div>
-          <div className="grid grid-cols-1 gap-3">
+            }
+          />
+          <div className="space-y-3">
             {([
-              { key: 'light1' as const, label: 'Light 1', stored: an?.light1Runtime || 0 },
-              { key: 'light2' as const, label: 'Light 2', stored: an?.light2Runtime || 0 },
-              { key: 'light3' as const, label: 'Light 3', stored: an?.light3Runtime || 0 },
+              { key: 'light1' as const, label: 'Light 1', stored: an?.light1Runtime || 0, bKey: 'light1Brightness' as const },
+              { key: 'light2' as const, label: 'Light 2', stored: an?.light2Runtime || 0, bKey: 'light2Brightness' as const },
+              { key: 'light3' as const, label: 'Light 3', stored: an?.light3Runtime || 0, bKey: 'light3Brightness' as const },
             ]).map(item => {
               const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
               return (
                 <ControlCard
                   key={item.key}
-                  icon={<Lightbulb size={18} />}
-                  iconActiveBg="bg-yellow-100"
-                  iconInactiveBg="bg-yellow-50"
-                  iconActiveColor="text-yellow-600"
-                  iconInactiveColor="text-yellow-400"
+                  icon={<Lightbulb size={19} />}
+                  accentColor="#d97706"
+                  accentBg="rgba(253,230,138,0.35)"
+                  accentGlow="rgba(217,119,6,0.2)"
                   label={item.label}
                   runtime={item.stored + liveExtra}
                   checked={o?.[item.key] || false}
                   onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
                   disabled={isOffline}
+                  sliderValue={brightness[item.bKey]}
+                  onSliderChange={v => handleSlider(item.bKey, v, setBrightness)}
+                  sliderLabel="Brightness"
                 />
               );
             })}
           </div>
-        </Card>
+        </NeoCard>
 
-        {/* ═══ FANS ═══ */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center">
-                <Wind size={16} className="text-blue-500" />
+        {/* ═══ FANS + CUSTOM ═══ */}
+        <NeoCard>
+          <SectionHeader
+            icon={<Wind size={17} />}
+            iconBg="linear-gradient(135deg,#dbeafe,#bfdbfe)"
+            iconColor="#2563eb"
+            title="Fans"
+            actions={
+              <div className="flex gap-1.5">
+                <PillBtn label="All On"  active={allFansOn}  activeColor="#1e40af" activeBg="linear-gradient(135deg,#bfdbfe,#93c5fd)" activeGlow="rgba(37,99,235,0.25)" onClick={() => toggleAllFans(true)} />
+                <PillBtn label="All Off" active={allFansOff} activeColor="#ffffff" activeBg="linear-gradient(135deg,#374151,#4b5563)" activeGlow="rgba(55,65,81,0.3)"   onClick={() => toggleAllFans(false)} />
               </div>
-              <h3 className="text-sm font-bold text-neutral-900">Fans</h3>
-            </div>
-            {(() => {
-              const allOn  = !!(o?.fan1 && o?.fan2);
-              const allOff = !o?.fan1 && !o?.fan2;
-              return (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => toggleAllFans(true)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
-                      allOn
-                        ? 'bg-blue-500 text-white border-blue-500 ring-2 ring-blue-200 shadow-sm'
-                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                    }`}
-                  >
-                    All On
-                  </button>
-                  <button
-                    onClick={() => toggleAllFans(false)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
-                      allOff
-                        ? 'bg-neutral-700 text-white border-neutral-700 ring-2 ring-neutral-300 shadow-sm'
-                        : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100'
-                    }`}
-                  >
-                    All Off
-                  </button>
-                </div>
-              );
-            })()}
-          </div>
-          <div className="grid grid-cols-1 gap-3 mb-4">
+            }
+          />
+          <div className="space-y-3 mb-5">
             {([
-              { key: 'fan1' as const, label: 'Fan 1', stored: an?.fan1Runtime || 0 },
-              { key: 'fan2' as const, label: 'Fan 2', stored: an?.fan2Runtime || 0 },
+              { key: 'fan1' as const, label: 'Fan 1', stored: an?.fan1Runtime || 0, sKey: 'fan1Speed' as const },
+              { key: 'fan2' as const, label: 'Fan 2', stored: an?.fan2Runtime || 0, sKey: 'fan2Speed' as const },
             ]).map(item => {
               const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
               return (
                 <ControlCard
                   key={item.key}
-                  icon={<Wind size={18} />}
-                  iconActiveBg="bg-blue-100"
-                  iconInactiveBg="bg-blue-50"
-                  iconActiveColor="text-blue-600"
-                  iconInactiveColor="text-blue-400"
+                  icon={<Wind size={19} />}
+                  accentColor="#2563eb"
+                  accentBg="rgba(191,219,254,0.35)"
+                  accentGlow="rgba(37,99,235,0.2)"
                   label={item.label}
                   runtime={item.stored + liveExtra}
                   checked={o?.[item.key] || false}
                   onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
                   disabled={isOffline}
+                  sliderValue={fanSpeed[item.sKey]}
+                  onSliderChange={v => handleSlider(item.sKey, v, setFanSpeed)}
+                  sliderLabel="Speed"
                 />
               );
             })}
           </div>
 
-          {/* Custom Device inside same column */}
-          <div className="pt-4 border-t border-neutral-100">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-purple-50 rounded-xl flex items-center justify-center">
-                <Bolt size={16} className="text-purple-500" />
-              </div>
-              <h3 className="text-sm font-bold text-neutral-900">Custom Device</h3>
-            </div>
-            <ControlCard
-              icon={<Bolt size={18} />}
-              iconActiveBg="bg-purple-100"
-              iconInactiveBg="bg-purple-50"
-              iconActiveColor="text-purple-600"
-              iconInactiveColor="text-purple-400"
-              label="Custom Device"
-              runtime={(an?.customRuntime || 0) + ((o?.custom1 && onAt['custom1']) ? (now - onAt['custom1']) / 3_600_000 : 0)}
-              checked={o?.custom1 || false}
-              onChange={v => toggle('custom1', v, `Custom Device turned ${v ? 'ON' : 'OFF'}`)}
-              disabled={isOffline}
-            />
-          </div>
-        </Card>
+          {/* Custom Device divider */}
+          <div className="h-px mb-5" style={{ background: 'rgba(166,180,200,0.3)' }} />
+          <SectionHeader
+            icon={<Bolt size={17} />}
+            iconBg="linear-gradient(135deg,#ede9fe,#ddd6fe)"
+            iconColor="#7c3aed"
+            title="Custom Device"
+          />
+          <ControlCard
+            icon={<Bolt size={19} />}
+            accentColor="#7c3aed"
+            accentBg="rgba(221,214,254,0.35)"
+            accentGlow="rgba(124,58,237,0.2)"
+            label="Custom Device"
+            runtime={(an?.customRuntime || 0) + ((o?.custom1 && onAt['custom1']) ? (now - onAt['custom1']) / 3_600_000 : 0)}
+            checked={o?.custom1 || false}
+            onChange={v => toggle('custom1', v, `Custom Device turned ${v ? 'ON' : 'OFF'}`)}
+            disabled={isOffline}
+          />
+        </NeoCard>
 
         {/* ═══ DEVICE HEALTH ═══ */}
-        <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-green-50 rounded-xl flex items-center justify-center">
-              <Activity size={16} className="text-green-500" />
-            </div>
-            <h3 className="text-sm font-bold text-neutral-900">Device Health</h3>
-            <span
-              className={`ml-auto w-2.5 h-2.5 rounded-full ${
-                isOnline ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'
-              }`}
-            />
-          </div>
-          <div className="space-y-0">
+        <NeoCard>
+          <SectionHeader
+            icon={<Activity size={17} />}
+            iconBg="linear-gradient(135deg,#dcfce7,#bbf7d0)"
+            iconColor="#16a34a"
+            title="Device Health"
+            actions={
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'animate-pulse' : ''}`}
+                style={{ background: isOnline ? '#22c55e' : '#d1d5db' }}
+              />
+            }
+          />
+          <div>
             <HealthRow
               icon={<Wifi size={13} />}
               label="WiFi Status"
               ok={isOnline || h?.wifiStatus === 'connected'}
               value={
-                <span className={(isOnline || h?.wifiStatus === 'connected') ? 'text-success-600' : 'text-error-500'}>
+                <span style={{ color: (isOnline || h?.wifiStatus === 'connected') ? '#16a34a' : '#ef4444' }}>
                   {(isOnline || h?.wifiStatus === 'connected') ? 'Connected' : 'Disconnected'}
                 </span>
               }
@@ -699,7 +816,7 @@ export default function DeviceDetails() {
               label="Firebase"
               ok={isOnline || h?.firebaseStatus === 'connected'}
               value={
-                <span className={(isOnline || h?.firebaseStatus === 'connected') ? 'text-success-600' : 'text-error-500'}>
+                <span style={{ color: (isOnline || h?.firebaseStatus === 'connected') ? '#16a34a' : '#ef4444' }}>
                   {(isOnline || h?.firebaseStatus === 'connected') ? 'Connected' : 'Disconnected'}
                 </span>
               }
@@ -711,50 +828,43 @@ export default function DeviceDetails() {
                 h?.rssi ? (
                   <span>
                     {h.rssi} dBm{' '}
-                    <span className={`${rssiLabel(h.rssi).color} font-normal`}>
+                    <span style={{ color: rssiLabel(h.rssi).color, fontWeight: 400 }}>
                       ({rssiLabel(h.rssi).text})
                     </span>
                   </span>
                 ) : '–'
               }
             />
-            <HealthRow
-              icon={<MemoryStick size={13} />}
-              label="Free Heap"
-              value={fmtHeap(h?.heap || 0)}
-            />
-            <HealthRow
-              icon={<Clock size={13} />}
-              label="Device Uptime"
-              value={fmtUptime(h?.uptime || 0)}
-            />
-            <HealthRow
-              icon={<Wifi size={13} />}
-              label="WiFi Uptime"
-              value={fmtUptime(h?.wifiUptime || 0)}
-            />
-            <HealthRow
-              icon={<RotateCcw size={13} />}
-              label="Restart Count"
-              value={h?.restartCount ?? '–'}
-            />
+            <HealthRow icon={<MemoryStick size={13} />} label="Free Heap"     value={fmtHeap(h?.heap || 0)} />
+            <HealthRow icon={<Clock size={13} />}       label="Device Uptime" value={fmtUptime(h?.uptime || 0)} />
+            <HealthRow icon={<Wifi size={13} />}        label="WiFi Uptime"   value={fmtUptime(h?.wifiUptime || 0)} />
+            <HealthRow icon={<RotateCcw size={13} />}   label="Restart Count" value={h?.restartCount ?? '–'} />
           </div>
-        </Card>
+        </NeoCard>
 
         {/* ═══ ANALYTICS (spans 2 cols on xl) ═══ */}
         <div className="md:col-span-2 xl:col-span-2">
-          <Card>
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-8 h-8 bg-primary-50 rounded-xl flex items-center justify-center">
-                <BarChart3 size={16} className="text-primary-600" />
+          <NeoCard>
+            <div className="flex items-center gap-3 mb-5">
+              <div
+                className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', boxShadow: '3px 3px 8px rgba(166,180,200,0.35), -3px -3px 8px rgba(255,255,255,0.8)' }}
+              >
+                <BarChart3 size={17} style={{ color: '#2563eb' }} />
               </div>
               <h3 className="text-sm font-bold text-neutral-900">Runtime Analytics</h3>
-              <span className="ml-auto text-xs text-neutral-400">Live · Cumulative</span>
+              <span className="ml-auto text-xs font-medium" style={{ color: '#9ca3af' }}>Live · Cumulative</span>
               <button
                 onClick={handleResetAnalytics}
                 disabled={resetting}
-                title="Reset all analytics to zero"
-                className="ml-2 flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-red-600 hover:bg-red-50 border border-neutral-200 hover:border-red-200 rounded-lg transition-all disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-40"
+                style={{
+                  background: '#EEF2F7',
+                  color: '#9ca3af',
+                  boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9ca3af'; }}
               >
                 <RotateCcw size={11} className={resetting ? 'animate-spin' : ''} />
                 Reset
@@ -764,96 +874,79 @@ export default function DeviceDetails() {
             {/* Summary stat cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               {[
-                {
-                  label: 'Total Runtime',
-                  value: fmtRuntime(totalRuntime),
-                  icon: <Clock size={14} className="text-primary-500" />,
-                  bg: 'bg-primary-50',
-                },
-                {
-                  label: 'Energy Used',
-                  value: `${(an?.energyUsage || 0).toFixed(3)} kWh`,
-                  icon: <Zap size={14} className="text-yellow-500" />,
-                  bg: 'bg-yellow-50',
-                },
-                {
-                  label: 'Lights Active',
-                  value: `${[o?.light1, o?.light2, o?.light3].filter(Boolean).length} / 3`,
-                  icon: <Lightbulb size={14} className="text-yellow-500" />,
-                  bg: 'bg-yellow-50',
-                },
-                {
-                  label: 'Fans Active',
-                  value: `${[o?.fan1, o?.fan2].filter(Boolean).length} / 2`,
-                  icon: <Wind size={14} className="text-blue-500" />,
-                  bg: 'bg-blue-50',
-                },
+                { label: 'Total Runtime', value: fmtRuntime(totalRuntime),                            icon: <Clock size={15} />,    grad: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', ic: '#2563eb' },
+                { label: 'Energy Used',   value: `${(an?.energyUsage || 0).toFixed(3)} kWh`,         icon: <Zap size={15} />,      grad: 'linear-gradient(135deg,#fef9c3,#fde68a)', ic: '#d97706' },
+                { label: 'Lights Active', value: `${[o?.light1,o?.light2,o?.light3].filter(Boolean).length} / 3`, icon: <Lightbulb size={15} />, grad: 'linear-gradient(135deg,#fef9c3,#fde68a)', ic: '#d97706' },
+                { label: 'Fans Active',   value: `${[o?.fan1,o?.fan2].filter(Boolean).length} / 2`,  icon: <Wind size={15} />,     grad: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', ic: '#2563eb' },
               ].map(item => (
-                <div key={item.label} className="bg-neutral-50 rounded-xl p-3.5">
-                  <div className={`w-7 h-7 ${item.bg} rounded-lg flex items-center justify-center mb-2.5`}>
-                    {item.icon}
+                <div
+                  key={item.label}
+                  className="rounded-2xl p-4"
+                  style={{
+                    background: '#EEF2F7',
+                    boxShadow: 'inset 3px 3px 7px rgba(166,180,200,0.45), inset -3px -3px 7px rgba(255,255,255,0.75)',
+                  }}
+                >
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3" style={{ background: item.grad }}>
+                    <span style={{ color: item.ic }}>{item.icon}</span>
                   </div>
                   <p className="text-base font-bold text-neutral-900 leading-tight">{item.value}</p>
-                  <p className="text-xs text-neutral-400 mt-0.5">{item.label}</p>
+                  <p className="text-xs font-medium mt-0.5" style={{ color: '#9ca3af' }}>{item.label}</p>
                 </div>
               ))}
             </div>
 
-            {/* Per-channel bars with live clock */}
+            {/* Per-channel bars */}
             <div className="space-y-3">
               {[
-                { key: 'light1',  label: 'Light 1', total: liveLight1, color: 'bg-yellow-400', dot: 'bg-yellow-400', isOn: o?.light1  },
-                { key: 'light2',  label: 'Light 2', total: liveLight2, color: 'bg-yellow-400', dot: 'bg-yellow-400', isOn: o?.light2  },
-                { key: 'light3',  label: 'Light 3', total: liveLight3, color: 'bg-amber-400',  dot: 'bg-amber-400',  isOn: o?.light3  },
-                { key: 'fan1',    label: 'Fan 1',   total: liveFan1,   color: 'bg-blue-400',   dot: 'bg-blue-400',   isOn: o?.fan1    },
-                { key: 'fan2',    label: 'Fan 2',   total: liveFan2,   color: 'bg-sky-400',    dot: 'bg-sky-400',    isOn: o?.fan2    },
-                { key: 'custom1', label: 'Custom',  total: liveCustom, color: 'bg-purple-400', dot: 'bg-purple-400', isOn: o?.custom1 },
-              ].map(item => {
-                const total = item.total;
-
-                return (
-                  <div key={item.key} className="flex items-center gap-3">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.dot}`} />
-                    <span className="text-xs text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
-                    <RuntimeBar value={total} max={maxRuntime} color={item.color} />
-                    <div className="flex items-center gap-1.5 w-24 justify-end flex-shrink-0">
-                      {item.isOn && (
-                        <span className="w-1.5 h-1.5 bg-success-500 rounded-full animate-pulse flex-shrink-0" />
-                      )}
-                      <span className={`text-xs font-semibold ${item.isOn ? 'text-success-600' : 'text-neutral-700'}`}>
-                        {fmtRuntime(total)}
-                      </span>
-                    </div>
+                { key: 'light1',  label: 'Light 1', total: liveLight1, color: '#fbbf24', isOn: o?.light1  },
+                { key: 'light2',  label: 'Light 2', total: liveLight2, color: '#fbbf24', isOn: o?.light2  },
+                { key: 'light3',  label: 'Light 3', total: liveLight3, color: '#f59e0b', isOn: o?.light3  },
+                { key: 'fan1',    label: 'Fan 1',   total: liveFan1,   color: '#60a5fa', isOn: o?.fan1    },
+                { key: 'fan2',    label: 'Fan 2',   total: liveFan2,   color: '#38bdf8', isOn: o?.fan2    },
+                { key: 'custom1', label: 'Custom',  total: liveCustom, color: '#a78bfa', isOn: o?.custom1 },
+              ].map(item => (
+                <div key={item.key} className="flex items-center gap-3">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                  <span className="text-xs font-medium text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
+                  <RuntimeBar value={item.total} max={maxRuntime} color={item.color} />
+                  <div className="flex items-center gap-1.5 w-24 justify-end flex-shrink-0">
+                    {item.isOn && <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: '#22c55e' }} />}
+                    <span className="text-xs font-bold" style={{ color: item.isOn ? '#16a34a' : '#374151' }}>
+                      {fmtRuntime(item.total)}
+                    </span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
-          </Card>
+          </NeoCard>
         </div>
 
         {/* ═══ OLED ═══ */}
-        <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-slate-100 rounded-xl flex items-center justify-center">
-              <Monitor size={16} className="text-slate-600" />
-            </div>
-            <h3 className="text-sm font-bold text-neutral-900">OLED Display</h3>
-          </div>
-
+        <NeoCard>
+          <SectionHeader
+            icon={<Monitor size={17} />}
+            iconBg="linear-gradient(135deg,#f1f5f9,#e2e8f0)"
+            iconColor="#475569"
+            title="OLED Display"
+          />
           {/* Screen preview */}
-          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 mb-4 min-h-[80px] flex items-center justify-center font-mono relative overflow-hidden">
-            <div className="absolute inset-0 opacity-5"
-              style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,.03) 2px, rgba(255,255,255,.03) 4px)' }}
+          <div
+            className="rounded-2xl p-4 mb-4 min-h-[80px] flex items-center justify-center font-mono relative overflow-hidden"
+            style={{
+              background: '#0a0a0a',
+              boxShadow: 'inset 3px 3px 8px rgba(0,0,0,0.5), inset -1px -1px 4px rgba(255,255,255,0.05)',
+            }}
+          >
+            <div className="absolute inset-0 opacity-[0.04]"
+              style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,.05) 2px, rgba(255,255,255,.05) 4px)' }}
             />
             {o?.oledMessage ? (
-              <p className="text-green-400 text-sm text-center leading-relaxed z-10 break-all">
-                {o.oledMessage}
-              </p>
+              <p className="text-green-400 text-sm text-center leading-relaxed z-10 break-all">{o.oledMessage}</p>
             ) : (
-              <p className="text-neutral-700 text-xs z-10">— display empty —</p>
+              <p className="text-xs z-10" style={{ color: '#374151' }}>— display empty —</p>
             )}
           </div>
-
           <div className="space-y-2.5">
             <textarea
               className="form-input text-sm resize-none font-mono"
@@ -863,85 +956,86 @@ export default function DeviceDetails() {
               onChange={e => setOledDraft(e.target.value.slice(0, 64))}
             />
             <div className="flex items-center justify-between">
-              <span className="text-xs text-neutral-400">{oledDraft.length} / 64 chars</span>
+              <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>{oledDraft.length} / 64 chars</span>
             </div>
             <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                size="sm"
-                onClick={handleSendOled}
-                loading={sendingOled}
-                disabled={!oledDraft.trim() || isOffline}
-              >
+              <Button className="flex-1" size="sm" onClick={handleSendOled} loading={sendingOled} disabled={!oledDraft.trim() || isOffline}>
                 Send to Display
               </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={handleClearOled}
-                disabled={!o?.oledMessage || isOffline}
-              >
+              <Button size="sm" variant="secondary" onClick={handleClearOled} disabled={!o?.oledMessage || isOffline}>
                 Clear
               </Button>
             </div>
           </div>
-        </Card>
+        </NeoCard>
 
         {/* ═══ BUZZER ═══ */}
-        <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center">
-              <Volume2 size={16} className="text-orange-500" />
-            </div>
-            <h3 className="text-sm font-bold text-neutral-900">Buzzer</h3>
-            {o?.buzzer && (
-              <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                Sounding
-              </span>
-            )}
-          </div>
-
+        <NeoCard>
+          <SectionHeader
+            icon={<Volume2 size={17} />}
+            iconBg="linear-gradient(135deg,#ffedd5,#fed7aa)"
+            iconColor="#ea580c"
+            title="Buzzer"
+            actions={
+              o?.buzzer ? (
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full animate-pulse"
+                  style={{ background: 'rgba(234,88,12,0.1)', color: '#ea580c' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ea580c' }} />
+                  Sounding
+                </span>
+              ) : null
+            }
+          />
           <div className="space-y-2.5">
             {([
-              { mode: 'single' as const,  label: 'Test Beep',    desc: 'Single short beep',   duration: '0.6s', hoverCls: 'hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700' },
-              { mode: 'double' as const,  label: 'Double Beep',  desc: 'Two consecutive beeps', duration: '1.2s', hoverCls: 'hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700' },
-              { mode: 'alarm'  as const,  label: 'Alarm Test',   desc: 'Long alarm sound',    duration: '3.5s', hoverCls: 'hover:bg-red-50 hover:border-red-200 hover:text-red-600'    },
+              { mode: 'single' as const, label: 'Test Beep',   desc: 'Single short beep',    duration: '0.6s', accent: '#ea580c', glow: 'rgba(234,88,12,0.2)'  },
+              { mode: 'double' as const, label: 'Double Beep', desc: 'Two consecutive beeps', duration: '1.2s', accent: '#ea580c', glow: 'rgba(234,88,12,0.2)'  },
+              { mode: 'alarm'  as const, label: 'Alarm Test',  desc: 'Long alarm sound',      duration: '3.5s', accent: '#ef4444', glow: 'rgba(239,68,68,0.2)'  },
             ]).map(item => (
               <button
                 key={item.mode}
                 onClick={() => triggerBuzzer(item.mode)}
                 disabled={buzzerMode !== 'idle' || isOffline}
-                className={`w-full flex items-center justify-between px-4 py-3.5 bg-neutral-50 border border-neutral-100 rounded-xl text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed ${item.hoverCls} ${buzzerMode === item.mode ? 'ring-2 ring-orange-300 bg-orange-50' : ''}`}
+                className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={
+                  buzzerMode === item.mode
+                    ? { background: `rgba(234,88,12,0.08)`, boxShadow: `0 0 0 1.5px ${item.accent}40, 3px 3px 8px ${item.glow}` }
+                    : { background: '#EEF2F7', boxShadow: '3px 3px 7px rgba(166,180,200,0.4), -3px -3px 7px rgba(255,255,255,0.8)' }
+                }
               >
                 <div className="text-left">
-                  <p className="font-semibold text-neutral-800">{item.label}</p>
-                  <p className="text-xs text-neutral-400 mt-0.5">{item.desc}</p>
+                  <p className="font-bold text-neutral-800">{item.label}</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{item.desc}</p>
                 </div>
-                <span className="text-xs text-neutral-400 bg-white border border-neutral-100 px-2 py-1 rounded-lg">
+                <span
+                  className="text-xs font-semibold px-2.5 py-1 rounded-xl"
+                  style={{ background: '#F4F7FB', color: '#6b7280', boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)' }}
+                >
                   {item.duration}
                 </span>
               </button>
             ))}
           </div>
-        </Card>
+        </NeoCard>
 
         {/* ═══ CONTROLLER INFO ═══ */}
-        <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-neutral-100 rounded-xl flex items-center justify-center">
-              <Cpu size={16} className="text-neutral-500" />
-            </div>
-            <h3 className="text-sm font-bold text-neutral-900">Controller Info</h3>
-          </div>
-          <div className="space-y-0">
+        <NeoCard>
+          <SectionHeader
+            icon={<Cpu size={17} />}
+            iconBg="linear-gradient(135deg,#f1f5f9,#e2e8f0)"
+            iconColor="#475569"
+            title="Controller Info"
+          />
+          <div className="space-y-2">
             {[
-              { label: 'Device ID',   value: device.deviceId, mono: true },
-              { label: 'Room',        value: device.room },
-              { label: 'Location',    value: device.location },
-              { label: 'Firmware',    value: device.firmware || 'v1.2.4' },
-              { label: 'Controller',  value: 'ESP32' },
-              { label: 'Channels',    value: '3 Lights · 2 Fans · 1 Custom' },
+              { label: 'Device ID',  value: device.deviceId, mono: true },
+              { label: 'Room',       value: device.room },
+              { label: 'Location',   value: device.location },
+              { label: 'Firmware',   value: device.firmware || 'v1.2.4' },
+              { label: 'Controller', value: 'ESP32' },
+              { label: 'Channels',   value: '3 Lights · 2 Fans · 1 Custom' },
               {
                 label: 'Added On',
                 value: device.createdAt
@@ -952,14 +1046,14 @@ export default function DeviceDetails() {
             ].map(item => (
               <div
                 key={item.label}
-                className="flex items-center justify-between py-2.5 border-b border-neutral-50 last:border-0"
+                className="flex items-center justify-between px-4 py-2.5 rounded-2xl"
+                style={{
+                  background: '#EEF2F7',
+                  boxShadow: 'inset 2px 2px 5px rgba(166,180,200,0.4), inset -2px -2px 5px rgba(255,255,255,0.75)',
+                }}
               >
-                <span className="text-xs text-neutral-400">{item.label}</span>
-                <span
-                  className={`text-xs font-semibold text-neutral-900 max-w-[60%] text-right ${
-                    item.mono ? 'font-mono' : ''
-                  }`}
-                >
+                <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>{item.label}</span>
+                <span className={`text-xs font-bold text-neutral-800 max-w-[55%] text-right truncate ${item.mono ? 'font-mono' : ''}`}>
                   {item.value}
                 </span>
               </div>
@@ -967,11 +1061,16 @@ export default function DeviceDetails() {
           </div>
           <button
             onClick={() => setDeleteModal(true)}
-            className="mt-4 w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-error-500 hover:bg-error-50 rounded-xl transition-colors"
+            className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-2xl transition-all"
+            style={{
+              color: '#ef4444',
+              background: '#EEF2F7',
+              boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
+            }}
           >
             <Trash size={13} /> Remove This Device
           </button>
-        </Card>
+        </NeoCard>
 
       </div>
 
@@ -982,9 +1081,7 @@ export default function DeviceDetails() {
         </p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
-          <Button variant="danger" loading={deleting} onClick={handleDelete}>
-            Remove Device
-          </Button>
+          <Button variant="danger" loading={deleting} onClick={handleDelete}>Remove Device</Button>
         </div>
       </Modal>
     </div>

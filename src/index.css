@@ -9,7 +9,7 @@
 
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background-color: #f9fafb;
+    background-color: #EEF2F7;
     color: #111827;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -26,24 +26,80 @@
 }
 
 @layer components {
+  /* ── Neomorphic base card ── */
+  .neo-card {
+    background: #F4F7FB;
+    border-radius: 20px;
+    box-shadow:
+      6px 6px 14px rgba(166, 180, 200, 0.45),
+      -6px -6px 14px rgba(255, 255, 255, 0.85);
+  }
+
+  .neo-card-sm {
+    background: #F4F7FB;
+    border-radius: 16px;
+    box-shadow:
+      4px 4px 10px rgba(166, 180, 200, 0.4),
+      -4px -4px 10px rgba(255, 255, 255, 0.8);
+  }
+
+  .neo-inset {
+    background: #E8EDF4;
+    border-radius: 14px;
+    box-shadow:
+      inset 3px 3px 7px rgba(166, 180, 200, 0.5),
+      inset -3px -3px 7px rgba(255, 255, 255, 0.75);
+  }
+
+  /* ── Sidebar ── */
   .sidebar-link {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-600 transition-colors duration-150 hover:bg-neutral-100 hover:text-neutral-900;
+    @apply flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium text-neutral-500 transition-all duration-200;
+  }
+
+  .sidebar-link:hover {
+    background: #EEF2F7;
+    color: #1f2937;
+    box-shadow:
+      2px 2px 6px rgba(166, 180, 200, 0.35),
+      -2px -2px 6px rgba(255, 255, 255, 0.75);
   }
 
   .sidebar-link.active {
-    @apply bg-primary-50 text-primary-600;
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    color: white;
+    box-shadow:
+      3px 3px 8px rgba(37, 99, 235, 0.35),
+      -1px -1px 4px rgba(255, 255, 255, 0.2);
   }
 
+  .sidebar-link.active svg {
+    color: white;
+  }
+
+  /* ── Forms ── */
   .stat-card {
     @apply bg-white rounded-xl border border-neutral-200 p-5;
   }
 
   .device-card {
-    @apply bg-white rounded-xl border border-neutral-200 p-4 hover:shadow-sm transition-shadow duration-150;
+    background: #F4F7FB;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow:
+      4px 4px 10px rgba(166, 180, 200, 0.4),
+      -4px -4px 10px rgba(255, 255, 255, 0.8);
+    transition: box-shadow 0.2s;
+  }
+
+  .device-card:hover {
+    box-shadow:
+      6px 6px 14px rgba(166, 180, 200, 0.5),
+      -6px -6px 14px rgba(255, 255, 255, 0.9);
   }
 
   .form-input {
-    @apply w-full px-3.5 py-2.5 text-sm border border-neutral-300 rounded-lg bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-150;
+    @apply w-full px-3.5 py-2.5 text-sm border-0 rounded-xl bg-[#E8EDF4] text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-all duration-150;
+    box-shadow: inset 2px 2px 5px rgba(166,180,200,0.45), inset -2px -2px 5px rgba(255,255,255,0.75);
   }
 
   .form-label {
@@ -51,15 +107,35 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    box-shadow: 3px 3px 8px rgba(37, 99, 235, 0.3), -1px -1px 4px rgba(255,255,255,0.2);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 4px 4px 12px rgba(37, 99, 235, 0.4), -2px -2px 6px rgba(255,255,255,0.3);
+    transform: translateY(-1px);
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-white text-neutral-700 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-neutral-700 rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    background: #F4F7FB;
+    box-shadow: 3px 3px 8px rgba(166,180,200,0.4), -3px -3px 8px rgba(255,255,255,0.8);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    box-shadow: 4px 4px 10px rgba(166,180,200,0.5), -4px -4px 10px rgba(255,255,255,0.9);
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-error-500 text-white rounded-lg hover:bg-error-600 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+    box-shadow: 3px 3px 8px rgba(239, 68, 68, 0.3);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    box-shadow: 4px 4px 12px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
   }
 
   .status-online {
@@ -69,67 +145,127 @@
   .status-offline {
     @apply inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400;
   }
+
+  /* ── iOS Toggle ── */
+  .ios-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    width: 50px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  .ios-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+
+  .ios-track {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: #D1D5DB;
+    transition: background 0.25s ease;
+    box-shadow: inset 2px 2px 4px rgba(0,0,0,0.15), inset -1px -1px 3px rgba(255,255,255,0.6);
+  }
+
+  .ios-toggle input:checked ~ .ios-track {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    box-shadow: inset 1px 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .ios-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 1px 2px 5px rgba(0,0,0,0.22), -1px -1px 3px rgba(255,255,255,0.8);
+    z-index: 1;
+  }
+
+  .ios-toggle input:checked ~ .ios-thumb {
+    transform: translateX(22px);
+  }
+
+  .ios-toggle.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c8d0db; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ── Neomorphic Slider ── */
+.neo-slider-input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-/* Toggle switch */
-.toggle-switch {
+/* Show a custom thumb via a pseudo-element trick — we overlay it with JS-driven position */
+.neo-slider-wrapper {
   position: relative;
-  display: inline-flex;
-  align-items: center;
+}
+
+/* Webkit thumb (hidden — we use the fill div as visual, but still need a real thumb for UX) */
+.neo-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.18), -1px -1px 4px rgba(255,255,255,0.9);
+  cursor: pointer;
+  opacity: 1;
+  position: relative;
+  z-index: 3;
+}
+
+.neo-slider-input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.18), -1px -1px 4px rgba(255,255,255,0.9);
   cursor: pointer;
 }
 
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-  position: absolute;
-}
-
-.toggle-track {
-  width: 44px;
-  height: 24px;
-  background-color: #d1d5db;
+/* Make the native range track transparent so our custom track shows */
+.neo-slider-input::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 8px;
   border-radius: 999px;
-  transition: background-color 0.2s;
-  position: relative;
 }
 
-.toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
-  background-color: white;
-  border-radius: 50%;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+.neo-slider-input::-moz-range-track {
+  background: transparent;
+  height: 8px;
+  border-radius: 999px;
 }
 
-input:checked + .toggle-track {
-  background-color: #2563eb;
-}
-
-input:checked + .toggle-track .toggle-thumb {
-  transform: translateX(20px);
+/* Re-show thumb on top of our custom track */
+.neo-slider-input {
+  opacity: 1 !important;
+  background: transparent !important;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 24px;
 }

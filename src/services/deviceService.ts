@@ -50,6 +50,12 @@ export interface DeviceOutputs {
   custom1: boolean;
   oledMessage: string;
   buzzer: boolean;
+  // ── Future PWM / speed support (UI-ready, firmware pending) ──────────────
+  light1Brightness?: number;   // 0-100
+  light2Brightness?: number;
+  light3Brightness?: number;
+  fan1Speed?: number;          // 0-100
+  fan2Speed?: number;
 }
 
 export interface DeviceHealth {
@@ -401,6 +407,17 @@ export async function setOutput(
   if (label) {
     await logActivity(deviceId, label, performedBy);
   }
+}
+
+// ─── RTDB: write numeric output value (brightness / speed) ───────────────────
+// Does NOT touch analytics — used only for slider values.
+
+export async function setOutputValue(
+  deviceId: string,
+  key: 'light1Brightness' | 'light2Brightness' | 'light3Brightness' | 'fan1Speed' | 'fan2Speed',
+  value: number
+): Promise<void> {
+  await update(rtdbOutputs(deviceId), { [key]: value });
 }
 
 // ─── Firestore: activity logs ─────────────────────────────────────────────────

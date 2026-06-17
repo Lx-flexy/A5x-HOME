@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Shield, Bell, LogOut, Eye, EyeOff, Check } from 'lucide-react';
+import { User, Shield, Bell, LogOut, Eye, EyeOff, Check, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { logout, updateUserProfile, updateNotificationPreferences } from '../../services/authService';
@@ -29,6 +29,15 @@ export default function Settings() {
     memberAdded: userData?.notifications?.memberAdded ?? false,
     activityLog: userData?.notifications?.activityLog ?? true,
   });
+
+  const [copiedUserId, setCopiedUserId] = useState(false);
+
+  function handleCopyUserId() {
+    if (!userData?.userId) return;
+    navigator.clipboard.writeText(userData.userId);
+    setCopiedUserId(true);
+    setTimeout(() => setCopiedUserId(false), 2000);
+  }
 
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
@@ -149,7 +158,21 @@ export default function Settings() {
                 </div>
                 <div>
                   <label className="form-label">User ID</label>
-                  <input type="text" className="form-input bg-neutral-50 font-mono text-xs" value={userData?.userId || ''} disabled />
+                  <div className="relative">
+                    <input type="text" className="form-input bg-neutral-50 font-mono text-xs pr-10" value={userData?.userId || ''} disabled />
+                    <button
+                      type="button"
+                      onClick={handleCopyUserId}
+                      title="Copy User ID"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-all"
+                      style={{ color: copiedUserId ? '#16a34a' : '#9ca3af' }}
+                    >
+                      {copiedUserId ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                  {copiedUserId && (
+                    <p className="text-xs mt-1" style={{ color: '#16a34a' }}>Copied to clipboard!</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <Button type="submit" loading={savingProfile}>Save Changes</Button>
