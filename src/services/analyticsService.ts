@@ -458,3 +458,45 @@ export function subscribeToActivityLogs(
 
 // ─── Legacy shim ──────────────────────────────────────────────────────────────
 export async function getAllAnalytics(): Promise<AnalyticsEntry[]> { return []; }
+
+/**
+ * One-time cleanup — call on app load to wipe stale/corrupted RTDB analytics.
+ * Resets analytics for any device whose stored values exceed 24h (physically impossible
+ * for a single day). This clears the garbage "1470h" values from old data.
+ */
+export async function resetCorruptedAnalyticsIfNeeded(deviceId: string): Promise<void> {
+  try {
+    const analyticsSnap = await get(rtdbAnalytics(deviceId));
+    if (!analyticsSnap.exists()) return;
+
+    const data = analyticsSnap.val() as Record<string, number>;
+    const MAX_DAILY_HOURS = 24;
+    const isCorrupted = Object.values(data).some(
+      v => typeof v === 'number' && v > MAX_DAILY_HOURS
+    );
+
+    if (!isCorrupted) return;
+
+    // Corrupted — reset everything and start fresh from today
+    await set(rtdbAnalytics(deviceId), {
+      light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
+      fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+    });
+    await set(rtdbAnalyticsDate(deviceId), todayStr());
+    await remove(rtdbOnAt(deviceId));
+
+    // Re-seed onAt for any channels currently ON
+    const outputsSnap = await get(ref(rtdb, `devices/${deviceId}/outputs`));
+    if (outputsSnap.exists()) {
+      const outputs = outputsSnap.val() as Record<string, boolean>;
+      const newOnAt: Record<string, number> = {};
+      let any = false;
+      for (const k of TRACKABLE) {
+        if (outputs[k] === true) { newOnAt[k] = Date.now(); any = true; }
+      }
+      if (any) await update(rtdbOnAt(deviceId), newOnAt);
+    }
+  } catch {
+    // Non-fatal — analytics will self-correct on next ensureTodayWindow call
+  }
+}
