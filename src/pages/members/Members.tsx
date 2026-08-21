@@ -26,7 +26,7 @@ function Avatar({ name }: { name: string }) {
   ];
   const color = colors[name.charCodeAt(0) % colors.length];
   return (
-    <div className={`w-9 h-9 ${color} rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0`}>
+    <div className={`w-10 h-10 md:w-9 md:h-9 ${color} rounded-full flex items-center justify-center text-sm md:text-xs font-semibold flex-shrink-0`}>
       {initials}
     </div>
   );
@@ -157,12 +157,16 @@ export default function Members() {
 
   return (
     <div className="space-y-5 max-w-4xl">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Members</h2>
           <p className="text-sm text-neutral-500 mt-0.5">Manage people who have access to your devices</p>
         </div>
-        <Button onClick={() => { resetForm(); setAddModal(true); }} disabled={!selectedDevice}>
+        <Button 
+          onClick={() => { resetForm(); setAddModal(true); }} 
+          disabled={!selectedDevice}
+          className="w-full sm:w-auto min-h-[44px]"
+        >
           <Plus size={16} /> Add Member
         </Button>
       </div>
@@ -179,16 +183,17 @@ export default function Members() {
       ) : (
         <>
           {devices.length > 1 && (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap overflow-x-auto pb-2 -mx-1 px-1">
               {devices.map(dev => (
                 <button
                   key={dev.id}
                   onClick={() => setSelectedDevice(dev)}
-                  className={`px-3.5 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+                  className={`px-3.5 py-2 text-sm font-medium rounded-lg border transition-colors flex-shrink-0 min-h-[40px] ${
                     selectedDevice?.id === dev.id
                       ? 'bg-primary-50 border-primary-200 text-primary-700'
                       : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                   }`}
+                  style={{ touchAction: 'manipulation' }}
                 >
                   {dev.name}
                 </button>
@@ -207,66 +212,137 @@ export default function Members() {
               </div>
             ) : (
               <>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-neutral-200">
-                      {['Name', 'Email', 'User ID', 'Role', 'Joined On', 'Actions'].map(col => (
-                        <th key={col} className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase tracking-wide">
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {members.map(member => (
-                      <tr key={member.id} className="hover:bg-neutral-50 transition-colors">
-                        <td className="py-4 px-5">
-                          <div className="flex items-center gap-3">
-                            <Avatar name={member.name} />
-                            <div>
-                              <p className="font-medium text-neutral-900">{member.name}</p>
-                              {member.userId === userData?.userId && (
-                                <p className="text-xs text-neutral-400">(You)</p>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-200">
+                        {['Name', 'Email', 'User ID', 'Role', 'Joined On', 'Actions'].map(col => (
+                          <th key={col} className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase tracking-wide">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {members.map(member => (
+                        <tr key={member.id} className="hover:bg-neutral-50 transition-colors">
+                          <td className="py-4 px-5">
+                            <div className="flex items-center gap-3">
+                              <Avatar name={member.name} />
+                              <div>
+                                <p className="font-medium text-neutral-900">{member.name}</p>
+                                {member.userId === userData?.userId && (
+                                  <p className="text-xs text-neutral-400">(You)</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-5 text-xs text-neutral-500">{member.email}</td>
+                          <td className="py-4 px-5 text-xs text-neutral-500 font-mono">{member.userId}</td>
+                          <td className="py-4 px-5"><RoleBadge role={member.role} /></td>
+                          <td className="py-4 px-5 text-neutral-500 text-xs">{formatDate(member.joinedAt)}</td>
+                          <td className="py-4 px-5">
+                            <div className="relative">
+                              <button
+                                onClick={() => setMenuOpen(menuOpen === member.id ? null : member.id)}
+                                className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                                style={{ touchAction: 'manipulation' }}
+                              >
+                                <MoreVertical size={15} />
+                              </button>
+                              {menuOpen === member.id && (
+                                <div className="absolute right-0 top-8 w-44 bg-white border border-neutral-200 rounded-xl shadow-lg z-10 py-1">
+                                  <button
+                                    className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px]"
+                                    onClick={() => handleRoleChange(member, member.role === 'owner' ? 'member' : 'owner')}
+                                    style={{ touchAction: 'manipulation' }}
+                                  >
+                                    <Crown size={13} />
+                                    {member.role === 'owner' ? 'Make Member' : 'Make Owner'}
+                                  </button>
+                                  <button
+                                    className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-error-500 hover:bg-error-50 min-h-[44px]"
+                                    onClick={() => handleRemove(member)}
+                                    style={{ touchAction: 'manipulation' }}
+                                  >
+                                    <Trash2 size={13} /> Remove
+                                  </button>
+                                </div>
                               )}
                             </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden divide-y divide-neutral-100">
+                  {members.map(member => (
+                    <div key={member.id} className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Avatar name={member.name} />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-neutral-900 text-sm truncate">{member.name}</p>
+                            {member.userId === userData?.userId && (
+                              <p className="text-xs text-neutral-400">(You)</p>
+                            )}
                           </div>
-                        </td>
-                        <td className="py-4 px-5 text-xs text-neutral-500">{member.email}</td>
-                        <td className="py-4 px-5 text-xs text-neutral-500 font-mono">{member.userId}</td>
-                        <td className="py-4 px-5"><RoleBadge role={member.role} /></td>
-                        <td className="py-4 px-5 text-neutral-500 text-xs">{formatDate(member.joinedAt)}</td>
-                        <td className="py-4 px-5">
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <RoleBadge role={member.role} />
                           <div className="relative">
                             <button
                               onClick={() => setMenuOpen(menuOpen === member.id ? null : member.id)}
-                              className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors"
+                              className="p-2 rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                              style={{ touchAction: 'manipulation' }}
                             >
-                              <MoreVertical size={15} />
+                              <MoreVertical size={16} />
                             </button>
                             {menuOpen === member.id && (
-                              <div className="absolute right-0 top-8 w-44 bg-white border border-neutral-200 rounded-xl shadow-lg z-10 py-1">
+                              <div className="absolute right-0 top-12 w-48 bg-white border border-neutral-200 rounded-xl shadow-lg z-10 py-1">
                                 <button
-                                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-neutral-700 hover:bg-neutral-50"
+                                  className="flex items-center gap-3 w-full px-4 py-3.5 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[48px]"
                                   onClick={() => handleRoleChange(member, member.role === 'owner' ? 'member' : 'owner')}
+                                  style={{ touchAction: 'manipulation' }}
                                 >
-                                  <Crown size={13} />
+                                  <Crown size={16} />
                                   {member.role === 'owner' ? 'Make Member' : 'Make Owner'}
                                 </button>
                                 <button
-                                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-xs text-error-500 hover:bg-error-50"
+                                  className="flex items-center gap-3 w-full px-4 py-3.5 text-sm text-error-500 hover:bg-error-50 min-h-[48px]"
                                   onClick={() => handleRemove(member)}
+                                  style={{ touchAction: 'manipulation' }}
                                 >
-                                  <Trash2 size={13} /> Remove
+                                  <Trash2 size={16} /> Remove Member
                                 </button>
                               </div>
                             )}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="px-5 py-3 border-t border-neutral-100">
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                          <span className="text-neutral-400 text-xs">Email:</span>
+                          <span className="text-neutral-600 break-words">{member.email}</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                          <span className="text-neutral-400 text-xs">User ID:</span>
+                          <span className="text-neutral-600 font-mono text-xs break-all">{member.userId}</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                          <span className="text-neutral-400 text-xs">Joined:</span>
+                          <span className="text-neutral-600 text-xs">{formatDate(member.joinedAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="px-4 md:px-5 py-3 border-t border-neutral-100">
                   <p className="text-xs text-neutral-400">{members.length} / 5 members</p>
                 </div>
               </>
@@ -277,54 +353,73 @@ export default function Members() {
 
       {/* Add Member Modal */}
       <Modal open={addModal} onClose={() => { setAddModal(false); resetForm(); }} title="Add Member">
-        <form onSubmit={handleAddMember} className="space-y-4">
+        <form onSubmit={handleAddMember} className="space-y-5">
           {addError && (
             <div className="p-3 bg-error-50 border border-red-200 rounded-lg text-sm text-error-600">{addError}</div>
           )}
 
           <div>
             <label className="form-label">A5X User ID</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
-                className="form-input font-mono uppercase flex-1"
+                className="form-input font-mono uppercase flex-1 min-h-[44px]"
                 placeholder="A5X-U-XXXXXX"
                 value={userId}
                 onChange={e => { setUserId(e.target.value.toUpperCase()); setLookupResult(null); setLookupError(''); }}
                 required
+                style={{ touchAction: 'manipulation' }}
               />
-              <Button type="button" variant="secondary" loading={looking} onClick={handleLookup}>
+              <Button 
+                type="button" 
+                variant="secondary" 
+                loading={looking} 
+                onClick={handleLookup}
+                className="w-full sm:w-auto min-h-[44px]"
+              >
                 <Search size={15} />
+                <span className="sm:hidden ml-2">Search User</span>
               </Button>
             </div>
-            {lookupError && <p className="text-xs text-error-500 mt-1">{lookupError}</p>}
+            {lookupError && <p className="text-sm text-error-500 mt-2">{lookupError}</p>}
           </div>
 
           {lookupResult && (
-            <div className="p-3 bg-success-50 border border-green-200 rounded-lg">
+            <div className="p-4 bg-success-50 border border-green-200 rounded-lg">
               <p className="text-sm font-medium text-success-700">User found</p>
-              <p className="text-xs text-neutral-600 mt-0.5">{lookupResult.name} · {lookupResult.email}</p>
+              <p className="text-sm text-neutral-600 mt-1 break-words">{lookupResult.name} · {lookupResult.email}</p>
             </div>
           )}
 
           <div>
             <label className="form-label">Role</label>
             <select
-              className="form-input"
+              className="form-input w-full min-h-[44px]"
               value={role}
               onChange={e => setRole(e.target.value as 'owner' | 'member')}
+              style={{ touchAction: 'manipulation' }}
             >
               <option value="member">Member</option>
               <option value="owner">Owner</option>
             </select>
           </div>
 
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" type="button" onClick={() => { setAddModal(false); resetForm(); }}>
+          <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4">
+            <Button 
+              variant="secondary" 
+              type="button" 
+              onClick={() => { setAddModal(false); resetForm(); }}
+              className="w-full sm:w-auto min-h-[44px] order-2 sm:order-1"
+            >
               Cancel
             </Button>
-            <Button type="submit" loading={adding} disabled={!lookupResult}>
-              Add Member
+            <Button 
+              type="submit" 
+              loading={adding} 
+              disabled={!lookupResult}
+              className="w-full sm:w-auto min-h-[44px] order-1 sm:order-2"
+            >
+              {adding ? 'Adding Member...' : 'Add Member'}
             </Button>
           </div>
         </form>

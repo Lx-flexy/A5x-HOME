@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Lightbulb, Wind, Zap, Activity, Clock, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -61,8 +61,17 @@ function formatTimestamp(ts: unknown): string {
 function RuntimeBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="flex-1 h-2 bg-neutral-100 rounded-full overflow-hidden">
-      <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+    <div 
+      className="flex-1 h-2.5 sm:h-2 rounded-full overflow-hidden transition-colors duration-200" 
+      style={{
+        background: 'var(--bg-tertiary)',
+        boxShadow: 'var(--neo-inset)',
+      }}
+    >
+      <div 
+        className="h-full rounded-full transition-all duration-700" 
+        style={{ width: `${pct}%`, background: color }}
+      />
     </div>
   );
 }
@@ -205,27 +214,32 @@ export default function Analytics() {
   if (loading) return <Loader fullPage />;
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-4 md:space-y-6 max-w-5xl">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Analytics</h2>
-          <p className="text-sm text-neutral-500 mt-0.5">
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Analytics</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
             {tab === 'today'
               ? `Today · ${today} · Live from RTDB`
               : `${tabLabel} · Historical from Firestore`}
           </p>
         </div>
-        <div className="flex bg-neutral-100 rounded-xl p-1 gap-1">
+        <div className="flex rounded-xl p-1 gap-1 w-full sm:w-auto" style={{ background: 'var(--bg-secondary)' }}>
           {(['today', '7d', '30d'] as TabKey[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              className={`flex-1 sm:flex-none px-4 sm:px-3.5 py-2.5 sm:py-1.5 text-sm sm:text-xs font-semibold rounded-lg transition-all touch-manipulation ${
                 tab === t
-                  ? 'bg-white text-neutral-900 shadow-sm'
-                  : 'text-neutral-500 hover:text-neutral-700'
+                  ? 'shadow-sm'
+                  : ''
               }`}
+              style={{
+                background: tab === t ? 'var(--bg-primary)' : 'transparent',
+                color: tab === t ? 'var(--text-primary)' : 'var(--text-secondary)',
+                minHeight: '44px', // Touch-friendly on mobile
+              }}
             >
               {t === 'today' ? 'Today' : t === '7d' ? '7 Days' : '30 Days'}
             </button>
@@ -235,86 +249,89 @@ export default function Analytics() {
 
       {/* Loading spinner for history tabs */}
       {histLoading && (
-        <div className="flex items-center justify-center py-8">
-          <svg className="animate-spin w-5 h-5 text-primary-600 mr-2" viewBox="0 0 24 24" fill="none">
+        <div className="flex items-center justify-center py-12 sm:py-8">
+          <svg className="animate-spin w-6 h-6 sm:w-5 sm:h-5 mr-2" viewBox="0 0 24 24" fill="none" style={{ color: '#2563eb' }}>
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
           </svg>
-          <span className="text-sm text-neutral-500">Loading {tabLabel}…</span>
+          <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Loading {tabLabel}…</span>
         </div>
       )}
 
       {!histLoading && (
         <>
           {/* ── Summary cards ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             {[
               {
                 label: `${tabLabel} Runtime`,
                 value: fmtRuntime(totalRuntime),
                 unit: '',
-                icon: <Clock size={18} className="text-primary-600" />,
-                color: 'bg-primary-50',
+                icon: <Clock size={20} className="sm:w-[18px] sm:h-[18px]" style={{ color: '#2563eb' }} />,
+                iconBg: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
               },
               {
                 label: 'Energy Used',
                 value: totals.energyUsage.toFixed(3),
                 unit: 'kWh',
-                icon: <Zap size={18} className="text-yellow-600" />,
-                color: 'bg-yellow-50',
+                icon: <Zap size={20} className="sm:w-[18px] sm:h-[18px]" style={{ color: '#d97706' }} />,
+                iconBg: 'linear-gradient(135deg, #fef9c3, #fde68a)',
               },
               {
                 label: 'Light Runtime',
                 value: fmtRuntime(totals.light1Runtime + totals.light2Runtime + totals.light3Runtime),
                 unit: '',
-                icon: <Lightbulb size={18} className="text-yellow-600" />,
-                color: 'bg-yellow-50',
+                icon: <Lightbulb size={20} className="sm:w-[18px] sm:h-[18px]" style={{ color: '#d97706' }} />,
+                iconBg: 'linear-gradient(135deg, #fef9c3, #fde68a)',
               },
               {
                 label: 'Fan Runtime',
                 value: fmtRuntime(totals.fan1Runtime + totals.fan2Runtime),
                 unit: '',
-                icon: <Wind size={18} className="text-blue-600" />,
-                color: 'bg-blue-50',
+                icon: <Wind size={20} className="sm:w-[18px] sm:h-[18px]" style={{ color: '#2563eb' }} />,
+                iconBg: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
               },
             ].map(item => (
               <Card key={item.label}>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-9 h-9 ${item.color} rounded-xl flex items-center justify-center`}>
+                <div className="flex items-center gap-3 mb-3 sm:mb-2">
+                  <div 
+                    className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: item.iconBg }}
+                  >
                     {item.icon}
                   </div>
-                  <p className="text-xs text-neutral-500">{item.label}</p>
+                  <p className="text-sm sm:text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>{item.label}</p>
                 </div>
-                <p className="text-2xl font-bold text-neutral-900">
+                <p className="text-2xl sm:text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
                   {item.value}
-                  {item.unit && <span className="text-sm font-normal text-neutral-400 ml-1">{item.unit}</span>}
+                  {item.unit && <span className="text-base sm:text-sm font-normal ml-1" style={{ color: 'var(--text-tertiary)' }}>{item.unit}</span>}
                 </p>
               </Card>
             ))}
           </div>
 
           {/* ── Channel runtimes + Devices overview ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
             {/* Channel runtimes */}
             <Card>
               <div className="flex items-center gap-2 mb-5">
-                <BarChart3 size={16} className="text-primary-600" />
-                <h3 className="text-sm font-semibold text-neutral-900">Channel Runtimes</h3>
-                <span className="ml-auto text-xs text-neutral-400">{tabLabel}</span>
+                <BarChart3 size={18} className="sm:w-4 sm:h-4" style={{ color: '#2563eb' }} />
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Channel Runtimes</h3>
+                <span className="ml-auto text-xs" style={{ color: 'var(--text-tertiary)' }}>{tabLabel}</span>
               </div>
-              <div className="space-y-3.5">
+              <div className="space-y-4 sm:space-y-3.5">
                 {[
-                  { label: 'Light 1', value: totals.light1Runtime, color: 'bg-yellow-400' },
-                  { label: 'Light 2', value: totals.light2Runtime, color: 'bg-yellow-400' },
-                  { label: 'Light 3', value: totals.light3Runtime, color: 'bg-amber-400'  },
-                  { label: 'Fan 1',   value: totals.fan1Runtime,   color: 'bg-blue-400'   },
-                  { label: 'Fan 2',   value: totals.fan2Runtime,   color: 'bg-sky-400'    },
-                  { label: 'Custom',  value: totals.customRuntime, color: 'bg-purple-400' },
+                  { label: 'Light 1', value: totals.light1Runtime, color: '#fbbf24' },
+                  { label: 'Light 2', value: totals.light2Runtime, color: '#fbbf24' },
+                  { label: 'Light 3', value: totals.light3Runtime, color: '#f59e0b'  },
+                  { label: 'Fan 1',   value: totals.fan1Runtime,   color: '#60a5fa'   },
+                  { label: 'Fan 2',   value: totals.fan2Runtime,   color: '#38bdf8'    },
+                  { label: 'Custom',  value: totals.customRuntime, color: '#a78bfa' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
-                    <span className="text-xs text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
+                    <span className="text-sm sm:text-xs font-medium w-16 sm:w-14 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
                     <RuntimeBar value={item.value} max={maxRuntime} color={item.color} />
-                    <span className="text-xs font-semibold text-neutral-700 w-16 text-right flex-shrink-0">
+                    <span className="text-sm sm:text-xs font-semibold w-20 sm:w-16 text-right flex-shrink-0" style={{ color: 'var(--text-primary)' }}>
                       {fmtRuntime(item.value)}
                     </span>
                   </div>
@@ -325,13 +342,13 @@ export default function Analytics() {
             {/* Devices overview */}
             <Card>
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-semibold text-neutral-900">Devices Overview</h3>
-                <span className="text-xs text-neutral-400">{devices.length} devices</span>
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Devices Overview</h3>
+                <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{devices.length} devices</span>
               </div>
               {devices.length === 0 ? (
-                <p className="text-sm text-neutral-400 text-center py-8">No devices</p>
+                <p className="text-sm text-center py-12 sm:py-8" style={{ color: 'var(--text-tertiary)' }}>No devices</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4 sm:space-y-3">
                   {devices.map(device => {
                     const a = todayRtdb[device.deviceId];
                     const deviceRuntime = a
@@ -352,24 +369,27 @@ export default function Analytics() {
 
                     return (
                       <div key={device.id} className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Zap size={14} className="text-primary-600" />
+                        <div 
+                          className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ background: 'rgba(37, 99, 235, 0.1)' }}
+                        >
+                          <Zap size={16} className="sm:w-[14px] sm:h-[14px]" style={{ color: '#2563eb' }} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-neutral-900 truncate">{device.name}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-neutral-400">{device.room}</p>
-                            <span className={`flex items-center gap-1 text-xs ${isOnline ? 'text-success-600' : 'text-neutral-400'}`}>
-                              <span className={`w-1 h-1 rounded-full ${isOnline ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'}`} />
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{device.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{device.room}</p>
+                            <span className={`flex items-center gap-1 text-xs ${isOnline ? '' : ''}`} style={{ color: isOnline ? '#16a34a' : 'var(--text-tertiary)' }}>
+                              <span className={`w-1.5 h-1.5 sm:w-1 sm:h-1 rounded-full ${isOnline ? 'animate-pulse' : ''}`} style={{ background: isOnline ? '#22c55e' : 'var(--text-tertiary)' }} />
                               {isOnline ? 'Online' : 'Offline'}
                             </span>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-semibold text-neutral-900">
+                          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                             {tab === 'today' ? fmtRuntime(deviceRuntime) : `${energy.toFixed(3)} kWh`}
                           </p>
-                          <p className="text-xs text-neutral-400">
+                          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                             {tab === 'today' ? 'runtime' : 'energy'}
                           </p>
                         </div>
@@ -385,8 +405,8 @@ export default function Analytics() {
           {ROOMS.length > 0 && (
             <Card>
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-semibold text-neutral-900">Energy by Room</h3>
-                <span className="text-xs text-neutral-400">kWh · {tabLabel}</span>
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Energy by Room</h3>
+                <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>kWh · {tabLabel}</span>
               </div>
               <div className="space-y-4">
                 {ROOMS.map(room => {
@@ -407,11 +427,11 @@ export default function Analytics() {
                   ), 0.001);
                   return (
                     <div key={room}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm text-neutral-700">{room}</span>
-                        <span className="text-xs text-neutral-500">{energy.toFixed(3)} kWh</span>
+                      <div className="flex items-center justify-between mb-2 sm:mb-1.5">
+                        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{room}</span>
+                        <span className="text-sm sm:text-xs" style={{ color: 'var(--text-tertiary)' }}>{energy.toFixed(3)} kWh</span>
                       </div>
-                      <RuntimeBar value={energy} max={maxE} color="bg-primary-500" />
+                      <RuntimeBar value={energy} max={maxE} color="#2563eb" />
                     </div>
                   );
                 })}
@@ -423,51 +443,88 @@ export default function Analytics() {
 
       {/* ── Activity Logs ── */}
       <Card padding={false}>
-        <div className="px-5 py-4 border-b border-neutral-100">
-          <h3 className="text-sm font-semibold text-neutral-900">Activity Logs</h3>
-          <p className="text-xs text-neutral-400 mt-0.5">Recent device control actions</p>
+        <div className="px-4 md:px-5 py-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Activity Logs</h3>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Recent device control actions</p>
         </div>
         {logs.length === 0 ? (
-          <div className="py-12 text-center">
-            <Activity size={36} className="text-neutral-300 mx-auto mb-3" />
-            <p className="text-sm text-neutral-500">No activity recorded yet</p>
+          <div className="py-16 sm:py-12 text-center px-4">
+            <Activity size={40} className="sm:w-9 sm:h-9 mx-auto mb-3" style={{ color: 'var(--text-tertiary)' }} />
+            <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No activity recorded yet</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-100">
-                  {['Timestamp', 'Action', 'Performed By'].map(col => (
-                    <th key={col} className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase tracking-wide">
-                      {col}
-                    </th>
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    {['Timestamp', 'Action', 'Performed By'].map(col => (
+                      <th key={col} className="text-left py-3 px-5 text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
+                  {logs.map(log => (
+                    <tr 
+                      key={log.id} 
+                      className="transition-colors"
+                      style={{ background: 'transparent' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                          <Clock size={12} />
+                          <span>{formatTimestamp(log.timestamp)}</span>
+                          <span style={{ color: 'var(--text-tertiary)', opacity: 0.7 }}>({timeAgo(log.timestamp)})</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-6 h-6 rounded-lg flex items-center justify-center"
+                            style={{ background: 'rgba(37, 99, 235, 0.1)' }}
+                          >
+                            <Activity size={12} style={{ color: '#2563eb' }} />
+                          </div>
+                          <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{log.action}</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-5 text-sm" style={{ color: 'var(--text-secondary)' }}>{log.performedBy}</td>
+                    </tr>
                   ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {logs.map(log => (
-                  <tr key={log.id} className="hover:bg-neutral-50">
-                    <td className="py-3.5 px-5">
-                      <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y" style={{ borderColor: 'var(--border-color)' }}>
+              {logs.map(log => (
+                <div key={log.id} className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div 
+                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: 'rgba(37, 99, 235, 0.1)' }}
+                    >
+                      <Activity size={16} style={{ color: '#2563eb' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>{log.action}</p>
+                      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
                         <Clock size={12} />
                         <span>{formatTimestamp(log.timestamp)}</span>
-                        <span className="text-neutral-300">({timeAgo(log.timestamp)})</span>
+                        <span>({timeAgo(log.timestamp)})</span>
                       </div>
-                    </td>
-                    <td className="py-3.5 px-5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-primary-50 rounded-lg flex items-center justify-center">
-                          <Activity size={12} className="text-primary-600" />
-                        </div>
-                        <span className="text-sm text-neutral-700">{log.action}</span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-5 text-sm text-neutral-600">{log.performedBy}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>By {log.performedBy}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </Card>
     </div>

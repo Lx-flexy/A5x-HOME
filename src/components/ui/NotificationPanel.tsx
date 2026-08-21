@@ -82,26 +82,32 @@ export default function NotificationPanel({
 
     const updatePosition = () => {
       const anchorRect = anchor.current!.getBoundingClientRect();
-      const panelWidth = 380;
+      const isMobile = window.innerWidth < 640; // sm breakpoint
+      const panelWidth = isMobile ? Math.min(380, window.innerWidth - 24) : 380;
       const panelHeight = Math.min(500, window.innerHeight - 100);
 
       // Position below and aligned to right edge of bell
       let top = anchorRect.bottom + 8;
-      let left = anchorRect.right - panelWidth;
+      let left = isMobile ? 12 : anchorRect.right - panelWidth;
 
       // Check if would go off left edge
-      if (left < 10) {
-        left = 10;
+      if (left < 12) {
+        left = 12;
       }
 
       // Check if would go off right edge
-      if (left + panelWidth > window.innerWidth - 10) {
-        left = window.innerWidth - panelWidth - 10;
+      if (left + panelWidth > window.innerWidth - 12) {
+        left = window.innerWidth - panelWidth - 12;
       }
 
       // Check if would go below viewport
-      if (top + panelHeight > window.innerHeight - 10) {
+      if (top + panelHeight > window.innerHeight - 12) {
         top = anchorRect.top - panelHeight - 8;
+      }
+
+      // Ensure minimum top position
+      if (top < 12) {
+        top = 12;
       }
 
       setPosition({ top, left });
@@ -194,7 +200,7 @@ export default function NotificationPanel({
   return createPortal(
     <div
       ref={panelRef}
-      className="fixed rounded-xl shadow-2xl w-[380px] max-h-[500px] flex flex-col transition-colors duration-200"
+      className="fixed rounded-xl shadow-2xl w-[calc(100vw-24px)] sm:w-[380px] max-w-[380px] max-h-[500px] flex flex-col transition-colors duration-200"
       style={{
         top: position.top,
         left: position.left,
@@ -226,29 +232,33 @@ export default function NotificationPanel({
               {unreadCount > 0 && (
                 <button
                   onClick={onMarkAllAsRead}
-                  className="p-1.5 rounded-lg transition-all duration-200 hover:opacity-70"
+                  className="p-2 sm:p-1.5 rounded-lg transition-all duration-200 hover:opacity-70 touch-manipulation"
                   style={{
                     background: 'var(--bg-secondary)',
                     color: 'var(--text-secondary)',
+                    minHeight: '44px', // Touch-friendly
+                    minWidth: '44px',
                   }}
                   title="Mark all as read"
                   aria-label="Mark all as read"
                 >
-                  <Check size={14} />
+                  <Check size={16} className="sm:w-[14px] sm:h-[14px]" />
                 </button>
               )}
               <button
                 onClick={handleDeleteAllClick}
                 disabled={isDeleting}
-                className="p-1.5 rounded-lg transition-all duration-200 hover:opacity-70 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-2 sm:p-1.5 rounded-lg transition-all duration-200 hover:opacity-70 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
                 style={{
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-secondary)',
+                  minHeight: '44px', // Touch-friendly
+                  minWidth: '44px',
                 }}
                 title="Delete all"
                 aria-label="Delete all notifications"
               >
-                <Trash2 size={14} />
+                <Trash2 size={16} className="sm:w-[14px] sm:h-[14px]" />
               </button>
             </>
           )}

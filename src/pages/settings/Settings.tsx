@@ -100,26 +100,30 @@ export default function Settings() {
         <p className="text-sm text-neutral-500 mt-0.5">Manage your account and preferences</p>
       </div>
 
-      <div className="flex gap-5 flex-col sm:flex-row">
-        <div className="sm:w-52 flex-shrink-0">
+      <div className="flex gap-5 flex-col lg:flex-row">
+        <div className="lg:w-52 flex-shrink-0">
           <Card padding={false}>
             <div className="p-2 space-y-0.5">
-              {sections.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => setSection(s.id)}
-                  className={`sidebar-link w-full text-left ${section === s.id ? 'active' : ''}`}
-                >
-                  {s.icon}
-                  {s.label}
-                </button>
-              ))}
+              <div className="grid grid-cols-3 lg:grid-cols-1 gap-0.5 lg:space-y-0.5 lg:block">
+                {sections.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSection(s.id)}
+                    className={`sidebar-link w-full text-left flex-col lg:flex-row items-center lg:items-start justify-center lg:justify-start gap-1 lg:gap-2 py-3 lg:py-2 text-xs lg:text-sm ${section === s.id ? 'active' : ''}`}
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    {s.icon}
+                    <span className="lg:inline">{s.label}</span>
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={() => setLogoutModal(true)}
-                className="sidebar-link w-full text-left text-error-500 hover:bg-error-50 hover:text-error-600"
+                className="sidebar-link w-full text-left text-error-500 hover:bg-error-50 hover:text-error-600 flex items-center justify-center lg:justify-start gap-2 py-3 lg:py-2 text-xs lg:text-sm mt-2 lg:mt-0"
+                style={{ touchAction: 'manipulation' }}
               >
                 <LogOut size={16} />
-                Logout
+                <span className="lg:inline">Logout</span>
               </button>
             </div>
           </Card>
@@ -129,55 +133,75 @@ export default function Settings() {
           {section === 'profile' && (
             <Card>
               <h3 className="text-sm font-semibold text-neutral-900 mb-5">Profile Information</h3>
-              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-neutral-100">
-                <div className="w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6 pb-6 border-b border-neutral-100">
+                <div className="w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-xl font-bold text-white">
                     {(userData?.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                   </span>
                 </div>
-                <div>
-                  <p className="font-semibold text-neutral-900">{userData?.name}</p>
-                  <p className="text-sm text-neutral-500">{user?.email}</p>
-                  <p className="text-xs text-neutral-400 mt-1 font-mono">{userData?.userId}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-neutral-900 break-words">{userData?.name}</p>
+                  <p className="text-sm text-neutral-500 break-all">{user?.email}</p>
+                  <p className="text-xs text-neutral-400 mt-1 font-mono break-all">{userData?.userId}</p>
                 </div>
               </div>
-              <form onSubmit={handleProfileSave} className="space-y-4">
+              <form onSubmit={handleProfileSave} className="space-y-5">
                 <div>
                   <label className="form-label">Full Name</label>
                   <input
                     type="text"
-                    className="form-input"
+                    className="form-input min-h-[44px]"
                     value={profileForm.name}
                     onChange={e => setProfileForm({ name: e.target.value })}
+                    style={{ touchAction: 'manipulation' }}
                   />
                 </div>
                 <div>
                   <label className="form-label">Email</label>
-                  <input type="email" className="form-input bg-neutral-50" value={user?.email || ''} disabled />
-                  <p className="text-xs text-neutral-400 mt-1">Email cannot be changed here.</p>
+                  <input 
+                    type="email" 
+                    className="form-input bg-neutral-50 min-h-[44px]" 
+                    value={user?.email || ''} 
+                    disabled 
+                  />
+                  <p className="text-xs text-neutral-400 mt-2">Email cannot be changed here.</p>
                 </div>
                 <div>
                   <label className="form-label">User ID</label>
                   <div className="relative">
-                    <input type="text" className="form-input bg-neutral-50 font-mono text-xs pr-10" value={userData?.userId || ''} disabled />
+                    <input 
+                      type="text" 
+                      className="form-input bg-neutral-50 font-mono text-xs pr-12 min-h-[44px] break-all" 
+                      value={userData?.userId || ''} 
+                      disabled 
+                    />
                     <button
                       type="button"
                       onClick={handleCopyUserId}
                       title="Copy User ID"
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-all"
-                      style={{ color: copiedUserId ? '#16a34a' : '#9ca3af' }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all min-w-[36px] min-h-[36px] flex items-center justify-center"
+                      style={{ 
+                        color: copiedUserId ? '#16a34a' : '#9ca3af',
+                        touchAction: 'manipulation' 
+                      }}
                     >
-                      {copiedUserId ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedUserId ? <Check size={16} /> : <Copy size={16} />}
                     </button>
                   </div>
                   {copiedUserId && (
-                    <p className="text-xs mt-1" style={{ color: '#16a34a' }}>Copied to clipboard!</p>
+                    <p className="text-sm mt-2" style={{ color: '#16a34a' }}>Copied to clipboard!</p>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
-                  <Button type="submit" loading={savingProfile}>Save Changes</Button>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+                  <Button 
+                    type="submit" 
+                    loading={savingProfile}
+                    className="w-full sm:w-auto min-h-[44px]"
+                  >
+                    Save Changes
+                  </Button>
                   {profileSaved && (
-                    <span className="flex items-center gap-1.5 text-sm text-success-600">
+                    <span className="flex items-center justify-center sm:justify-start gap-1.5 text-sm text-success-600">
                       <Check size={15} /> Saved
                     </span>
                   )}
@@ -189,21 +213,31 @@ export default function Settings() {
           {section === 'security' && (
             <Card>
               <h3 className="text-sm font-semibold text-neutral-900 mb-5">Change Password</h3>
-              {pwError && <div className="mb-4 p-3 bg-error-50 border border-red-200 rounded-lg text-sm text-error-600">{pwError}</div>}
-              <form onSubmit={handlePasswordChange} className="space-y-4">
+              {pwError && (
+                <div className="mb-4 p-3 bg-error-50 border border-red-200 rounded-lg text-sm text-error-600 break-words">
+                  {pwError}
+                </div>
+              )}
+              <form onSubmit={handlePasswordChange} className="space-y-5">
                 <div>
                   <label className="form-label">Current Password</label>
                   <div className="relative">
                     <input
                       type={showPw ? 'text' : 'password'}
-                      className="form-input pr-10"
+                      className="form-input pr-12 min-h-[44px]"
                       placeholder="Current password"
                       value={pwForm.current}
                       onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))}
                       required
+                      style={{ touchAction: 'manipulation' }}
                     />
-                    <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
-                      {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                    <button 
+                      type="button" 
+                      onClick={() => setShowPw(!showPw)} 
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 p-2 rounded-lg min-w-[36px] min-h-[36px] flex items-center justify-center"
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
@@ -211,28 +245,36 @@ export default function Settings() {
                   <label className="form-label">New Password</label>
                   <input
                     type={showPw ? 'text' : 'password'}
-                    className="form-input"
+                    className="form-input min-h-[44px]"
                     placeholder="New password (min 8 chars)"
                     value={pwForm.newPw}
                     onChange={e => setPwForm(p => ({ ...p, newPw: e.target.value }))}
                     required
+                    style={{ touchAction: 'manipulation' }}
                   />
                 </div>
                 <div>
                   <label className="form-label">Confirm New Password</label>
                   <input
                     type={showPw ? 'text' : 'password'}
-                    className="form-input"
+                    className="form-input min-h-[44px]"
                     placeholder="Confirm new password"
                     value={pwForm.confirm}
                     onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
                     required
+                    style={{ touchAction: 'manipulation' }}
                   />
                 </div>
-                <div className="flex items-center gap-3">
-                  <Button type="submit" loading={savingPw}>Update Password</Button>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+                  <Button 
+                    type="submit" 
+                    loading={savingPw}
+                    className="w-full sm:w-auto min-h-[44px]"
+                  >
+                    Update Password
+                  </Button>
                   {pwSaved && (
-                    <span className="flex items-center gap-1.5 text-sm text-success-600">
+                    <span className="flex items-center justify-center sm:justify-start gap-1.5 text-sm text-success-600">
                       <Check size={15} /> Updated
                     </span>
                   )}
@@ -251,12 +293,12 @@ export default function Settings() {
                   { key: 'memberAdded', label: 'Member added', desc: 'Get notified when a new member joins' },
                   { key: 'activityLog', label: 'Activity log updates', desc: 'Get notified for device state changes' },
                 ] as { key: keyof typeof notifications; label: string; desc: string }[]).map(item => (
-                  <div key={item.key} className="flex items-center justify-between py-3.5 border-b border-neutral-100 last:border-0">
-                    <div>
+                  <div key={item.key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-4 border-b border-neutral-100 last:border-0">
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-neutral-900">{item.label}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">{item.desc}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5 break-words">{item.desc}</p>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch flex-shrink-0 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={notifications[item.key]}
@@ -267,6 +309,7 @@ export default function Settings() {
                             await updateNotificationPreferences(user.uid, updated).catch(() => {});
                           }
                         }}
+                        style={{ touchAction: 'manipulation' }}
                       />
                       <div className="toggle-track">
                         <div className="toggle-thumb" />
@@ -282,9 +325,21 @@ export default function Settings() {
 
       <Modal open={logoutModal} onClose={() => setLogoutModal(false)} title="Logout">
         <p className="text-sm text-neutral-600 mb-5">Are you sure you want to logout?</p>
-        <div className="flex gap-3 justify-end">
-          <Button variant="secondary" onClick={() => setLogoutModal(false)}>Cancel</Button>
-          <Button variant="danger" onClick={handleLogout}>Logout</Button>
+        <div className="flex flex-col sm:flex-row gap-3 justify-end">
+          <Button 
+            variant="secondary" 
+            onClick={() => setLogoutModal(false)}
+            className="w-full sm:w-auto min-h-[44px] order-2 sm:order-1"
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="danger" 
+            onClick={handleLogout}
+            className="w-full sm:w-auto min-h-[44px] order-1 sm:order-2"
+          >
+            Logout
+          </Button>
         </div>
       </Modal>
     </div>

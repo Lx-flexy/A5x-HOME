@@ -48,8 +48,9 @@ function Toast({ toast }: { toast: ToastNotification }) {
     <div
       className={`toast-item ${isExiting ? 'toast-exit' : 'toast-enter'}`}
       style={{
-        minWidth: '320px',
-        maxWidth: '400px',
+        minWidth: '280px',
+        maxWidth: 'min(400px, calc(100vw - 24px))',
+        width: '100%',
       }}
     >
       <div
@@ -135,7 +136,7 @@ export default function ToastContainer() {
 
   return (
     <div
-      className="fixed top-20 right-6 z-[9998] flex flex-col gap-3"
+      className="fixed top-20 right-3 sm:right-6 z-[9998] flex flex-col gap-3 max-w-[calc(100vw-24px)]"
       style={{
         pointerEvents: 'none',
       }}

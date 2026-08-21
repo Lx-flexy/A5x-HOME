@@ -143,7 +143,7 @@ export default function Devices() {
 
       <Card padding={false}>
         {loading ? <Loader /> : devices.length === 0 ? (
-          <div className="py-16 text-center">
+          <div className="py-16 text-center px-4">
             <Cpu size={40} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-3" />
             <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No devices added yet</p>
             <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-tertiary)' }}>Add your first ESP32 smart home controller.</p>
@@ -153,12 +153,13 @@ export default function Devices() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop/Tablet Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                     {['Device Name', 'Device ID', 'Room', 'Location', 'Status', 'Actions'].map(col => (
-                      <th key={col} className="text-left py-3 px-5 text-xs font-medium uppercase tracking-wide whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
+                      <th key={col} className="text-left py-3 px-3 lg:px-5 text-xs font-medium uppercase tracking-wide whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
                         {col}
                       </th>
                     ))}
@@ -187,7 +188,98 @@ export default function Devices() {
                 </tbody>
               </table>
             </div>
-            <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y" style={{ borderColor: 'var(--border-color)' }}>
+              {devices.map(device => {
+                const isOnline = isDeviceOnline(device.deviceId);
+                return (
+                  <div key={device.id} className="p-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-12 h-12 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Cpu size={20} className="text-primary-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{device.name}</p>
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium flex-shrink-0 ml-2 ${isOnline ? 'text-success-600' : ''}`} style={{ color: isOnline ? '#16a34a' : 'var(--text-tertiary)' }}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-success-500 animate-pulse' : ''}`} style={{ background: isOnline ? '#22c55e' : 'var(--text-tertiary)' }} />
+                            {isOnline ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                        <p className="text-xs font-mono mb-2" style={{ color: 'var(--text-tertiary)' }}>{device.deviceId}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{device.room}</span>
+                          <span style={{ color: 'var(--text-tertiary)' }}>•</span>
+                          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{device.location}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Mobile Action Buttons */}
+                    <div className="flex gap-2">
+                      <Link
+                        to={`/devices/${device.id}`}
+                        className="flex-1 text-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors touch-manipulation"
+                        style={{
+                          color: '#2563eb',
+                          background: 'rgba(37, 99, 235, 0.1)',
+                          minHeight: '44px',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.15)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.1)'}
+                      >
+                        <span className="flex items-center justify-center gap-2">
+                          <span>Manage Device</span>
+                          <ChevronRight size={14} />
+                        </span>
+                      </Link>
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleMenuToggle(device.id, e);
+                          }}
+                          className="p-2.5 rounded-lg transition-colors touch-manipulation"
+                          style={{
+                            background: 'var(--bg-secondary)',
+                            color: 'var(--text-secondary)',
+                            minHeight: '44px',
+                            minWidth: '44px',
+                          }}
+                          aria-label="More options"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        
+                        {/* Mobile Dropdown Menu */}
+                        <Dropdown
+                          isOpen={menuOpen === device.id}
+                          onClose={handleMenuClose}
+                          anchor={{ current: null }} // Will be positioned differently
+                        >
+                          <DropdownItem onClick={() => handleEdit(device)} icon={<Edit2 size={13} />}>
+                            Edit Device
+                          </DropdownItem>
+                          <DropdownItem onClick={() => handleRename(device)} icon={<FileEdit size={13} />}>
+                            Rename Device
+                          </DropdownItem>
+                          <DropdownItem onClick={() => handleManageMembers(device)} icon={<Users size={13} />}>
+                            Manage Members
+                          </DropdownItem>
+                          <DropdownDivider />
+                          <DropdownItem onClick={() => handleDeleteClick(device)} icon={<Trash2 size={13} />} variant="danger">
+                            Remove Device
+                          </DropdownItem>
+                        </Dropdown>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="px-4 md:px-5 py-3" style={{ borderTop: '1px solid var(--border-color)' }}>
               <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                 {devices.length} device{devices.length !== 1 ? 's' : ''} · {devices.filter(d => isDeviceOnline(d.deviceId)).length} online
               </p>
@@ -279,44 +371,49 @@ function DeviceRow({
       onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
     >
-      <td className="py-3.5 px-5">
+      <td className="py-3.5 px-3 lg:px-5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
             <Cpu size={15} className="text-primary-600" />
           </div>
-          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{device.name}</span>
+          <span className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>{device.name}</span>
         </div>
       </td>
-      <td className="py-3.5 px-5 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{device.deviceId}</td>
-      <td className="py-3.5 px-5" style={{ color: 'var(--text-secondary)' }}>{device.room}</td>
-      <td className="py-3.5 px-5" style={{ color: 'var(--text-secondary)' }}>{device.location}</td>
-      <td className="py-3.5 px-5">
+      <td className="py-3.5 px-3 lg:px-5 font-mono text-xs hidden lg:table-cell" style={{ color: 'var(--text-secondary)' }}>{device.deviceId}</td>
+      <td className="py-3.5 px-3 lg:px-5" style={{ color: 'var(--text-secondary)' }}>{device.room}</td>
+      <td className="py-3.5 px-3 lg:px-5 hidden xl:table-cell" style={{ color: 'var(--text-secondary)' }}>{device.location}</td>
+      <td className="py-3.5 px-3 lg:px-5">
         <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${isOnline ? 'text-success-600' : ''}`} style={{ color: isOnline ? '#16a34a' : 'var(--text-tertiary)' }}>
           <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-success-500 animate-pulse' : ''}`} style={{ background: isOnline ? '#22c55e' : 'var(--text-tertiary)' }} />
           {isOnline ? 'Online' : 'Offline'}
         </span>
       </td>
-      <td className="py-3.5 px-5">
+      <td className="py-3.5 px-3 lg:px-5">
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <Link
             to={`/devices/${device.id}`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors touch-manipulation"
             style={{
               color: '#2563eb',
               background: 'rgba(37, 99, 235, 0.1)',
+              minHeight: '36px', // Smaller but still touch-friendly
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.15)'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.1)'}
           >
-            Manage <ChevronRight size={12} />
+            <span className="hidden lg:inline">Manage</span>
+            <span className="lg:hidden">Edit</span>
+            <ChevronRight size={12} />
           </Link>
           <button
             ref={menuButtonRef}
             onClick={onMenuToggle}
-            className="p-1.5 rounded-lg transition-colors"
+            className="p-1.5 rounded-lg transition-colors touch-manipulation"
             style={{
               background: 'transparent',
               color: 'var(--text-tertiary)',
+              minHeight: '36px',
+              minWidth: '36px',
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}

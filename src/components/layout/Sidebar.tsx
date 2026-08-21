@@ -41,66 +41,71 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile overlay - enhanced for better touch interaction */}
       {open && (
         <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-20 lg:hidden"
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-20 lg:hidden touch-manipulation"
           onClick={onClose}
+          onTouchStart={onClose} // Better mobile interaction
         />
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-full w-64 z-30 flex flex-col transition-all duration-300 lg:translate-x-0 lg:static lg:z-auto ${
+        className={`fixed top-0 left-0 h-full w-64 z-30 flex flex-col transition-all duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
           background: 'var(--bg-primary)',
-          boxShadow: '6px 0 24px var(--shadow-sm)',
+          boxShadow: open ? '6px 0 24px var(--shadow-sm)' : 'none',
         }}
       >
         {/* ── Logo ── */}
         <div
-          className="flex items-center justify-between px-5 h-[68px] flex-shrink-0"
+          className="flex items-center justify-between px-4 sm:px-5 h-[68px] flex-shrink-0"
           style={{ borderBottom: '1px solid var(--border-color)' }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* A5X Logo — responsive sizing */}
             <img
               src="/logo.png"
               alt="A5X Home Logo"
-              className="flex-shrink-0 object-contain"
-              style={{
-                width: 'clamp(32px, 5vw, 44px)',
-                height: 'clamp(32px, 5vw, 44px)',
-              }}
+              className="flex-shrink-0 object-contain w-8 h-8 sm:w-10 sm:h-10"
             />
-            <div>
-              <span className="font-bold text-base tracking-tight leading-none" style={{ color: 'var(--text-primary)' }}>A5X Home</span>
-              <p className="text-[10px] font-medium leading-none mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Smart Home</p>
+            <div className="min-w-0">
+              <span className="font-bold text-sm sm:text-base tracking-tight leading-none block truncate" style={{ color: 'var(--text-primary)' }}>A5X Home</span>
+              <p className="text-[9px] sm:text-[10px] font-medium leading-none mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Smart Home</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 rounded-xl transition-all duration-200 hover:opacity-80"
+            className="lg:hidden p-1.5 rounded-xl transition-all duration-200 hover:opacity-80 touch-manipulation"
             style={{ 
               background: 'var(--bg-secondary)', 
               boxShadow: 'var(--neo-shadow)',
               color: 'var(--text-secondary)',
+              minWidth: '44px', // Touch-friendly minimum size
+              minHeight: '44px',
             }}
+            aria-label="Close navigation"
           >
             <X size={15} />
           </button>
         </div>
 
         {/* ── Nav ── */}
-        <nav className="flex-1 px-3.5 py-5 space-y-1 overflow-y-auto">
-          <p className="text-[10px] font-bold uppercase tracking-widest px-3.5 mb-3" style={{ color: 'var(--text-tertiary)' }}>Navigation</p>
+        <nav className="flex-1 px-3 sm:px-3.5 py-4 sm:py-5 space-y-1 overflow-y-auto">
+          <p className="text-[10px] font-bold uppercase tracking-widest px-3 sm:px-3.5 mb-3" style={{ color: 'var(--text-tertiary)' }}>Navigation</p>
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               onClick={onClose}
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+              style={{
+                minHeight: '44px', // Touch-friendly height on mobile
+                display: 'flex',
+                alignItems: 'center',
+              }}
             >
               <Icon size={17} />
               {label}
@@ -110,12 +115,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* ── User footer ── */}
         <div
-          className="px-3.5 py-4 flex-shrink-0 space-y-2"
+          className="px-3 sm:px-3.5 py-3 sm:py-4 flex-shrink-0 space-y-2"
           style={{ borderTop: '1px solid var(--border-color)' }}
         >
           {userData && (
             <div
-              className="flex items-center gap-3 px-3 py-3 rounded-2xl mb-1"
+              className="flex items-center gap-2 sm:gap-3 px-3 py-3 rounded-2xl mb-1"
               style={{
                 background: 'var(--bg-secondary)',
                 boxShadow: 'var(--neo-inset)',
@@ -130,7 +135,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               >
                 <span className="text-xs font-bold text-white">{initials}</span>
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{userData.name}</p>
                 <p className="text-[10px] truncate" style={{ color: 'var(--text-tertiary)' }}>{userData.userId}</p>
               </div>
@@ -138,8 +143,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           )}
           <button
             onClick={handleLogout}
-            className="sidebar-link w-full text-left"
-            style={{ color: '#ef4444' }}
+            className="sidebar-link w-full text-left touch-manipulation"
+            style={{ 
+              color: '#ef4444',
+              minHeight: '44px', // Touch-friendly height on mobile
+              display: 'flex',
+              alignItems: 'center',
+            }}
           >
             <LogOut size={17} />
             Logout

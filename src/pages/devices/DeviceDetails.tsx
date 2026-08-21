@@ -302,7 +302,7 @@ function CompactDeviceItem({
         <button
           onClick={onRemove}
           disabled={disabled}
-          className="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 z-10"
+          className="absolute top-2 right-2 w-7 h-7 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center transition-all duration-200 z-10 touch-manipulation"
           style={{
             background: 'var(--bg-secondary)',
             boxShadow: 'var(--neo-shadow)',
@@ -339,7 +339,7 @@ function CompactDeviceItem({
           <span style={{ color: checked ? customColor : 'var(--text-secondary)' }}>{icon}</span>
         </div>
         {/* Toggle - positioned with proper spacing from remove button */}
-        <div style={{ marginTop: onRemove ? '28px' : '0' }}>
+        <div style={{ marginTop: onRemove ? '32px' : '0' }}>
           <IOSToggle checked={checked} onChange={onChange} disabled={disabled} customColor={customColor} />
         </div>
       </div>
@@ -844,10 +844,10 @@ export default function DeviceDetails() {
   const allFansOff = !o?.fan1 && !o?.fan2;
 
   return (
-    <div className="space-y-6 max-w-7xl pb-8">
+    <div className="space-y-4 md:space-y-6 max-w-7xl pb-8">
 
       {/* ── Breadcrumb ── */}
-      <div className="flex items-center gap-1.5 text-sm">
+      <div className="flex items-center gap-1.5 text-xs md:text-sm">
         <Link to="/devices" className="transition-colors font-medium" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}>
           Devices
         </Link>
@@ -859,13 +859,13 @@ export default function DeviceDetails() {
           HEADER CARD
       ══════════════════════════════════════════════════════ */}
       <NeoCard>
-        <div className="flex items-start justify-between flex-wrap gap-5">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
 
           {/* Left: icon + info */}
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3 md:gap-4 w-full sm:w-auto">
             {/* Device Icon */}
             <div
-              className="w-16 h-16 rounded-[22px] flex items-center justify-center flex-shrink-0"
+              className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-[22px] flex items-center justify-center flex-shrink-0"
               style={
                 isOnline
                   ? {
@@ -878,17 +878,17 @@ export default function DeviceDetails() {
                     }
               }
             >
-              <Cpu size={28} className="text-white" />
+              <Cpu size={20} className="text-white md:w-7 md:h-7" style={{ width: '20px', height: '20px' }} />
             </div>
 
             {/* Info */}
-            <div>
-              <div className="flex items-center gap-3 flex-wrap mb-2">
-                <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{device.name}</h2>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 md:gap-3 flex-wrap mb-2">
+                <h2 className="text-lg md:text-xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>{device.name}</h2>
                 <OnlinePill online={isOnline} />
               </div>
               {/* Meta grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5">
                 {[
                   { icon: <Cpu size={11} />,    text: device.deviceId,              mono: true  },
                   { icon: <Bolt size={11} />,   text: `Firmware ${device.firmware || 'v1.2.4'}` },
@@ -910,42 +910,68 @@ export default function DeviceDetails() {
           </div>
 
           {/* Right: actions */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <PillBtn
-              label="⚡ All On"
-              active={allOn}
-              activeColor="#ffffff"
-              activeBg="linear-gradient(135deg,#2563eb,#3b82f6)"
-              activeGlow="rgba(37,99,235,0.35)"
-              onClick={() => toggleAllDevices(true)}
-            />
-            <PillBtn
-              label="⚡ All Off"
-              active={allOff}
-              activeColor="#ffffff"
-              activeBg="linear-gradient(135deg,#374151,#4b5563)"
-              activeGlow="rgba(55,65,81,0.3)"
-              onClick={() => toggleAllDevices(false)}
-            />
-            <div className="w-px h-5" style={{ background: 'rgba(166,180,200,0.4)' }} />
-            <Button variant="secondary" size="sm" onClick={() => setEditModal(true)}>
-              <Edit2 size={13} /> Edit
-            </Button>
-            <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>
-              <Trash size={13} /> Remove
-            </Button>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 items-stretch sm:items-center w-full sm:w-auto justify-start sm:justify-end">
+            <div className="flex gap-2 items-center">
+              <PillBtn
+                label="⚡ All On"
+                active={allOn}
+                activeColor="#ffffff"
+                activeBg="linear-gradient(135deg,#2563eb,#3b82f6)"
+                activeGlow="rgba(37,99,235,0.35)"
+                onClick={() => toggleAllDevices(true)}
+              />
+              <PillBtn
+                label="⚡ All Off"
+                active={allOff}
+                activeColor="#ffffff"
+                activeBg="linear-gradient(135deg,#374151,#4b5563)"
+                activeGlow="rgba(55,65,81,0.3)"
+                onClick={() => toggleAllDevices(false)}
+              />
+            </div>
+            <div className="w-px h-5 hidden sm:block" style={{ background: 'rgba(166,180,200,0.4)' }} />
+            <div className="flex gap-2 items-center">
+              <Button variant="secondary" size="sm" onClick={() => setEditModal(true)}>
+                <Edit2 size={13} /> Edit
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>
+                <Trash size={13} /> Remove
+              </Button>
+            </div>
           </div>
         </div>
       </NeoCard>
 
       {/* ══════════════════════════════════════════════════════
-          MAIN GRID
+          MAIN RESPONSIVE LAYOUT
       ══════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      {/* Mobile: Single column stack | Tablet: 2 columns | Desktop: 3 columns */}
+      <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 md:gap-5">
 
         {/* ═══ DEVICE OUTPUTS (MAX 6) ═══ */}
-        <NeoCard className="md:col-span-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Mobile: Full width | Desktop: Spans 2 columns */}
+        <div className="lg:col-span-2 order-1">
+          <NeoCard>
+            <SectionHeader
+              icon={<Zap size={17} />}
+              iconBg="linear-gradient(135deg,#dbeafe,#bfdbfe)"
+              iconColor="#2563eb"
+              title="Output Controls"
+              actions={
+                <div className="flex items-center gap-2 flex-wrap">
+                  <PillBtn
+                    label="💡 Lights"
+                    active={allLightsOn}
+                    activeColor="#ffffff"
+                    activeBg="linear-gradient(135deg,#f59e0b,#fbbf24)"
+                    activeGlow="rgba(245,158,11,0.35)"
+                    onClick={() => toggleAllLights(!allLightsOn)}
+                  />
+                </div>
+              }
+            />
+            {/* Responsive grid for output cards */}
+            <div className="grid grid-responsive-output-cards gap-3">
             {(() => {
               // Define all 6 output slots (hardware limit)
               const allOutputs: Array<{
@@ -1000,38 +1026,42 @@ export default function DeviceDetails() {
                     );
                   })}
 
-                  {/* ═══ ADD BUTTON ═══ */}
-                  {canAddMore && (
-                    <button
-                      onClick={handleShowNextOutput}
-                      disabled={isOffline}
-                      className="rounded-2xl p-4 transition-all duration-300 border-2 border-dashed flex flex-col items-center justify-center gap-2 min-h-[120px] hover:border-primary-400"
-                      style={{
-                        background: 'var(--bg-primary)',
-                        boxShadow: 'var(--neo-shadow)',
-                        borderColor: 'var(--border-color)',
-                      }}
-                    >
-                      <div 
-                        className="w-11 h-11 rounded-2xl flex items-center justify-center"
+                    {/* ═══ ADD BUTTON ═══ */}
+                    {canAddMore && (
+                      <button
+                        onClick={handleShowNextOutput}
+                        disabled={isOffline}
+                        className="rounded-2xl p-4 transition-all duration-300 border-2 border-dashed flex flex-col items-center justify-center gap-2 min-h-[120px] hover:border-primary-400 touch-manipulation"
                         style={{
-                          background: 'var(--bg-secondary)',
+                          background: 'var(--bg-primary)',
                           boxShadow: 'var(--neo-shadow)',
+                          borderColor: 'var(--border-color)',
                         }}
+                        aria-label="Add new output"
                       >
-                        <Plus size={20} style={{ color: 'var(--text-secondary)' }} />
-                      </div>
-                      <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Add Output</span>
-                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{visibleCount} of 6</span>
-                    </button>
-                  )}
+                        <div 
+                          className="w-11 h-11 rounded-2xl flex items-center justify-center"
+                          style={{
+                            background: 'var(--bg-secondary)',
+                            boxShadow: 'var(--neo-shadow)',
+                          }}
+                        >
+                          <Plus size={20} style={{ color: 'var(--text-secondary)' }} />
+                        </div>
+                        <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Add Output</span>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{visibleCount} of 6</span>
+                      </button>
+                    )}
                 </>
               );
             })()}
           </div>
         </NeoCard>
+        </div>
 
         {/* ═══ DEVICE HEALTH ═══ */}
+        {/* Mobile: Full width | Desktop: Right column */}
+        <div className="order-2">
         <NeoCard>
           <SectionHeader
             icon={<Activity size={17} />}
@@ -1086,11 +1116,13 @@ export default function DeviceDetails() {
             <HealthRow icon={<RotateCcw size={13} />}   label="Restart Count" value={h?.restartCount ?? '–'} />
           </div>
         </NeoCard>
+        </div>
 
         {/* ═══ ANALYTICS (spans 2 cols on xl) ═══ */}
-        <div className="md:col-span-2 xl:col-span-2">
+        {/* Mobile: Full width | Desktop: Spans 2 columns */}
+        <div className="lg:col-span-2 xl:col-span-2 order-3">
           <NeoCard>
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-3 mb-5 flex-wrap">
               <div
                 className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', boxShadow: '3px 3px 8px rgba(166,180,200,0.35), -3px -3px 8px rgba(255,255,255,0.8)' }}
@@ -1102,7 +1134,7 @@ export default function DeviceDetails() {
               <button
                 onClick={handleResetAnalytics}
                 disabled={resetting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-40 touch-manipulation"
                 style={{
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-tertiary)',
@@ -1116,8 +1148,8 @@ export default function DeviceDetails() {
               </button>
             </div>
 
-            {/* Summary stat cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            {/* Summary stat cards - responsive grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
               {[
                 { label: 'Total Runtime', value: fmtRuntime(totalRuntime),                            icon: <Clock size={15} />,    grad: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', ic: '#2563eb' },
                 { label: 'Energy Used',   value: `${(an?.energyUsage || 0).toFixed(3)} kWh`,         icon: <Zap size={15} />,      grad: 'linear-gradient(135deg,#fef9c3,#fde68a)', ic: '#d97706' },
@@ -1126,7 +1158,7 @@ export default function DeviceDetails() {
               ].map(item => (
                 <div
                   key={item.label}
-                  className="rounded-2xl p-4 transition-colors duration-200"
+                  className="rounded-2xl p-3 sm:p-4 transition-colors duration-200"
                   style={{
                     background: 'var(--bg-secondary)',
                     boxShadow: 'var(--neo-inset)',
@@ -1135,8 +1167,8 @@ export default function DeviceDetails() {
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3" style={{ background: item.grad }}>
                     <span style={{ color: item.ic }}>{item.icon}</span>
                   </div>
-                  <p className="text-base font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
-                  <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{item.label}</p>
+                  <p className="text-sm sm:text-base font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
+                  <p className="text-[10px] sm:text-xs font-medium mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{item.label}</p>
                 </div>
               ))}
             </div>
@@ -1153,11 +1185,11 @@ export default function DeviceDetails() {
               ].map(item => {
                 const metadata = outputMetadata ? getOutputMetadata(outputMetadata, item.key) : { name: item.key, icon: 'zap' };
                 return (
-                <div key={item.key} className="flex items-center gap-3">
+                <div key={item.key} className="flex items-center gap-2 md:gap-3">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
-                  <span className="text-xs font-medium w-14 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{metadata.name}</span>
+                  <span className="text-[11px] md:text-xs font-medium w-12 md:w-14 flex-shrink-0 truncate" style={{ color: 'var(--text-secondary)' }}>{metadata.name}</span>
                   <RuntimeBar value={item.total} max={maxRuntime} color={item.color} />
-                  <div className="flex items-center gap-1.5 w-24 justify-end flex-shrink-0">
+                  <div className="flex items-center gap-1 md:gap-1.5 w-20 md:w-24 justify-end flex-shrink-0">
                     {item.isOn && <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: '#22c55e' }} />}
                     <span className="text-xs font-bold" style={{ color: item.isOn ? '#16a34a' : 'var(--text-primary)' }}>
                       {fmtRuntime(item.total)}
@@ -1171,6 +1203,8 @@ export default function DeviceDetails() {
         </div>
 
         {/* ═══ OLED ═══ */}
+        {/* Mobile: Full width | Desktop: Right column */}
+        <div className="order-4">
         <NeoCard>
           <SectionHeader
             icon={<Monitor size={17} />}
@@ -1216,8 +1250,11 @@ export default function DeviceDetails() {
             </div>
           </div>
         </NeoCard>
+        </div>
 
         {/* ═══ BUZZER ═══ */}
+        {/* Mobile: Full width | Desktop: Right column */}
+        <div className="order-5">
         <NeoCard>
           <SectionHeader
             icon={<Volume2 size={17} />}
@@ -1246,7 +1283,7 @@ export default function DeviceDetails() {
                 key={item.mode}
                 onClick={() => triggerBuzzer(item.mode)}
                 disabled={buzzerMode !== 'idle' || isOffline}
-                className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
                 style={
                   buzzerMode === item.mode
                     ? { background: `rgba(234,88,12,0.08)`, boxShadow: `0 0 0 1.5px ${item.accent}40, 3px 3px 8px ${item.glow}` }
@@ -1267,8 +1304,11 @@ export default function DeviceDetails() {
             ))}
           </div>
         </NeoCard>
+        </div>
 
         {/* ═══ CONTROLLER INFO ═══ */}
+        {/* Mobile: Full width | Desktop: Right column */}
+        <div className="order-6">
         <NeoCard>
           <SectionHeader
             icon={<Cpu size={17} />}
@@ -1309,7 +1349,7 @@ export default function DeviceDetails() {
           </div>
           <button
             onClick={() => setDeleteModal(true)}
-            className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-2xl transition-all"
+            className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-2xl transition-all touch-manipulation"
             style={{
               color: '#ef4444',
               background: 'var(--bg-secondary)',
@@ -1319,6 +1359,7 @@ export default function DeviceDetails() {
             <Trash size={13} /> Remove This Device
           </button>
         </NeoCard>
+        </div>
 
       </div>
 

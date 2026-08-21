@@ -39,7 +39,7 @@ function NeoCard({
 }) {
   return (
     <div
-      className={`rounded-[22px] p-5 ${className}`}
+      className={`rounded-[22px] p-4 sm:p-5 ${className}`}
       style={{
         background: '#F4F7FB',
         boxShadow:
@@ -74,7 +74,7 @@ function InfoRow({
 }) {
   return (
     <div
-      className="flex items-center justify-between px-4 py-2.5 rounded-2xl mb-2"
+      className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-3 sm:px-4 py-2.5 rounded-2xl mb-2 gap-1 sm:gap-0"
       style={{
         background: '#EEF2F7',
         boxShadow:
@@ -110,7 +110,7 @@ function NeoInput({
 }) {
   return (
     <div
-      className="flex-1 flex items-center rounded-2xl px-4"
+      className="flex-1 flex items-center rounded-2xl px-3 sm:px-4"
       style={{
         background: '#EEF2F7',
         height: 44,
@@ -126,6 +126,7 @@ function NeoInput({
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         className="flex-1 bg-transparent text-sm outline-none text-neutral-800 placeholder-neutral-400"
+        style={{ touchAction: 'manipulation' }}
       />
     </div>
   );
@@ -151,17 +152,18 @@ function NeoButton({
       onClick={onClick}
       disabled={disabled || loading}
       className={`flex items-center justify-center gap-1.5 font-semibold rounded-2xl transition-all disabled:opacity-40 ${
-        small ? 'px-3 py-2 text-xs' : 'px-4 py-2.5 text-sm'
+        small ? 'px-3 py-2 text-xs min-h-[36px]' : 'px-4 py-2.5 text-sm min-h-[44px]'
       }`}
-      style={
-        danger
+      style={{
+        touchAction: 'manipulation',
+        ...(danger
           ? { background: 'rgba(239,68,68,0.1)', color: '#ef4444' }
           : {
               background: 'linear-gradient(135deg,#2563eb,#3b82f6)',
               color: 'white',
               boxShadow: '3px 3px 8px rgba(37,99,235,0.35)',
-            }
-      }
+            })
+      }}
     >
       {loading ? (
         <svg
@@ -244,8 +246,12 @@ function ConnectModal({
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-xl"
-            style={{ background: '#EEF2F7', color: '#9ca3af' }}
+            className="w-9 h-9 sm:w-7 sm:h-7 flex items-center justify-center rounded-xl"
+            style={{ 
+              background: '#EEF2F7', 
+              color: '#9ca3af',
+              touchAction: 'manipulation'
+            }}
           >
             <X size={14} />
           </button>
@@ -276,7 +282,7 @@ function ConnectModal({
                 style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}
               >
                 <AlertCircle size={13} className="mt-0.5 flex-shrink-0" />
-                {error}
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -384,7 +390,7 @@ function BotPanel({
     <div className="space-y-4">
       {/* ── Status Card ── */}
       <NeoCard>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
           <div className="flex items-center gap-3">
             <div
               className="w-12 h-12 rounded-[16px] flex items-center justify-center"
@@ -396,7 +402,7 @@ function BotPanel({
               <Bot size={22} className="text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-neutral-800">
+              <h2 className="text-lg font-bold text-neutral-800 break-all">
                 {bot.dexBotId}
               </h2>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -419,10 +425,13 @@ function BotPanel({
               </div>
             </div>
           </div>
-          <NeoButton onClick={handleDisconnect} loading={disconnecting} danger small>
-            <X size={12} />
-            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-          </NeoButton>
+          <div className="flex sm:justify-end w-full sm:w-auto">
+            <NeoButton onClick={handleDisconnect} loading={disconnecting} danger small>
+              <X size={12} />
+              <span className="sm:hidden">Disconnect</span>
+              <span className="hidden sm:inline">{disconnecting ? 'Disconnecting…' : 'Disconnect'}</span>
+            </NeoButton>
+          </div>
         </div>
 
         <SectionLabel>Status</SectionLabel>
@@ -460,7 +469,7 @@ function BotPanel({
         <p className="text-xs mb-3" style={{ color: '#9ca3af' }}>
           Send a text message to the Dex Bot display.
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
           <NeoInput
             value={message}
             onChange={setMessage}
@@ -470,10 +479,11 @@ function BotPanel({
           <button
             onClick={handleSendMessage}
             disabled={!message.trim() || sending}
-            className="w-11 h-11 flex items-center justify-center rounded-2xl flex-shrink-0 disabled:opacity-40 transition-all"
+            className="w-full sm:w-11 h-11 flex items-center justify-center rounded-2xl flex-shrink-0 disabled:opacity-40 transition-all"
             style={{
               background: 'linear-gradient(135deg,#2563eb,#3b82f6)',
               boxShadow: '3px 3px 8px rgba(37,99,235,0.35)',
+              touchAction: 'manipulation',
             }}
           >
             {sending ? (
@@ -497,7 +507,12 @@ function BotPanel({
                 />
               </svg>
             ) : (
-              <Send size={15} className="text-white" />
+              <>
+                <Send size={15} className="text-white" />
+                <span className="sm:hidden text-white text-sm font-semibold ml-2">
+                  {sending ? 'Sending…' : 'Send'}
+                </span>
+              </>
             )}
           </button>
         </div>
@@ -519,12 +534,13 @@ function BotPanel({
         {/* Dropdown */}
         <div className="relative mb-3">
           <div
-            className="flex items-center justify-between px-4 rounded-2xl cursor-pointer"
+            className="flex items-center justify-between px-3 sm:px-4 rounded-2xl cursor-pointer"
             style={{
               background: '#EEF2F7',
               height: 44,
               boxShadow:
                 'inset 2px 2px 5px rgba(166,180,200,0.45), inset -2px -2px 5px rgba(255,255,255,0.75)',
+              touchAction: 'manipulation',
             }}
           >
             <select
@@ -543,14 +559,15 @@ function BotPanel({
         </div>
 
         {/* Emotion pills preview */}
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-4">
           {EMOTIONS.map((em) => (
             <button
               key={em.key}
               onClick={() => setEmotion(em.key)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all"
-              style={
-                emotion === em.key
+              className="flex items-center justify-center sm:justify-start gap-1 px-3 py-2 rounded-2xl text-xs font-semibold transition-all min-h-[36px]"
+              style={{
+                touchAction: 'manipulation',
+                ...(emotion === em.key
                   ? {
                       background: 'linear-gradient(135deg,#2563eb,#3b82f6)',
                       color: 'white',
@@ -561,11 +578,11 @@ function BotPanel({
                       color: '#6b7280',
                       boxShadow:
                         '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
-                    }
-              }
+                    })
+              }}
             >
               <span>{em.emoji}</span>
-              {em.label}
+              <span className="truncate">{em.label}</span>
             </button>
           ))}
         </div>
@@ -649,11 +666,11 @@ export default function DexBotPage() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6" style={{ background: '#F4F7FB' }}>
+    <div className="min-h-screen p-3 sm:p-4 md:p-6" style={{ background: '#F4F7FB' }}>
       <div className="max-w-2xl mx-auto">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-2xl flex items-center justify-center"
@@ -673,10 +690,11 @@ export default function DexBotPage() {
           </div>
           <button
             onClick={() => setShowConnect(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all"
+            className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all min-h-[44px] w-full sm:w-auto"
             style={{
               background: 'linear-gradient(135deg,#2563eb,#3b82f6)',
               boxShadow: '3px 3px 8px rgba(37,99,235,0.35)',
+              touchAction: 'manipulation',
             }}
           >
             <Link2 size={15} />
@@ -686,14 +704,15 @@ export default function DexBotPage() {
 
         {/* ── Bot selector tabs (if multiple bots) ── */}
         {bots.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-4" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
             {bots.map((bot) => (
               <button
                 key={bot.id}
                 onClick={() => setActiveBot(bot)}
-                className="flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-semibold flex-shrink-0 transition-all"
-                style={
-                  activeBot?.id === bot.id
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold flex-shrink-0 transition-all min-h-[40px]"
+                style={{
+                  touchAction: 'manipulation',
+                  ...(activeBot?.id === bot.id
                     ? {
                         background: 'linear-gradient(135deg,#1f2937,#374151)',
                         color: 'white',
@@ -704,11 +723,11 @@ export default function DexBotPage() {
                         color: '#6b7280',
                         boxShadow:
                           '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
-                      }
-                }
+                      })
+                }}
               >
                 <Bot size={12} />
-                {bot.dexBotId}
+                <span className="whitespace-nowrap">{bot.dexBotId}</span>
               </button>
             ))}
           </div>
@@ -716,7 +735,7 @@ export default function DexBotPage() {
 
         {/* ── Empty state ── */}
         {bots.length === 0 ? (
-          <NeoCard className="text-center py-16">
+          <NeoCard className="text-center py-12 sm:py-16">
             <div
               className="w-16 h-16 rounded-[20px] flex items-center justify-center mx-auto mb-4"
               style={{
@@ -735,10 +754,11 @@ export default function DexBotPage() {
             </p>
             <button
               onClick={() => setShowConnect(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white min-h-[44px] w-full sm:w-auto"
               style={{
                 background: 'linear-gradient(135deg,#2563eb,#3b82f6)',
                 boxShadow: '3px 3px 8px rgba(37,99,235,0.35)',
+                touchAction: 'manipulation',
               }}
             >
               <Plug size={15} />

@@ -94,7 +94,7 @@ export default function IconPicker({ selectedIcon, onIconSelect, onClose, anchor
     return matchesSearch && matchesCategory;
   });
 
-  // Handle outside click
+  // Handle outside click and positioning
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -113,63 +113,144 @@ export default function IconPicker({ selectedIcon, onIconSelect, onClose, anchor
       }
     };
 
+    // Position the picker to ensure it fits in viewport
+    const updatePosition = () => {
+      if (!popoverRef.current || !anchorRef?.current) return;
+      
+      const rect = anchorRef.current.getBoundingClientRect();
+      const picker = popoverRef.current;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const pickerWidth = 320; // w-80 = 320px
+      const pickerHeight = 400; // max height
+      
+      // Reset position classes
+      picker.classList.remove('right-0');
+      picker.style.left = '';
+      picker.style.right = '';
+      picker.style.transform = '';
+      
+      // Check if picker would overflow right edge
+      if (rect.left + pickerWidth > viewportWidth - 24) {
+        // Position from right edge of viewport with 24px margin
+        picker.style.right = '12px';
+        picker.style.left = 'auto';
+      }
+      
+      // Check if picker would overflow bottom edge
+      if (rect.bottom + pickerHeight > viewportHeight - 24) {
+        // Position above the anchor instead
+        picker.style.top = 'auto';
+        picker.style.bottom = '100%';
+        picker.style.marginTop = '0';
+        picker.style.marginBottom = '4px';
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    
+    // Initial positioning
+    updatePosition();
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
     };
   }, [onClose, anchorRef]);
 
   return (
     <div
       ref={popoverRef}
-      className="absolute left-0 top-full mt-1 z-50 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-neutral-200"
+      className="absolute left-0 top-full mt-1 z-50 w-80 max-w-[calc(100vw-24px)] rounded-xl shadow-xl border transition-colors duration-200"
       style={{
         maxHeight: 'min(400px, calc(100vh - 200px))',
         display: 'flex',
         flexDirection: 'column',
+        background: 'var(--bg-primary)',
+        borderColor: 'var(--border-color)',
+        boxShadow: 'var(--neo-shadow-lg)',
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-neutral-200 flex-shrink-0">
-        <h3 className="text-xs font-semibold text-neutral-900">Choose Icon</h3>
+      <div 
+        className="flex items-center justify-between p-3 flex-shrink-0 transition-colors duration-200" 
+        style={{ borderBottom: '1px solid var(--border-color)' }}
+      >
+        <h3 className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Choose Icon</h3>
         <button
           onClick={onClose}
-          className="p-1 rounded-md hover:bg-neutral-100 text-neutral-400 transition-colors"
+          className="p-2 sm:p-1 rounded-md transition-colors touch-manipulation"
+          style={{
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-secondary)',
+            minHeight: '44px', // Touch-friendly on mobile
+            minWidth: '44px',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
           title="Close"
+          aria-label="Close icon picker"
         >
-          <X size={14} />
+          <X size={16} className="sm:w-[14px] sm:h-[14px]" />
         </button>
       </div>
 
       {/* Search */}
-      <div className="p-3 border-b border-neutral-200 flex-shrink-0">
+      <div 
+        className="p-3 flex-shrink-0 transition-colors duration-200" 
+        style={{ borderBottom: '1px solid var(--border-color)' }}
+      >
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-neutral-400" />
+          <Search size={16} className="sm:w-[14px] sm:h-[14px] absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search icons..."
-            className="w-full pl-8 pr-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full pl-10 sm:pl-8 pr-3 py-2.5 sm:py-1.5 border rounded-lg text-sm sm:text-xs focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+            style={{
+              background: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)',
+              borderColor: 'var(--border-color)',
+              minHeight: '44px', // Touch-friendly on mobile
+            }}
           />
         </div>
       </div>
 
       {/* Categories */}
-      <div className="px-3 py-2 border-b border-neutral-200 flex-shrink-0">
-        <div className="flex flex-wrap gap-1">
+      <div 
+        className="px-3 py-2 flex-shrink-0 transition-colors duration-200" 
+        style={{ borderBottom: '1px solid var(--border-color)' }}
+      >
+        <div className="flex flex-wrap gap-1.5 sm:gap-1">
           {categories.map(category => (
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-colors ${
+              className={`px-3 py-2 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-md transition-colors touch-manipulation ${
                 selectedCategory === category.id
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                  ? ''
+                  : ''
               }`}
+              style={{
+                background: selectedCategory === category.id ? 'rgba(37, 99, 235, 0.1)' : 'var(--bg-secondary)',
+                color: selectedCategory === category.id ? '#2563eb' : 'var(--text-secondary)',
+                minHeight: '36px', // Touch-friendly but smaller than full buttons
+              }}
+              onMouseEnter={(e) => {
+                if (selectedCategory !== category.id) {
+                  e.currentTarget.style.background = 'var(--bg-tertiary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = selectedCategory === category.id ? 'rgba(37, 99, 235, 0.1)' : 'var(--bg-secondary)';
+              }}
             >
               {category.label}
             </button>
@@ -180,28 +261,48 @@ export default function IconPicker({ selectedIcon, onIconSelect, onClose, anchor
       {/* Icon Grid - Scrollable */}
       <div className="overflow-y-auto flex-1 p-3">
         {filteredIcons.length > 0 ? (
-          <div className="grid grid-cols-6 gap-1.5">
+          <div className="grid grid-cols-5 sm:grid-cols-6 gap-2 sm:gap-1.5">
             {filteredIcons.map(icon => (
               <button
                 key={icon.id}
                 onClick={() => onIconSelect(icon.id)}
-                className={`p-2 rounded-lg border transition-all duration-200 hover:bg-neutral-50 ${
+                className={`p-3 sm:p-2 rounded-lg border transition-all duration-200 touch-manipulation ${
                   selectedIcon === icon.id
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-neutral-200 hover:border-neutral-300'
+                    ? ''
+                    : ''
                 }`}
+                style={{
+                  borderColor: selectedIcon === icon.id ? '#2563eb' : 'var(--border-color)',
+                  background: selectedIcon === icon.id ? 'rgba(37, 99, 235, 0.1)' : 'var(--bg-secondary)',
+                  minHeight: '48px', // Touch-friendly size
+                  minWidth: '48px',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedIcon !== icon.id) {
+                    e.currentTarget.style.background = 'var(--bg-tertiary)';
+                    e.currentTarget.style.borderColor = 'var(--text-tertiary)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = selectedIcon === icon.id ? '#2563eb' : 'var(--border-color)';
+                  e.currentTarget.style.background = selectedIcon === icon.id ? 'rgba(37, 99, 235, 0.1)' : 'var(--bg-secondary)';
+                }}
                 title={icon.label}
+                aria-label={`Select ${icon.label} icon`}
               >
-                <div className={`flex items-center justify-center ${
-                  selectedIcon === icon.id ? 'text-primary-600' : 'text-neutral-600'
-                }`}>
+                <div 
+                  className={`flex items-center justify-center`}
+                  style={{
+                    color: selectedIcon === icon.id ? '#2563eb' : 'var(--text-secondary)'
+                  }}
+                >
                   {icon.icon}
                 </div>
               </button>
             ))}
           </div>
         ) : (
-          <div className="text-center py-6 text-xs text-neutral-500">
+          <div className="text-center py-8 text-sm" style={{ color: 'var(--text-tertiary)' }}>
             No icons found matching "{searchTerm}"
           </div>
         )}
@@ -209,12 +310,18 @@ export default function IconPicker({ selectedIcon, onIconSelect, onClose, anchor
 
       {/* Selected Icon Info */}
       {selectedIcon && (
-        <div className="p-2.5 bg-neutral-50 border-t border-neutral-200 flex-shrink-0">
+        <div 
+          className="p-3 sm:p-2.5 flex-shrink-0 transition-colors duration-200" 
+          style={{ 
+            background: 'var(--bg-secondary)', 
+            borderTop: '1px solid var(--border-color)' 
+          }}
+        >
           <div className="flex items-center gap-2">
-            <div className="text-primary-600">
+            <div style={{ color: '#2563eb' }}>
               {getIconById(selectedIcon)}
             </div>
-            <span className="text-xs font-medium text-neutral-700">
+            <span className="text-sm sm:text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
               {ICON_OPTIONS.find(i => i.id === selectedIcon)?.label}
             </span>
           </div>
