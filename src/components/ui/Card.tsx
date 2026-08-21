@@ -8,7 +8,13 @@ interface CardProps {
 
 export default function Card({ children, className = '', padding = true }: CardProps) {
   return (
-    <div className={`bg-white rounded-xl border border-neutral-200 ${padding ? 'p-5' : ''} ${className}`}>
+    <div 
+      className={`rounded-xl transition-colors duration-200 ${padding ? 'p-5' : ''} ${className}`}
+      style={{
+        background: 'var(--bg-primary)',
+        border: '1px solid var(--border-color)',
+      }}
+    >
       {children}
     </div>
   );

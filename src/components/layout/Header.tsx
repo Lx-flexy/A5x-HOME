@@ -1,5 +1,25 @@
-import { Bell, Menu } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Bell, Menu, BellOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { subscribeToUserDevices } from '../../services/deviceService';
+import {
+  subscribeToNotifications,
+  markNotificationsAsRead,
+  markAllNotificationsAsRead,
+  clearNotificationHistory,
+  getUnreadCount,
+  type Notification,
+} from '../../services/notificationService';
+import {
+  subscribeToPauseState,
+  pauseNotifications,
+  resumeNotifications,
+  showToast,
+  createToastFromAction,
+  type NotificationPauseState,
+  type PauseDuration,
+} from '../../services/toastNotificationService';
+import NotificationPanel from '../ui/NotificationPanel';
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -7,6 +27,118 @@ interface HeaderProps {
 
 export default function Header({ onMenuToggle }: HeaderProps) {
   const { userData, user } = useAuth();
+  
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [deviceIds, setDeviceIds] = useState<string[]>([]);
+  const [pauseState, setPauseState] = useState<NotificationPauseState | null>(null);
+  const bellButtonRef = useRef<HTMLButtonElement>(null);
+  
+  // Track shown notifications to prevent duplicates
+  const shownNotificationsRef = useRef<Set<string>>(new Set());
+
+  // Subscribe to user's devices
+  useEffect(() => {
+    if (!user) return;
+    
+    const unsub = subscribeToUserDevices(user.uid, devices => {
+      setDeviceIds(devices.map(d => d.deviceId));
+    });
+    
+    return unsub;
+  }, [user]);
+
+  // Subscribe to pause state
+  useEffect(() => {
+    if (!user) return;
+
+    const unsub = subscribeToPauseState(user.uid, setPauseState);
+    return unsub;
+  }, [user]);
+
+  // Subscribe to notifications
+  useEffect(() => {
+    if (!user || deviceIds.length === 0) {
+      setNotifications([]);
+      return;
+    }
+
+    const unsub = subscribeToNotifications(
+      user.uid,
+      deviceIds,
+      (newNotifications) => {
+        setNotifications(newNotifications);
+
+        // Show toast for new notifications
+        newNotifications.forEach(notif => {
+          // Only show toast for unread notifications we haven't shown yet
+          if (!notif.read && !shownNotificationsRef.current.has(notif.id)) {
+            shownNotificationsRef.current.add(notif.id);
+            
+            // DEBUG: Log notification data
+            console.log('[Header] New notification:', {
+              action: notif.action,
+              outputId: notif.outputId,
+              color: notif.color,
+              hasColor: !!notif.color
+            });
+            
+            // Pass the notification's color (from output metadata) to the toast
+            const toast = createToastFromAction(notif.action, notif.deviceId, notif.color);
+            if (toast) {
+              console.log('[Header] Toast created:', {
+                title: toast.title,
+                color: toast.color
+              });
+              showToast(toast, pauseState || undefined);
+            }
+          }
+        });
+
+        // Clean up old IDs from tracking set (keep last 100)
+        if (shownNotificationsRef.current.size > 100) {
+          const idsArray = Array.from(shownNotificationsRef.current);
+          shownNotificationsRef.current = new Set(idsArray.slice(-100));
+        }
+      },
+      50 // limit to 50 most recent
+    );
+
+    return unsub;
+  }, [user, deviceIds, pauseState]);
+
+  const handleMarkAsRead = async (notificationIds: string[]) => {
+    if (!user) return;
+    await markNotificationsAsRead(user.uid, notificationIds);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!user) return;
+    const allIds = notifications.map(n => n.id);
+    await markAllNotificationsAsRead(user.uid, allIds);
+  };
+
+  const handleClearAll = async () => {
+    if (!user) return;
+    await clearNotificationHistory(user.uid);
+  };
+
+  const handlePauseNotifications = async (duration: PauseDuration) => {
+    if (!user) return;
+    await pauseNotifications(user.uid, duration);
+  };
+
+  const handleResumeNotifications = async () => {
+    if (!user) return;
+    await resumeNotifications(user.uid);
+  };
+
+  const toggleNotifications = () => {
+    setNotificationsOpen(prev => !prev);
+  };
+
+  const unreadCount = getUnreadCount(notifications);
+  const isPaused = pauseState?.paused || false;
 
   const name = userData?.name || user?.displayName || 'User';
   const initials = name
@@ -21,30 +153,31 @@ export default function Header({ onMenuToggle }: HeaderProps) {
 
   return (
     <header
-      className="h-[68px] flex items-center justify-between px-5 flex-shrink-0"
+      className="h-[68px] flex items-center justify-between px-5 flex-shrink-0 transition-colors duration-200"
       style={{
-        background: '#F4F7FB',
-        borderBottom: '1px solid rgba(166,180,200,0.25)',
-        boxShadow: '0 2px 12px rgba(166,180,200,0.2)',
+        background: 'var(--bg-primary)',
+        borderBottom: '1px solid var(--border-color)',
+        boxShadow: '0 2px 12px var(--shadow-sm)',
       }}
     >
       {/* Left */}
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuToggle}
-          className="lg:hidden p-2 rounded-xl text-neutral-500 transition-all"
+          className="lg:hidden p-2 rounded-xl transition-all"
           style={{
-            background: '#EEF2F7',
-            boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
+            background: 'var(--bg-secondary)',
+            boxShadow: 'var(--neo-shadow)',
+            color: 'var(--text-secondary)',
           }}
         >
           <Menu size={18} />
         </button>
         <div>
-          <h1 className="font-semibold text-neutral-900 text-sm leading-tight">
+          <h1 className="font-semibold text-sm leading-tight" style={{ color: 'var(--text-primary)' }}>
             {greeting}, {name.split(' ')[0]} 👋
           </h1>
-          <p className="text-[11px] text-neutral-400 leading-tight mt-0.5">
+          <p className="text-[11px] leading-tight mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
             Here's what's happening in your home today.
           </p>
         </div>
@@ -54,18 +187,40 @@ export default function Header({ onMenuToggle }: HeaderProps) {
       <div className="flex items-center gap-2.5">
         {/* Notification bell */}
         <button
-          className="relative p-2 rounded-xl text-neutral-500 transition-all hover:text-neutral-700"
+          ref={bellButtonRef}
+          onClick={toggleNotifications}
+          className="relative p-2 rounded-xl transition-all hover:opacity-80"
           style={{
-            background: '#F4F7FB',
-            boxShadow: '3px 3px 7px rgba(166,180,200,0.4), -3px -3px 7px rgba(255,255,255,0.8)',
+            background: 'var(--bg-secondary)',
+            boxShadow: 'var(--neo-shadow)',
+            color: 'var(--text-primary)',
           }}
+          title={isPaused ? 'Notifications (Paused)' : 'Notifications'}
+          aria-label={isPaused ? 'Notifications paused' : 'Notifications'}
         >
-          <Bell size={17} />
-          <span
-            className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-[#F4F7FB]"
-            style={{ background: '#2563eb' }}
-          />
+          {isPaused ? <BellOff size={17} /> : <Bell size={17} />}
+          {unreadCount > 0 && (
+            <span
+              className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2"
+              style={{ background: '#2563eb', borderColor: 'var(--bg-primary)' }}
+            />
+          )}
         </button>
+
+        {/* Notification Panel */}
+        <NotificationPanel
+          isOpen={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          anchor={bellButtonRef}
+          notifications={notifications}
+          onMarkAsRead={handleMarkAsRead}
+          onMarkAllAsRead={handleMarkAllAsRead}
+          onClearAll={handleClearAll}
+          pauseState={pauseState}
+          onPauseNotifications={handlePauseNotifications}
+          onResumeNotifications={handleResumeNotifications}
+          userId={user.uid}
+        />
 
         {/* Avatar */}
         <div

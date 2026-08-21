@@ -34,6 +34,7 @@ export interface ActivityLog {
   action: string;
   performedBy: string;
   timestamp: unknown;
+  outputId?: string; // Hardware output ID (light1, light2, light3, fan1, fan2, custom1)
 }
 
 export interface DailyAnalytics {

@@ -91,13 +91,16 @@ export default function Dropdown({ isOpen, onClose, anchor, children, className 
   return createPortal(
     <div
       ref={dropdownRef}
-      className={`fixed bg-white border border-neutral-200 rounded-xl shadow-lg py-1 min-w-[12rem] ${className}`}
+      className={`fixed rounded-xl shadow-lg py-1 min-w-[12rem] transition-colors duration-200 ${className}`}
       style={{
         top: position.top,
         left: position.left,
         maxHeight: position.maxHeight,
         zIndex: 9999,
         overflowY: 'auto',
+        background: 'var(--bg-primary)',
+        border: '1px solid var(--border-color)',
+        boxShadow: 'var(--neo-shadow-lg)',
       }}
     >
       {children}
@@ -130,8 +133,11 @@ export function DropdownItem({ onClick, icon, children, variant = 'default', dis
           ? 'opacity-50 cursor-not-allowed'
           : variant === 'danger'
           ? 'text-red-600 hover:bg-red-50'
-          : 'text-neutral-700 hover:bg-neutral-50'
+          : 'hover:opacity-70'
       }`}
+      style={{
+        color: variant === 'default' ? 'var(--text-primary)' : undefined,
+      }}
     >
       {icon && <span className="flex-shrink-0">{icon}</span>}
       <span>{children}</span>
@@ -140,5 +146,5 @@ export function DropdownItem({ onClick, icon, children, variant = 'default', dis
 }
 
 export function DropdownDivider() {
-  return <div className="border-t border-neutral-100 my-1" />;
+  return <div className="my-1" style={{ borderTop: '1px solid var(--border-color)' }} />;
 }

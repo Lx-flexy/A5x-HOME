@@ -133,8 +133,8 @@ export default function Devices() {
     <div className="space-y-5 max-w-7xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Devices</h2>
-          <p className="text-sm text-neutral-500 mt-0.5">Manage all your smart home controllers</p>
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Devices</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Manage all your smart home controllers</p>
         </div>
         <Link to="/devices/add">
           <Button><Plus size={16} /> Add Device</Button>
@@ -144,9 +144,9 @@ export default function Devices() {
       <Card padding={false}>
         {loading ? <Loader /> : devices.length === 0 ? (
           <div className="py-16 text-center">
-            <Cpu size={40} className="text-neutral-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-neutral-600">No devices added yet</p>
-            <p className="text-xs text-neutral-400 mt-1 mb-4">Add your first ESP32 smart home controller.</p>
+            <Cpu size={40} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-3" />
+            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No devices added yet</p>
+            <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-tertiary)' }}>Add your first ESP32 smart home controller.</p>
             <Link to="/devices/add">
               <Button size="sm"><Plus size={14} /> Add First Device</Button>
             </Link>
@@ -156,15 +156,15 @@ export default function Devices() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-neutral-200">
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                     {['Device Name', 'Device ID', 'Room', 'Location', 'Status', 'Actions'].map(col => (
-                      <th key={col} className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase tracking-wide whitespace-nowrap">
+                      <th key={col} className="text-left py-3 px-5 text-xs font-medium uppercase tracking-wide whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
                         {col}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100">
+                <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
                   {devices.map(device => {
                     const isOnline = isDeviceOnline(device.deviceId);
                     
@@ -187,8 +187,8 @@ export default function Devices() {
                 </tbody>
               </table>
             </div>
-            <div className="px-5 py-3 border-t border-neutral-100">
-              <p className="text-xs text-neutral-400">
+            <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                 {devices.length} device{devices.length !== 1 ? 's' : ''} · {devices.filter(d => isDeviceOnline(d.deviceId)).length} online
               </p>
             </div>
@@ -197,14 +197,14 @@ export default function Devices() {
       </Card>
 
       <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Remove Device">
-        <div className="text-sm text-neutral-600 space-y-3 mb-5">
+        <div className="text-sm space-y-3 mb-5" style={{ color: 'var(--text-secondary)' }}>
           <p>
-            Remove <strong>{deleteConfirm?.name}</strong>?
+            Remove <strong style={{ color: 'var(--text-primary)' }}>{deleteConfirm?.name}</strong>?
           </p>
           <p>
             This will disconnect the device from your Home Automation account. The ESP32 controller will lose connection to your dashboard and cannot be controlled remotely.
           </p>
-          <p className="text-neutral-500">
+          <p style={{ color: 'var(--text-tertiary)' }}>
             All device data, activity logs, and analytics will be permanently deleted and cannot be recovered.
           </p>
         </div>
@@ -271,23 +271,28 @@ function DeviceRow({
 
   return (
     <tr 
-      className="hover:bg-neutral-50 transition-colors cursor-pointer"
+      className="transition-colors cursor-pointer"
       onClick={onRowClick}
+      style={{
+        background: 'transparent',
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
     >
       <td className="py-3.5 px-5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
             <Cpu size={15} className="text-primary-600" />
           </div>
-          <span className="font-medium text-neutral-900">{device.name}</span>
+          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{device.name}</span>
         </div>
       </td>
-      <td className="py-3.5 px-5 text-neutral-500 font-mono text-xs">{device.deviceId}</td>
-      <td className="py-3.5 px-5 text-neutral-600">{device.room}</td>
-      <td className="py-3.5 px-5 text-neutral-600">{device.location}</td>
+      <td className="py-3.5 px-5 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{device.deviceId}</td>
+      <td className="py-3.5 px-5" style={{ color: 'var(--text-secondary)' }}>{device.room}</td>
+      <td className="py-3.5 px-5" style={{ color: 'var(--text-secondary)' }}>{device.location}</td>
       <td className="py-3.5 px-5">
-        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${isOnline ? 'text-success-600' : 'text-neutral-400'}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'}`} />
+        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${isOnline ? 'text-success-600' : ''}`} style={{ color: isOnline ? '#16a34a' : 'var(--text-tertiary)' }}>
+          <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-success-500 animate-pulse' : ''}`} style={{ background: isOnline ? '#22c55e' : 'var(--text-tertiary)' }} />
           {isOnline ? 'Online' : 'Offline'}
         </span>
       </td>
@@ -295,14 +300,26 @@ function DeviceRow({
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <Link
             to={`/devices/${device.id}`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+            style={{
+              color: '#2563eb',
+              background: 'rgba(37, 99, 235, 0.1)',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.15)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.1)'}
           >
             Manage <ChevronRight size={12} />
           </Link>
           <button
             ref={menuButtonRef}
             onClick={onMenuToggle}
-            className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{
+              background: 'transparent',
+              color: 'var(--text-tertiary)',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <MoreVertical size={15} />
           </button>
@@ -377,14 +394,19 @@ function EditDeviceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
           Device Name <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={formData.name}
           onChange={(e) => handleChange('name', e.target.value)}
-          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
           placeholder="Enter device name"
           required
           disabled={loading}
@@ -392,14 +414,19 @@ function EditDeviceForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
           Room <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={formData.room}
           onChange={(e) => handleChange('room', e.target.value)}
-          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
           placeholder="Enter room name"
           required
           disabled={loading}
@@ -407,28 +434,38 @@ function EditDeviceForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
           Location
         </label>
         <input
           type="text"
           value={formData.location}
           onChange={(e) => handleChange('location', e.target.value)}
-          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
           placeholder="Enter specific location"
           disabled={loading}
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
           Firmware Version
         </label>
         <input
           type="text"
           value={formData.firmware}
           onChange={(e) => handleChange('firmware', e.target.value)}
-          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
           placeholder="e.g., v1.2.4"
           disabled={loading}
         />
@@ -477,19 +514,24 @@ function RenameDeviceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <p className="text-sm text-neutral-600 mb-4">
-        Change the display name for <strong>{device.name}</strong>
+      <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+        Change the display name for <strong style={{ color: 'var(--text-primary)' }}>{device.name}</strong>
       </p>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
           Device Name <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
           placeholder="Enter new device name"
           required
           disabled={loading}

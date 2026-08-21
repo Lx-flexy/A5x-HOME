@@ -16,11 +16,36 @@ export default function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const variants = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700 border border-transparent',
-    secondary: 'bg-white text-neutral-700 border border-neutral-300 hover:bg-neutral-50',
-    danger: 'bg-error-500 text-white hover:bg-error-600 border border-transparent',
-    ghost: 'bg-transparent text-neutral-600 hover:bg-neutral-100 border border-transparent',
+  const getVariantStyles = (v: string) => {
+    switch (v) {
+      case 'primary':
+        return {
+          background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+          color: 'white',
+          border: '1px solid transparent',
+        };
+      case 'secondary':
+        return {
+          background: 'var(--bg-primary)',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-color)',
+          boxShadow: 'var(--neo-shadow)',
+        };
+      case 'danger':
+        return {
+          background: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)',
+          color: 'white',
+          border: '1px solid transparent',
+        };
+      case 'ghost':
+        return {
+          background: 'transparent',
+          color: 'var(--text-secondary)',
+          border: '1px solid transparent',
+        };
+      default:
+        return {};
+    }
   };
 
   const sizes = {
@@ -31,7 +56,8 @@ export default function Button({
 
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${sizes[size]} ${className}`}
+      style={getVariantStyles(variant)}
       disabled={disabled || loading}
       {...props}
     >

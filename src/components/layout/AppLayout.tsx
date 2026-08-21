@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import ToastContainer from '../ui/ToastContainer';
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-neutral-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden transition-colors duration-200" style={{ background: 'var(--bg-secondary)' }}>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header onMenuToggle={() => setSidebarOpen(true)} />
@@ -15,6 +16,8 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+      {/* Toast notifications */}
+      <ToastContainer />
     </div>
   );
 }

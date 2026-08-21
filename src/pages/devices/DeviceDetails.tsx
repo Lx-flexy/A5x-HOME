@@ -21,6 +21,7 @@ import {
   setOutput,
   setOutputValue,
   deleteDevice,
+  updateDevice,
   Device,
   DeviceOutputs,
   DeviceHealth,
@@ -138,15 +139,15 @@ function HealthRow({
 }) {
   return (
     <div
-      className="flex items-center justify-between px-4 py-3 rounded-2xl mb-2"
+      className="flex items-center justify-between px-4 py-3 rounded-2xl mb-2 transition-colors duration-200"
       style={{
-        background: '#EEF2F7',
-        boxShadow: 'inset 2px 2px 5px rgba(166,180,200,0.4), inset -2px -2px 5px rgba(255,255,255,0.75)',
+        background: 'var(--bg-secondary)',
+        boxShadow: 'var(--neo-inset)',
       }}
     >
       <div className="flex items-center gap-2.5">
-        <span style={{ color: '#9ca3af' }}>{icon}</span>
-        <span className="text-xs font-medium text-neutral-600">{label}</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{icon}</span>
+        <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
       </div>
       <div className="flex items-center gap-1.5">
         {ok !== undefined && (
@@ -154,7 +155,7 @@ function HealthRow({
             ? <CheckCircle2 size={13} style={{ color: '#16a34a' }} />
             : <XCircle size={13} style={{ color: '#ef4444' }} />
         )}
-        <span className="text-xs font-bold text-neutral-800">{value}</span>
+        <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{value}</span>
       </div>
     </div>
   );
@@ -166,10 +167,10 @@ function RuntimeBar({ value, max, color }: { value: number; max: number; color: 
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
     <div
-      className="flex-1 h-2.5 rounded-full overflow-hidden"
+      className="flex-1 h-2.5 rounded-full overflow-hidden transition-colors duration-200"
       style={{
-        background: '#E0E6EF',
-        boxShadow: 'inset 1px 1px 3px rgba(166,180,200,0.5), inset -1px -1px 3px rgba(255,255,255,0.7)',
+        background: 'var(--bg-tertiary)',
+        boxShadow: 'var(--neo-inset)',
       }}
     >
       <div
@@ -199,12 +200,12 @@ function NeoSlider({
   return (
     <div className={`mt-3 px-1 transition-opacity duration-200 ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] font-semibold" style={{ color: '#9ca3af' }}>{label}</span>
+        <span className="text-[11px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>{label}</span>
         <span
-          className="text-[11px] font-bold px-2 py-0.5 rounded-lg"
+          className="text-[11px] font-bold px-2 py-0.5 rounded-lg transition-colors duration-200"
           style={{
-            background: disabled ? '#EEF2F7' : `${accentColor}18`,
-            color: disabled ? '#9ca3af' : accentColor,
+            background: disabled ? 'var(--bg-secondary)' : `${accentColor}18`,
+            color: disabled ? 'var(--text-tertiary)' : accentColor,
           }}
         >
           {pct}%
@@ -213,10 +214,10 @@ function NeoSlider({
       <div className="relative h-6 flex items-center">
         {/* Track background */}
         <div
-          className="absolute w-full h-2 rounded-full"
+          className="absolute w-full h-2 rounded-full transition-colors duration-200"
           style={{
-            background: '#E0E6EF',
-            boxShadow: 'inset 1px 1px 3px rgba(166,180,200,0.55), inset -1px -1px 3px rgba(255,255,255,0.7)',
+            background: 'var(--bg-tertiary)',
+            boxShadow: 'var(--neo-inset)',
           }}
         />
         {/* Fill */}
@@ -285,14 +286,14 @@ function CompactDeviceItem({
       style={
         checked
           ? {
-              background: `linear-gradient(135deg, ${customColor}08 0%, #F4F7FB 100%)`,
-              boxShadow: `0 0 20px ${customColor}25, 4px 4px 12px rgba(166,180,200,0.35), -4px -4px 10px rgba(255,255,255,0.9)`,
+              background: `linear-gradient(135deg, ${customColor}08 0%, var(--bg-primary) 100%)`,
+              boxShadow: `0 0 20px ${customColor}25, 4px 4px 12px rgba(0,0,0,0.2)`,
               border: `1.5px solid ${customColor}30`,
             }
           : {
-              background: '#F4F7FB',
-              boxShadow: '4px 4px 10px rgba(166,180,200,0.4), -4px -4px 10px rgba(255,255,255,0.85)',
-              border: '1.5px solid transparent',
+              background: 'var(--bg-primary)',
+              boxShadow: 'var(--neo-shadow)',
+              border: '1.5px solid var(--border-color)',
             }
       }
     >
@@ -301,14 +302,21 @@ function CompactDeviceItem({
         <button
           onClick={onRemove}
           disabled={disabled}
-          className="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-red-50 z-10"
+          className="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 z-10"
           style={{
-            background: '#EEF2F7',
-            boxShadow: '2px 2px 4px rgba(166,180,200,0.3), -1px -1px 3px rgba(255,255,255,0.8)',
+            background: 'var(--bg-secondary)',
+            boxShadow: 'var(--neo-shadow)',
+            border: '1px solid var(--border-color)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--bg-secondary)';
           }}
           title="Remove output"
         >
-          <X size={12} className="text-neutral-400 hover:text-red-500" />
+          <X size={12} style={{ color: 'var(--text-secondary)' }} />
         </button>
       )}
       
@@ -320,15 +328,15 @@ function CompactDeviceItem({
             checked
               ? { 
                   background: `${customColor}12`, 
-                  boxShadow: `0 0 12px ${customColor}30, 2px 2px 8px rgba(166,180,200,0.25)` 
+                  boxShadow: `0 0 12px ${customColor}30, 2px 2px 8px rgba(0,0,0,0.15)` 
                 }
               : {
-                  background: '#EEF2F7',
-                  boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
+                  background: 'var(--bg-secondary)',
+                  boxShadow: 'var(--neo-shadow)',
                 }
           }
         >
-          <span style={{ color: checked ? customColor : '#9ca3af' }}>{icon}</span>
+          <span style={{ color: checked ? customColor : 'var(--text-secondary)' }}>{icon}</span>
         </div>
         {/* Toggle - positioned with proper spacing from remove button */}
         <div style={{ marginTop: onRemove ? '28px' : '0' }}>
@@ -349,27 +357,27 @@ function CompactDeviceItem({
         ) : (
           <>
             <span style={{ color: customColor }}>{icon}</span>
-            <p className="text-sm font-bold text-neutral-800">{label}</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{label}</p>
           </>
         )}
       </div>
       <div className="flex items-center justify-between">
         <span
           className="text-xs font-semibold transition-colors duration-300"
-          style={{ color: checked ? customColor : '#9ca3af' }}
+          style={{ color: checked ? customColor : 'var(--text-tertiary)' }}
         >
           {checked ? '● ON' : '○ OFF'}
         </span>
         {runtime !== undefined && runtime > 0 && (
-          <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>
+          <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>
             {fmtRuntime(runtime)}
           </span>
         )}
       </div>
       {/* Hardware slot label */}
       {hardwareSlot && (
-        <div className="mt-2 pt-2 border-t border-neutral-200/50">
-          <span className="text-[10px] font-medium tracking-wide" style={{ color: '#9ca3af' }}>
+        <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-color)' }}>
+          <span className="text-[10px] font-medium tracking-wide" style={{ color: 'var(--text-tertiary)' }}>
             {hardwareSlot}
           </span>
         </div>
@@ -412,14 +420,14 @@ function ControlCard({
       style={
         checked
           ? {
-              background: `linear-gradient(135deg, ${customColor}08 0%, #F4F7FB 100%)`,
-              boxShadow: `0 0 20px ${customColor}25, 4px 4px 12px rgba(166,180,200,0.35), -4px -4px 10px rgba(255,255,255,0.9)`,
+              background: `linear-gradient(135deg, ${customColor}08 0%, var(--bg-primary) 100%)`,
+              boxShadow: `0 0 20px ${customColor}25, 4px 4px 12px rgba(0,0,0,0.2)`,
               border: `1.5px solid ${customColor}30`,
             }
           : {
-              background: '#F4F7FB',
-              boxShadow: '4px 4px 10px rgba(166,180,200,0.4), -4px -4px 10px rgba(255,255,255,0.85)',
-              border: '1.5px solid transparent',
+              background: 'var(--bg-primary)',
+              boxShadow: 'var(--neo-shadow)',
+              border: '1.5px solid var(--border-color)',
             }
       }
     >
@@ -431,15 +439,15 @@ function ControlCard({
             checked
               ? { 
                   background: `${customColor}12`, 
-                  boxShadow: `0 0 12px ${customColor}30, 2px 2px 8px rgba(166,180,200,0.25)` 
+                  boxShadow: `0 0 12px ${customColor}30, 2px 2px 8px rgba(0,0,0,0.15)` 
                 }
               : {
-                  background: '#EEF2F7',
-                  boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
+                  background: 'var(--bg-secondary)',
+                  boxShadow: 'var(--neo-shadow)',
                 }
           }
         >
-          <span style={{ color: checked ? customColor : '#9ca3af' }}>{icon}</span>
+          <span style={{ color: checked ? customColor : 'var(--text-tertiary)' }}>{icon}</span>
         </div>
         {/* Toggle */}
         <IOSToggle checked={checked} onChange={onChange} disabled={disabled} customColor={customColor} />
@@ -458,19 +466,19 @@ function ControlCard({
         ) : (
           <>
             <span style={{ color: iconColor || accentColor }}>{icon}</span>
-            <p className="text-sm font-bold text-neutral-800">{label}</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{label}</p>
           </>
         )}
       </div>
       <div className="flex items-center justify-between">
         <span
           className="text-xs font-semibold transition-colors duration-300"
-          style={{ color: checked ? customColor : '#9ca3af' }}
+          style={{ color: checked ? customColor : 'var(--text-tertiary)' }}
         >
           {checked ? '● ON' : '○ OFF'}
         </span>
         {runtime !== undefined && runtime > 0 && (
-          <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>
+          <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>
             {fmtRuntime(runtime)}
           </span>
         )}
@@ -493,10 +501,10 @@ function ControlCard({
 function NeoCard({ children, className = '', style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
     <div
-      className={`rounded-[22px] p-5 ${className}`}
+      className={`rounded-[22px] p-5 transition-colors duration-200 ${className}`}
       style={{
-        background: '#F4F7FB',
-        boxShadow: '6px 6px 16px rgba(166,180,200,0.45), -6px -6px 16px rgba(255,255,255,0.85)',
+        background: 'var(--bg-primary)',
+        boxShadow: 'var(--neo-shadow-lg)',
         ...style,
       }}
     >
@@ -523,12 +531,12 @@ function SectionHeader({
           className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
           style={{
             background: iconBg,
-            boxShadow: '3px 3px 8px rgba(166,180,200,0.35), -3px -3px 8px rgba(255,255,255,0.8)',
+            boxShadow: 'var(--neo-shadow)',
           }}
         >
           <span style={{ color: iconColor }}>{icon}</span>
         </div>
-        <h3 className="text-sm font-bold text-neutral-900">{title}</h3>
+        <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
       </div>
       {actions}
     </div>
@@ -556,12 +564,12 @@ function PillBtn({
           ? {
               background: activeBg,
               color: activeColor,
-              boxShadow: `2px 2px 6px ${activeGlow}, -1px -1px 4px rgba(255,255,255,0.6)`,
+              boxShadow: `2px 2px 6px ${activeGlow}`,
             }
           : {
-              background: '#EEF2F7',
-              color: '#6b7280',
-              boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-secondary)',
+              boxShadow: 'var(--neo-shadow)',
             }
       }
     >
@@ -605,6 +613,9 @@ export default function DeviceDetails() {
 
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleting, setDeleting]       = useState(false);
+
+  const [editModal, setEditModal] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [removeModal, setRemoveModal] = useState(false);
   const [removingOutputId, setRemovingOutputId] = useState<keyof DeviceOutputMetadata | null>(null);
@@ -731,6 +742,23 @@ export default function DeviceDetails() {
     navigate('/devices');
   }
 
+  async function handleSaveEdit(formData: { name: string; room: string; location: string; firmware: string }) {
+    if (!device) return;
+    setSaving(true);
+    try {
+      await updateDevice(device.id, formData);
+      setEditModal(false);
+      // Refresh device data to show updated values immediately
+      const updatedDevice = await getDevice(device.id);
+      setDevice(updatedDevice);
+    } catch (err) {
+      console.error('[DeviceDetails] Failed to update device:', err);
+      throw err; // Let the form handle the error
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const handleMetadataChange = useCallback(
     async (outputId: keyof DeviceOutputMetadata, name: string, icon: string, color: string) => {
       if (!device || !userData) return;
@@ -782,8 +810,8 @@ export default function DeviceDetails() {
   if (loading) return <Loader fullPage />;
   if (!device) return (
     <div className="text-center py-24">
-      <Cpu size={40} className="text-neutral-300 mx-auto mb-3" />
-      <p className="text-neutral-500 font-medium">Device not found</p>
+      <Cpu size={40} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-3" />
+      <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>Device not found</p>
       <Link to="/devices" className="text-primary-600 text-sm mt-2 block hover:underline">← Back to Devices</Link>
     </div>
   );
@@ -820,11 +848,11 @@ export default function DeviceDetails() {
 
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-1.5 text-sm">
-        <Link to="/devices" className="text-neutral-400 hover:text-neutral-700 transition-colors font-medium">
+        <Link to="/devices" className="transition-colors font-medium" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}>
           Devices
         </Link>
-        <ChevronRight size={14} className="text-neutral-300" />
-        <span className="text-neutral-900 font-semibold">{device.name}</span>
+        <ChevronRight size={14} style={{ color: 'var(--border-color)' }} />
+        <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{device.name}</span>
       </div>
 
       {/* ══════════════════════════════════════════════════════
@@ -856,7 +884,7 @@ export default function DeviceDetails() {
             {/* Info */}
             <div>
               <div className="flex items-center gap-3 flex-wrap mb-2">
-                <h2 className="text-xl font-bold text-neutral-900">{device.name}</h2>
+                <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{device.name}</h2>
                 <OnlinePill online={isOnline} />
               </div>
               {/* Meta grid */}
@@ -870,9 +898,10 @@ export default function DeviceDetails() {
                 ].map((item, i) => (
                   <span
                     key={i}
-                    className={`flex items-center gap-1.5 text-xs text-neutral-500 ${item.mono ? 'font-mono font-semibold text-neutral-700' : ''}`}
+                    className={`flex items-center gap-1.5 text-xs ${item.mono ? 'font-mono font-semibold' : ''}`}
+                    style={{ color: item.mono ? 'var(--text-secondary)' : 'var(--text-secondary)' }}
                   >
-                    <span className="text-neutral-400">{item.icon}</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}>{item.icon}</span>
                     {item.text}
                   </span>
                 ))}
@@ -899,7 +928,7 @@ export default function DeviceDetails() {
               onClick={() => toggleAllDevices(false)}
             />
             <div className="w-px h-5" style={{ background: 'rgba(166,180,200,0.4)' }} />
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="sm" onClick={() => setEditModal(true)}>
               <Edit2 size={13} /> Edit
             </Button>
             <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>
@@ -978,22 +1007,22 @@ export default function DeviceDetails() {
                       disabled={isOffline}
                       className="rounded-2xl p-4 transition-all duration-300 border-2 border-dashed flex flex-col items-center justify-center gap-2 min-h-[120px] hover:border-primary-400"
                       style={{
-                        background: '#F4F7FB',
-                        boxShadow: '4px 4px 10px rgba(166,180,200,0.4), -4px -4px 10px rgba(255,255,255,0.85)',
-                        borderColor: '#d1d5db',
+                        background: 'var(--bg-primary)',
+                        boxShadow: 'var(--neo-shadow)',
+                        borderColor: 'var(--border-color)',
                       }}
                     >
                       <div 
                         className="w-11 h-11 rounded-2xl flex items-center justify-center"
                         style={{
-                          background: '#EEF2F7',
-                          boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
+                          background: 'var(--bg-secondary)',
+                          boxShadow: 'var(--neo-shadow)',
                         }}
                       >
-                        <Plus size={20} className="text-neutral-400" />
+                        <Plus size={20} style={{ color: 'var(--text-secondary)' }} />
                       </div>
-                      <span className="text-sm font-medium text-neutral-500">Add Output</span>
-                      <span className="text-xs text-neutral-400">{visibleCount} of 6</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Add Output</span>
+                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{visibleCount} of 6</span>
                     </button>
                   )}
                 </>
@@ -1068,19 +1097,19 @@ export default function DeviceDetails() {
               >
                 <BarChart3 size={17} style={{ color: '#2563eb' }} />
               </div>
-              <h3 className="text-sm font-bold text-neutral-900">Runtime Analytics</h3>
-              <span className="ml-auto text-xs font-medium" style={{ color: '#9ca3af' }}>Live · Cumulative</span>
+              <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Runtime Analytics</h3>
+              <span className="ml-auto text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>Live · Cumulative</span>
               <button
                 onClick={handleResetAnalytics}
                 disabled={resetting}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-40"
                 style={{
-                  background: '#EEF2F7',
-                  color: '#9ca3af',
-                  boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-tertiary)',
+                  boxShadow: 'var(--neo-shadow)',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9ca3af'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-tertiary)'; }}
               >
                 <RotateCcw size={11} className={resetting ? 'animate-spin' : ''} />
                 Reset
@@ -1097,17 +1126,17 @@ export default function DeviceDetails() {
               ].map(item => (
                 <div
                   key={item.label}
-                  className="rounded-2xl p-4"
+                  className="rounded-2xl p-4 transition-colors duration-200"
                   style={{
-                    background: '#EEF2F7',
-                    boxShadow: 'inset 3px 3px 7px rgba(166,180,200,0.45), inset -3px -3px 7px rgba(255,255,255,0.75)',
+                    background: 'var(--bg-secondary)',
+                    boxShadow: 'var(--neo-inset)',
                   }}
                 >
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3" style={{ background: item.grad }}>
                     <span style={{ color: item.ic }}>{item.icon}</span>
                   </div>
-                  <p className="text-base font-bold text-neutral-900 leading-tight">{item.value}</p>
-                  <p className="text-xs font-medium mt-0.5" style={{ color: '#9ca3af' }}>{item.label}</p>
+                  <p className="text-base font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
+                  <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{item.label}</p>
                 </div>
               ))}
             </div>
@@ -1126,11 +1155,11 @@ export default function DeviceDetails() {
                 return (
                 <div key={item.key} className="flex items-center gap-3">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
-                  <span className="text-xs font-medium text-neutral-500 w-14 flex-shrink-0">{metadata.name}</span>
+                  <span className="text-xs font-medium w-14 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{metadata.name}</span>
                   <RuntimeBar value={item.total} max={maxRuntime} color={item.color} />
                   <div className="flex items-center gap-1.5 w-24 justify-end flex-shrink-0">
                     {item.isOn && <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: '#22c55e' }} />}
-                    <span className="text-xs font-bold" style={{ color: item.isOn ? '#16a34a' : '#374151' }}>
+                    <span className="text-xs font-bold" style={{ color: item.isOn ? '#16a34a' : 'var(--text-primary)' }}>
                       {fmtRuntime(item.total)}
                     </span>
                   </div>
@@ -1163,7 +1192,7 @@ export default function DeviceDetails() {
             {o?.oledMessage ? (
               <p className="text-green-400 text-sm text-center leading-relaxed z-10 break-all">{o.oledMessage}</p>
             ) : (
-              <p className="text-xs z-10" style={{ color: '#374151' }}>— display empty —</p>
+              <p className="text-xs z-10" style={{ color: 'var(--text-tertiary)' }}>— display empty —</p>
             )}
           </div>
           <div className="space-y-2.5">
@@ -1175,7 +1204,7 @@ export default function DeviceDetails() {
               onChange={e => setOledDraft(e.target.value.slice(0, 64))}
             />
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>{oledDraft.length} / 64 chars</span>
+              <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>{oledDraft.length} / 64 chars</span>
             </div>
             <div className="flex gap-2">
               <Button className="flex-1" size="sm" onClick={handleSendOled} loading={sendingOled} disabled={!oledDraft.trim() || isOffline}>
@@ -1221,16 +1250,16 @@ export default function DeviceDetails() {
                 style={
                   buzzerMode === item.mode
                     ? { background: `rgba(234,88,12,0.08)`, boxShadow: `0 0 0 1.5px ${item.accent}40, 3px 3px 8px ${item.glow}` }
-                    : { background: '#EEF2F7', boxShadow: '3px 3px 7px rgba(166,180,200,0.4), -3px -3px 7px rgba(255,255,255,0.8)' }
+                    : { background: 'var(--bg-secondary)', boxShadow: 'var(--neo-shadow)' }
                 }
               >
                 <div className="text-left">
-                  <p className="font-bold text-neutral-800">{item.label}</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#9ca3af' }}>{item.desc}</p>
+                  <p className="font-bold" style={{ color: 'var(--text-primary)' }}>{item.label}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{item.desc}</p>
                 </div>
                 <span
                   className="text-xs font-semibold px-2.5 py-1 rounded-xl"
-                  style={{ background: '#F4F7FB', color: '#6b7280', boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)' }}
+                  style={{ background: 'var(--bg-primary)', color: 'var(--text-secondary)', boxShadow: 'var(--neo-shadow)' }}
                 >
                   {item.duration}
                 </span>
@@ -1265,14 +1294,14 @@ export default function DeviceDetails() {
             ].map(item => (
               <div
                 key={item.label}
-                className="flex items-center justify-between px-4 py-2.5 rounded-2xl"
+                className="flex items-center justify-between px-4 py-2.5 rounded-2xl transition-colors duration-200"
                 style={{
-                  background: '#EEF2F7',
-                  boxShadow: 'inset 2px 2px 5px rgba(166,180,200,0.4), inset -2px -2px 5px rgba(255,255,255,0.75)',
+                  background: 'var(--bg-secondary)',
+                  boxShadow: 'var(--neo-inset)',
                 }}
               >
-                <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>{item.label}</span>
-                <span className={`text-xs font-bold text-neutral-800 max-w-[55%] text-right truncate ${item.mono ? 'font-mono' : ''}`}>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
+                <span className={`text-xs font-bold max-w-[55%] text-right truncate ${item.mono ? 'font-mono' : ''}`} style={{ color: 'var(--text-primary)' }}>
                   {item.value}
                 </span>
               </div>
@@ -1283,8 +1312,8 @@ export default function DeviceDetails() {
             className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-2xl transition-all"
             style={{
               color: '#ef4444',
-              background: '#EEF2F7',
-              boxShadow: '2px 2px 5px rgba(166,180,200,0.35), -2px -2px 5px rgba(255,255,255,0.75)',
+              background: 'var(--bg-secondary)',
+              boxShadow: 'var(--neo-shadow)',
             }}
           >
             <Trash size={13} /> Remove This Device
@@ -1293,10 +1322,20 @@ export default function DeviceDetails() {
 
       </div>
 
+      {/* ── Edit Device Modal ── */}
+      <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Device">
+        <EditDeviceForm
+          device={device}
+          onSave={handleSaveEdit}
+          onCancel={() => setEditModal(false)}
+          loading={saving}
+        />
+      </Modal>
+
       {/* ── Delete Modal ── */}
       <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Remove Device">
-        <p className="text-sm text-neutral-600 mb-6">
-          Remove <strong>{device.name}</strong>? All device data will be permanently deleted.
+        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+          Remove <strong style={{ color: 'var(--text-primary)' }}>{device.name}</strong>? All device data will be permanently deleted.
         </p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
@@ -1306,10 +1345,10 @@ export default function DeviceDetails() {
 
       {/* ── Remove Output Modal ── */}
       <Modal open={removeModal} onClose={handleRemoveCancel} title="Remove Output">
-        <p className="text-sm text-neutral-600 mb-2">
+        <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
           Remove this button?
         </p>
-        <p className="text-xs text-neutral-500 mb-6">
+        <p className="text-xs mb-6" style={{ color: 'var(--text-tertiary)' }}>
           This will remove the button configuration from this device. The output can be added again later.
         </p>
         <div className="flex gap-3 justify-end">
@@ -1318,5 +1357,162 @@ export default function DeviceDetails() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+
+// ─── Edit Device Form Component ──────────────────────────────────────────────
+
+function EditDeviceForm({
+  device,
+  onSave,
+  onCancel,
+  loading,
+}: {
+  device: Device | null;
+  onSave: (data: { name: string; room: string; location: string; firmware: string }) => Promise<void>;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    name: '',
+    room: '',
+    location: '',
+    firmware: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  // Update form data when device changes
+  useEffect(() => {
+    if (device) {
+      setFormData({
+        name: device.name || '',
+        room: device.room || '',
+        location: device.location || '',
+        firmware: device.firmware || '',
+      });
+    }
+  }, [device]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.room.trim()) return;
+    
+    setError(null);
+    try {
+      await onSave(formData);
+    } catch (err) {
+      setError('Failed to update device. Please try again.');
+    }
+  };
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  if (!device) return null;
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div
+          className="p-3 rounded-lg text-xs"
+          style={{
+            background: 'rgba(239, 68, 68, 0.1)',
+            color: '#ef4444',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+          Device Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={formData.name}
+          onChange={(e) => handleChange('name', e.target.value)}
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
+          placeholder="Enter device name"
+          required
+          disabled={loading}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+          Room <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={formData.room}
+          onChange={(e) => handleChange('room', e.target.value)}
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
+          placeholder="Enter room name"
+          required
+          disabled={loading}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+          Location
+        </label>
+        <input
+          type="text"
+          value={formData.location}
+          onChange={(e) => handleChange('location', e.target.value)}
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
+          placeholder="Enter specific location"
+          disabled={loading}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+          Firmware Version
+        </label>
+        <input
+          type="text"
+          value={formData.firmware}
+          onChange={(e) => handleChange('firmware', e.target.value)}
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            borderColor: 'var(--border-color)',
+          }}
+          placeholder="e.g., v1.2.4"
+          disabled={loading}
+        />
+      </div>
+
+      <div className="flex gap-3 justify-end pt-4">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}>
+          Cancel
+        </Button>
+        <Button type="submit" loading={loading} disabled={!formData.name.trim() || !formData.room.trim()}>
+          Save Changes
+        </Button>
+      </div>
+    </form>
   );
 }

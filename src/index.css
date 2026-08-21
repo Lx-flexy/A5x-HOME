@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme Variables (Light Mode Only) ── */
+:root {
+  --bg-primary: #F4F7FB;
+  --bg-secondary: #EEF2F7;
+  --bg-tertiary: #E8EDF4;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --border-color: rgba(166, 180, 200, 0.25);
+  --shadow-sm: rgba(166, 180, 200, 0.2);
+  --neo-shadow: 3px 3px 7px rgba(166, 180, 200, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.8);
+  --neo-shadow-lg: 6px 6px 14px rgba(166, 180, 200, 0.45), -6px -6px 14px rgba(255, 255, 255, 0.85);
+  --neo-inset: inset 3px 3px 7px rgba(166, 180, 200, 0.5), inset -3px -3px 7px rgba(255, 255, 255, 0.75);
+}
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -9,8 +24,8 @@
 
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background-color: #EEF2F7;
-    color: #111827;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -28,40 +43,33 @@
 @layer components {
   /* ── Neomorphic base card ── */
   .neo-card {
-    background: #F4F7FB;
+    background: var(--bg-primary);
     border-radius: 20px;
-    box-shadow:
-      6px 6px 14px rgba(166, 180, 200, 0.45),
-      -6px -6px 14px rgba(255, 255, 255, 0.85);
+    box-shadow: var(--neo-shadow-lg);
   }
 
   .neo-card-sm {
-    background: #F4F7FB;
+    background: var(--bg-primary);
     border-radius: 16px;
-    box-shadow:
-      4px 4px 10px rgba(166, 180, 200, 0.4),
-      -4px -4px 10px rgba(255, 255, 255, 0.8);
+    box-shadow: var(--neo-shadow);
   }
 
   .neo-inset {
-    background: #E8EDF4;
+    background: var(--bg-tertiary);
     border-radius: 14px;
-    box-shadow:
-      inset 3px 3px 7px rgba(166, 180, 200, 0.5),
-      inset -3px -3px 7px rgba(255, 255, 255, 0.75);
+    box-shadow: var(--neo-inset);
   }
 
   /* ── Sidebar ── */
   .sidebar-link {
-    @apply flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium text-neutral-500 transition-all duration-200;
+    @apply flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all duration-200;
+    color: var(--text-secondary);
   }
 
   .sidebar-link:hover {
-    background: #EEF2F7;
-    color: #1f2937;
-    box-shadow:
-      2px 2px 6px rgba(166, 180, 200, 0.35),
-      -2px -2px 6px rgba(255, 255, 255, 0.75);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    box-shadow: var(--neo-shadow);
   }
 
   .sidebar-link.active {
@@ -78,32 +86,37 @@
 
   /* ── Forms ── */
   .stat-card {
-    @apply bg-white rounded-xl border border-neutral-200 p-5;
+    background: var(--bg-primary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    padding: 1.25rem;
   }
 
   .device-card {
-    background: #F4F7FB;
+    background: var(--bg-primary);
     border-radius: 16px;
     padding: 1rem;
-    box-shadow:
-      4px 4px 10px rgba(166, 180, 200, 0.4),
-      -4px -4px 10px rgba(255, 255, 255, 0.8);
-    transition: box-shadow 0.2s;
+    box-shadow: var(--neo-shadow);
   }
 
   .device-card:hover {
-    box-shadow:
-      6px 6px 14px rgba(166, 180, 200, 0.5),
-      -6px -6px 14px rgba(255, 255, 255, 0.9);
+    box-shadow: var(--neo-shadow-lg);
   }
 
   .form-input {
-    @apply w-full px-3.5 py-2.5 text-sm border-0 rounded-xl bg-[#E8EDF4] text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition-all duration-150;
-    box-shadow: inset 2px 2px 5px rgba(166,180,200,0.45), inset -2px -2px 5px rgba(255,255,255,0.75);
+    @apply w-full px-3.5 py-2.5 text-sm border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-400 transition-all duration-150;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    box-shadow: var(--neo-inset);
+  }
+  
+  .form-input::placeholder {
+    color: var(--text-tertiary);
   }
 
   .form-label {
-    @apply block text-sm font-medium text-neutral-700 mb-1.5;
+    @apply block text-sm font-medium mb-1.5;
+    color: var(--text-secondary);
   }
 
   .btn-primary {
@@ -118,13 +131,14 @@
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-neutral-700 rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
-    background: #F4F7FB;
-    box-shadow: 3px 3px 8px rgba(166,180,200,0.4), -3px -3px 8px rgba(255,255,255,0.8);
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    box-shadow: var(--neo-shadow);
   }
 
   .btn-secondary:hover:not(:disabled) {
-    box-shadow: 4px 4px 10px rgba(166,180,200,0.5), -4px -4px 10px rgba(255,255,255,0.9);
+    box-shadow: var(--neo-shadow-lg);
   }
 
   .btn-danger {
@@ -143,7 +157,8 @@
   }
 
   .status-offline {
-    @apply inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400;
+    @apply inline-flex items-center gap-1.5 text-xs font-medium;
+    color: var(--text-tertiary);
   }
 
   /* ── iOS Toggle ── */
@@ -268,4 +283,75 @@
   -webkit-appearance: none;
   appearance: none;
   height: 24px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+   ══════════════════════════════════════════════════════════════ */
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+
+.toast-item {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-enter {
+  animation: toast-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-exit {
+  animation: toast-slide-out 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes toast-slide-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes toast-slide-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  .toast-item {
+    transition: opacity 0.2s ease;
+  }
+
+  .toast-enter {
+    animation: toast-slide-in 0.2s ease;
+  }
+
+  .toast-exit {
+    animation: toast-slide-out 0.2s ease;
+  }
 }

@@ -22,13 +22,13 @@ export default function Table<T extends Record<string, unknown>>({
 }: TableProps<T>) {
   if (loading) {
     return (
-      <div className="py-12 text-center text-sm text-neutral-400">Loading...</div>
+      <div className="py-12 text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>Loading...</div>
     );
   }
 
   if (data.length === 0) {
     return (
-      <div className="py-12 text-center text-sm text-neutral-400">{emptyMessage}</div>
+      <div className="py-12 text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>{emptyMessage}</div>
     );
   }
 
@@ -36,19 +36,19 @@ export default function Table<T extends Record<string, unknown>>({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-neutral-200">
+          <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
             {columns.map(col => (
-              <th key={col.key} className={`text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wide ${col.className || ''}`}>
+              <th key={col.key} className={`text-left py-3 px-4 text-xs font-medium uppercase tracking-wide ${col.className || ''}`} style={{ color: 'var(--text-secondary)' }}>
                 {col.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-neutral-100">
+        <tbody style={{ borderTop: '1px solid var(--border-color)' }}>
           {data.map((row, i) => (
-            <tr key={i} className="hover:bg-neutral-50 transition-colors">
+            <tr key={i} className="transition-colors hover:opacity-80" style={{ borderBottom: '1px solid var(--border-color)' }}>
               {columns.map(col => (
-                <td key={col.key} className={`py-3.5 px-4 text-neutral-700 ${col.className || ''}`}>
+                <td key={col.key} className={`py-3.5 px-4 ${col.className || ''}`} style={{ color: 'var(--text-primary)' }}>
                   {col.render ? col.render(row) : String(row[col.key] ?? '')}
                 </td>
               ))}

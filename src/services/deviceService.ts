@@ -111,6 +111,7 @@ export interface ActivityLog {
   action: string;
   performedBy: string;
   timestamp: unknown;
+  outputId?: string; // Hardware output ID (light1, light2, light3, fan1, fan2, custom1)
 }
 
 // ─── RTDB path helpers ────────────────────────────────────────────────────────
@@ -123,6 +124,18 @@ const rtdbNames     = (did: string) => ref(rtdb, `devices/${did}/metadata/names`
 const rtdbOutputMetadata = (did: string) => ref(rtdb, `devices/${did}/metadata/outputs`);
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
+
+export async function getDeviceOutputMetadata(deviceId: string): Promise<DeviceOutputMetadata> {
+  try {
+    const snap = await get(rtdbOutputMetadata(deviceId));
+    const metadata = (snap.val() as DeviceOutputMetadata) || {};
+    const merged = { ...defaultOutputMetadata(), ...metadata };
+    return merged;
+  } catch (err) {
+    console.warn('[getDeviceOutputMetadata] Failed:', err);
+    return defaultOutputMetadata();
+  }
+}
 
 function defaultOutputs(): DeviceOutputs {
   return {
@@ -624,7 +637,11 @@ export async function setOutput(
   }
 
   if (label) {
-    await logActivity(deviceId, sanitizeString(label, 200), sanitizeName(performedBy));
+    // Pass the output ID for trackable boolean keys to enable color-matched notifications
+    const outputId = (typeof safeValue === 'boolean' && TRACKABLE_KEYS.has(key as string)) 
+      ? key as string 
+      : undefined;
+    await logActivity(deviceId, sanitizeString(label, 200), sanitizeName(performedBy), outputId);
   }
 }
 
@@ -644,13 +661,23 @@ export async function setOutputValue(
 export async function logActivity(
   deviceId: string,
   action: string,
-  performedBy: string
+  performedBy: string,
+  outputId?: string
 ): Promise<void> {
   try {
-    await addDoc(collection(db, 'activity_logs'), {
-      deviceId, action, performedBy,
+    const logData: Record<string, unknown> = {
+      deviceId,
+      action,
+      performedBy,
       timestamp: serverTimestamp(),
-    });
+    };
+    
+    // Only add outputId if provided
+    if (outputId) {
+      logData.outputId = outputId;
+    }
+    
+    await addDoc(collection(db, 'activity_logs'), logData);
   } catch (err) {
     console.warn('[logActivity] Failed:', err);
   }

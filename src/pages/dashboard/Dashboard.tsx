@@ -25,9 +25,9 @@ function StatCard({
     <Card>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-2xl font-bold text-neutral-900">{value}</p>
-          <p className="text-sm font-medium text-neutral-700 mt-0.5">{label}</p>
-          <p className="text-xs text-neutral-400 mt-0.5">{sublabel}</p>
+          <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</p>
+          <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--text-primary)' }}>{label}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{sublabel}</p>
         </div>
         <div className={`w-10 h-10 ${iconBg} rounded-xl flex items-center justify-center`}>
           {icon}
@@ -108,8 +108,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 max-w-7xl">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-900">Overview</h2>
-        <p className="text-sm text-neutral-500 mt-0.5">Your smart home at a glance</p>
+        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Overview</h2>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Your smart home at a glance</p>
       </div>
 
       {/* ── Stats row ── */}
@@ -136,40 +136,45 @@ export default function Dashboard() {
         {/* ── My Devices ── */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-neutral-900">My Devices</h3>
-            <Link to="/devices" className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>My Devices</h3>
+            <Link to="/devices" className="text-xs font-medium flex items-center gap-1" style={{ color: '#2563eb' }}>
               View All <ChevronRight size={14} />
             </Link>
           </div>
           <Card padding={false}>
             {loadingDevices ? <Loader /> : devices.length === 0 ? (
               <div className="py-12 text-center">
-                <Cpu size={32} className="text-neutral-300 mx-auto mb-3" />
-                <p className="text-sm text-neutral-500 font-medium">No devices added yet</p>
-                <Link to="/devices" className="text-xs text-primary-600 mt-1 block hover:underline">
+                <Cpu size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-3" />
+                <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No devices added yet</p>
+                <Link to="/devices" className="text-xs mt-1 block" style={{ color: '#2563eb' }}>
                   Add your first device
                 </Link>
               </div>
             ) : (
-              <div className="divide-y divide-neutral-100">
+              <div className="divide-y divide-neutral-100" style={{ borderColor: 'var(--border-color)' }}>
                 {devices.slice(0, 5).map(device => {
                   const isOnline = isDeviceOnline(device.deviceId);
                   return (
                     <Link
                       key={device.id}
                       to={`/devices/${device.id}`}
-                      className="flex items-center gap-4 px-5 py-4 hover:bg-neutral-50 transition-colors"
+                      className="flex items-center gap-4 px-5 py-4 transition-colors"
+                      style={{
+                        background: 'transparent',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                       <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Cpu size={16} className="text-primary-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-neutral-900 truncate">{device.name}</p>
-                        <p className="text-xs text-neutral-400">{device.room} · {device.location}</p>
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{device.name}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{device.room} · {device.location}</p>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-success-500 animate-pulse' : 'bg-neutral-300'}`} />
-                        <span className={`text-xs font-medium ${isOnline ? 'text-success-600' : 'text-neutral-400'}`}>
+                        <span className={`text-xs font-medium ${isOnline ? 'text-success-600' : ''}`} style={{ color: isOnline ? '#16a34a' : 'var(--text-tertiary)' }}>
                           {isOnline ? 'Online' : 'Offline'}
                         </span>
                       </div>
@@ -184,27 +189,27 @@ export default function Dashboard() {
         {/* ── Recent Activity ── */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-neutral-900">Recent Activity</h3>
-            <Link to="/analytics" className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Recent Activity</h3>
+            <Link to="/analytics" className="text-xs font-medium flex items-center gap-1" style={{ color: '#2563eb' }}>
               View All <ChevronRight size={14} />
             </Link>
           </div>
           <Card padding={false}>
             {loadingLogs ? <Loader /> : logs.length === 0 ? (
               <div className="py-12 text-center">
-                <Activity size={32} className="text-neutral-300 mx-auto mb-3" />
-                <p className="text-sm text-neutral-500">No activity yet</p>
+                <Activity size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-3" />
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No activity yet</p>
               </div>
             ) : (
-              <div className="divide-y divide-neutral-100">
+              <div className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
                 {logs.slice(0, 8).map(log => (
                   <div key={log.id} className="flex items-start gap-3 px-5 py-3.5">
                     <div className="w-7 h-7 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Activity size={14} className="text-primary-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-neutral-900">{log.action}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">{timeAgo(log.timestamp)}</p>
+                      <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{log.action}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{timeAgo(log.timestamp)}</p>
                     </div>
                   </div>
                 ))}
@@ -218,27 +223,34 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 bg-neutral-100 rounded-xl flex items-center justify-center">
-              <Bot size={18} className="text-neutral-600" />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-secondary)' }}>
+              <Bot size={18} style={{ color: 'var(--text-secondary)' }} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-neutral-900">Dex Bot</p>
-              <p className="text-xs text-neutral-400">Voice & chat control</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Dex Bot</p>
+              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Voice & chat control</p>
             </div>
-            <span className="ml-auto text-xs bg-neutral-100 text-neutral-500 px-2.5 py-1 rounded-full font-medium">
+            <span className="ml-auto text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>
               Not Connected
             </span>
           </div>
           <Link
             to="/dexbot"
-            className="block w-full text-center py-2.5 text-sm font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors"
+            className="block w-full text-center py-2.5 text-sm font-medium border rounded-lg transition-colors"
+            style={{ 
+              color: '#2563eb',
+              borderColor: 'var(--border-color)',
+              background: 'transparent',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             Connect Dex Bot
           </Link>
         </Card>
 
         <Card>
-          <p className="text-sm font-semibold text-neutral-900 mb-4">Home Overview</p>
+          <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Home Overview</p>
           <div className="grid grid-cols-2 gap-3">
             {[
               {
@@ -266,13 +278,13 @@ export default function Dashboard() {
                 value: memberCount,
               },
             ].map(item => (
-              <div key={item.label} className="flex items-center gap-3 bg-neutral-50 rounded-xl p-3">
+              <div key={item.label} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'var(--bg-secondary)' }}>
                 <div className={`w-8 h-8 ${item.bg} rounded-lg flex items-center justify-center`}>
                   {item.icon}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-neutral-900">{item.value}</p>
-                  <p className="text-xs text-neutral-400">{item.label}</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{item.label}</p>
                 </div>
               </div>
             ))}

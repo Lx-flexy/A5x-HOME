@@ -108,7 +108,7 @@ export default function EditableOutputLabel({
         <div className="space-y-3">
           {/* Name Input */}
           <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1">
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
               Output Name
             </label>
             <input
@@ -119,26 +119,36 @@ export default function EditableOutputLabel({
               maxLength={maxLength}
               disabled={saving}
               autoFocus
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-bold text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-3 py-2 border rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors duration-200"
+              style={{
+                background: 'var(--bg-tertiary)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-color)',
+              }}
               placeholder="Enter output name"
             />
           </div>
 
           {/* Icon Selection */}
           <div className="relative">
-            <label className="block text-xs font-medium text-neutral-600 mb-2">
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
               Choose Icon
             </label>
             <button
               ref={iconButtonRef}
               onClick={() => setShowIconPicker(!showIconPicker)}
               disabled={saving}
-              className="flex items-center gap-2 px-3 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors w-full"
+              className="flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors w-full"
+              style={{
+                background: 'var(--bg-tertiary)',
+                borderColor: 'var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
             >
               <div style={{ color: editColor }}>
                 {getIconById(editIcon)}
               </div>
-              <span className="text-sm text-neutral-700">
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 Click to change icon
               </span>
             </button>
@@ -155,7 +165,7 @@ export default function EditableOutputLabel({
 
           {/* Color Selection */}
           <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-2">
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
               Choose Color
             </label>
             <div className="grid grid-cols-4 gap-2">
@@ -166,9 +176,13 @@ export default function EditableOutputLabel({
                   disabled={saving}
                   className={`p-2.5 rounded-lg border-2 transition-all ${
                     editColor === colorOption.value
-                      ? 'border-neutral-800 scale-105'
-                      : 'border-neutral-200 hover:border-neutral-300'
+                      ? 'scale-105'
+                      : ''
                   }`}
+                  style={{
+                    borderColor: editColor === colorOption.value ? colorOption.value : 'var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                  }}
                   title={colorOption.name}
                 >
                   <div
@@ -190,9 +204,13 @@ export default function EditableOutputLabel({
               disabled={saving}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 saving 
-                  ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed' 
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:opacity-90'
               }`}
+              style={{
+                background: saving ? 'var(--bg-secondary)' : 'rgba(22, 163, 74, 0.15)',
+                color: saving ? 'var(--text-tertiary)' : '#16a34a',
+              }}
               title="Save changes"
             >
               {saving ? '...' : <Check size={14} />}
@@ -202,9 +220,13 @@ export default function EditableOutputLabel({
               disabled={saving}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 saving 
-                  ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed' 
-                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:opacity-90'
               }`}
+              style={{
+                background: saving ? 'var(--bg-secondary)' : 'rgba(239, 68, 68, 0.15)',
+                color: saving ? 'var(--text-tertiary)' : '#ef4444',
+              }}
               title="Cancel"
             >
               <X size={14} />
@@ -212,7 +234,7 @@ export default function EditableOutputLabel({
           </div>
 
           {error && (
-            <p className="text-xs text-red-600 mt-1 font-medium">{error}</p>
+            <p className="text-xs font-medium mt-1" style={{ color: '#ef4444' }}>{error}</p>
           )}
         </div>
       </div>
@@ -224,19 +246,23 @@ export default function EditableOutputLabel({
       <div style={{ color: color }}>
         {getIconById(icon)}
       </div>
-      <span className="text-sm font-bold text-neutral-800">{name}</span>
+      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{name}</span>
       <button
         onClick={handleEdit}
         disabled={disabled}
-        className={`p-1.5 rounded-lg transition-all ${
+        className={`p-1.5 rounded-lg transition-all duration-200 ${
           disabled 
             ? 'opacity-30 cursor-not-allowed' 
-            : 'hover:bg-neutral-100 hover:shadow-sm opacity-70 hover:opacity-100'
+            : 'hover:opacity-100'
         }`}
-        style={{ background: disabled ? 'transparent' : '#EEF2F7' }}
+        style={{ 
+          background: disabled ? 'transparent' : 'var(--bg-secondary)',
+          boxShadow: disabled ? 'none' : 'var(--neo-shadow)',
+          border: disabled ? 'none' : '1px solid var(--border-color)'
+        }}
         title="Edit name and icon"
       >
-        <Edit2 size={12} style={{ color: disabled ? '#9ca3af' : '#6b7280' }} />
+        <Edit2 size={12} style={{ color: disabled ? 'var(--text-tertiary)' : 'var(--text-secondary)' }} />
       </button>
     </div>
   );
