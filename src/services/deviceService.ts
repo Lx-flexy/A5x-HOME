@@ -22,7 +22,7 @@ import {
 } from 'firebase/firestore';
 import {
   ref, set, update, onValue, off,
-  get, remove, DataSnapshot,
+  get, remove, child, DataSnapshot,
 } from 'firebase/database';
 import { db, rtdb } from './firebase';
 import { sanitizeString, sanitizeMessage, sanitizeName, isValidDeviceId, isNonEmptyString } from '../lib/sanitize';
@@ -80,6 +80,31 @@ export interface DeviceAnalyticsData {
   energyUsage: number;
 }
 
+export interface DeviceNames {
+  light1?: string;
+  light2?: string;
+  light3?: string;
+  fan1?: string;
+  fan2?: string;
+  custom1?: string;
+}
+
+export interface OutputMetadata {
+  name: string;
+  icon: string;
+  color: string;
+  visible?: boolean;
+}
+
+export interface DeviceOutputMetadata {
+  light1?: OutputMetadata;
+  light2?: OutputMetadata;
+  light3?: OutputMetadata;
+  fan1?: OutputMetadata;
+  fan2?: OutputMetadata;
+  custom1?: OutputMetadata;
+}
+
 export interface ActivityLog {
   id: string;
   deviceId: string;
@@ -94,6 +119,8 @@ const rtdbDevice    = (did: string) => ref(rtdb, `devices/${did}`);
 const rtdbOutputs   = (did: string) => ref(rtdb, `devices/${did}/outputs`);
 const rtdbHealth    = (did: string) => ref(rtdb, `devices/${did}/health`);
 const rtdbAnalytics = (did: string) => ref(rtdb, `devices/${did}/analytics`);
+const rtdbNames     = (did: string) => ref(rtdb, `devices/${did}/metadata/names`);
+const rtdbOutputMetadata = (did: string) => ref(rtdb, `devices/${did}/metadata/outputs`);
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -117,6 +144,28 @@ function defaultAnalytics(): DeviceAnalyticsData {
   return {
     light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
     fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+  };
+}
+
+function defaultNames(): DeviceNames {
+  return {
+    light1: 'Light 1',
+    light2: 'Light 2',
+    light3: 'Light 3',
+    fan1: 'Fan 1',
+    fan2: 'Fan 2',
+    custom1: 'Custom Device'
+  };
+}
+
+function defaultOutputMetadata(): DeviceOutputMetadata {
+  return {
+    light1: { name: 'Light 1', icon: 'lightbulb', color: '#d97706', visible: true },
+    light2: { name: 'Light 2', icon: 'lightbulb', color: '#d97706', visible: true },
+    light3: { name: 'Light 3', icon: 'lightbulb', color: '#d97706', visible: true },
+    fan1: { name: 'Fan 1', icon: 'wind', color: '#2563eb', visible: false },
+    fan2: { name: 'Fan 2', icon: 'wind', color: '#2563eb', visible: false },
+    custom1: { name: 'Custom Device', icon: 'zap', color: '#7c3aed', visible: false }
   };
 }
 
@@ -151,6 +200,10 @@ export async function addDevice(data: Omit<Device, 'id' | 'updatedAt'>) {
     outputs: defaultOutputs(),
     health: defaultHealth(),
     analytics: defaultAnalytics(),
+    metadata: {
+      names: defaultNames(), // Keep for backward compatibility
+      outputs: defaultOutputMetadata()
+    }
   });
 
   // 2. Register in Firestore for listing by ownerId
@@ -336,6 +389,142 @@ export function subscribeToAnalytics(
   };
   onValue(r, handler);
   return () => off(r, 'value', handler);
+}
+
+// ─── RTDB: device output metadata ───────────────────────────────────────────
+
+export function subscribeToOutputMetadata(
+  deviceId: string,
+  callback: (metadata: DeviceOutputMetadata) => void
+): () => void {
+  const r = rtdbOutputMetadata(deviceId);
+  const handler = (snap: DataSnapshot) => {
+    const metadata = (snap.val() as DeviceOutputMetadata) || {};
+    const merged = { ...defaultOutputMetadata(), ...metadata };
+    callback(merged);
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
+}
+
+export async function updateOutputMetadata(
+  deviceId: string,
+  outputId: keyof DeviceOutputMetadata,
+  name: string,
+  icon: string,
+  color: string,
+  performedBy: string
+): Promise<void> {
+  // Sanitize and validate inputs
+  const safeName = sanitizeName(name);
+  if (!safeName || safeName.length === 0) {
+    throw new Error('Output name cannot be empty');
+  }
+  if (safeName.length > 40) {
+    throw new Error('Output name must be 40 characters or less');
+  }
+
+  // Validate icon against whitelist
+  const allowedIcons = [
+    'lightbulb', 'sun', 'moon', 'lamp', 'flashlight',
+    'wind', 'air-vent', 'snowflake', 'thermometer', 'fan', 'flame',
+    'zap', 'power', 'plug', 'cpu', 'settings',
+    'bed', 'sofa', 'home', 'door', 'window',
+    'book', 'monitor', 'tv', 'speaker', 'bell',
+    'droplet', 'shower', 'hammer', 'wrench'
+  ];
+  
+  if (!allowedIcons.includes(icon)) {
+    throw new Error('Invalid icon selection');
+  }
+
+  // Validate color (hex format)
+  if (!/^#[0-9A-Fa-f]{6}$/.test(color)) {
+    throw new Error('Invalid color format');
+  }
+  
+  // Get current metadata to preserve visibility flag
+  const metadataRef = rtdbOutputMetadata(deviceId);
+  const snap = await get(child(metadataRef, outputId));
+  const current = snap.val() as OutputMetadata | null;
+  
+  // Update in RTDB, preserving visibility
+  await update(metadataRef, {
+    [outputId]: { 
+      name: safeName, 
+      icon, 
+      color,
+      visible: current?.visible ?? defaultOutputMetadata()[outputId]?.visible ?? false
+    }
+  });
+  
+  // Log the activity
+  const defaultMeta = defaultOutputMetadata()[outputId];
+  await logActivity(
+    deviceId, 
+    `Output "${defaultMeta?.name}" updated to "${safeName}" with ${icon} icon and ${color} color`, 
+    performedBy
+  );
+}
+
+export function getOutputMetadata(metadata: DeviceOutputMetadata, outputId: keyof DeviceOutputMetadata): OutputMetadata {
+  return metadata[outputId] || defaultOutputMetadata()[outputId] || { name: outputId, icon: 'zap', color: '#7c3aed', visible: false };
+}
+
+export async function updateOutputVisibility(
+  deviceId: string,
+  outputId: keyof DeviceOutputMetadata,
+  visible: boolean,
+  performedBy: string
+): Promise<void> {
+  // Get current metadata for this output
+  const metadataRef = rtdbOutputMetadata(deviceId);
+  const snap = await get(child(metadataRef, outputId));
+  const current = snap.val() as OutputMetadata | null;
+  
+  // Preserve existing metadata, only update visibility
+  const updated = {
+    ...(current || defaultOutputMetadata()[outputId]),
+    visible
+  };
+  
+  // Update in RTDB
+  await update(metadataRef, {
+    [outputId]: updated
+  });
+  
+  // Log the activity
+  await logActivity(
+    deviceId, 
+    `Output "${updated.name}" ${visible ? 'shown' : 'hidden'}`, 
+    performedBy
+  );
+}
+
+export async function removeOutput(
+  deviceId: string,
+  outputId: keyof DeviceOutputMetadata,
+  performedBy: string
+): Promise<void> {
+  // Reset to default metadata with visible=false
+  const defaultMeta = defaultOutputMetadata()[outputId];
+  
+  // Update in RTDB - reset to defaults and hide
+  await update(rtdbOutputMetadata(deviceId), {
+    [outputId]: {
+      name: defaultMeta.name,
+      icon: defaultMeta.icon,
+      color: defaultMeta.color,
+      visible: false
+    }
+  });
+  
+  // Log the activity
+  await logActivity(
+    deviceId, 
+    `Output "${defaultMeta.name}" removed`, 
+    performedBy
+  );
 }
 
 /**

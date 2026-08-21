@@ -4,7 +4,7 @@ import {
   ChevronRight, Lightbulb, Wind, Monitor, Volume2,
   Wifi, Clock, Cpu, Activity, MapPin, Trash,
   Zap, MemoryStick, RotateCcw, Signal, Server,
-  CheckCircle2, XCircle, BarChart3, Bolt, Edit2,
+  CheckCircle2, XCircle, BarChart3, Bolt, Edit2, Plus, X,
 } from 'lucide-react';
 import {
   getDevice,
@@ -12,6 +12,11 @@ import {
   subscribeToHealth,
   subscribeToAnalytics,
   subscribeToOnAt,
+  subscribeToOutputMetadata,
+  updateOutputMetadata,
+  updateOutputVisibility,
+  removeOutput,
+  getOutputMetadata,
   resetAnalytics,
   setOutput,
   setOutputValue,
@@ -20,6 +25,7 @@ import {
   DeviceOutputs,
   DeviceHealth,
   DeviceAnalyticsData,
+  DeviceOutputMetadata,
   updateDeviceState,
 } from '../../services/deviceService';
 import { ensureTodayWindow } from '../../services/analyticsService';
@@ -28,6 +34,8 @@ import { useDeviceStatus } from '../../hooks/useDeviceStatus';
 import Button from '../../components/ui/Button';
 import Loader from '../../components/ui/Loader';
 import Modal from '../../components/ui/Modal';
+import EditableOutputLabel from '../../components/ui/EditableLabel';
+import { getIconById } from '../../components/ui/IconPicker';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,10 +79,12 @@ function IOSToggle({
   checked,
   onChange,
   disabled,
+  customColor,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  customColor?: string;
 }) {
   return (
     <label className={`ios-toggle${disabled ? ' disabled' : ''}`}>
@@ -84,7 +94,13 @@ function IOSToggle({
         onChange={e => onChange(e.target.checked)}
         disabled={disabled}
       />
-      <div className="ios-track" />
+      <div 
+        className="ios-track" 
+        style={checked && customColor ? { 
+          background: customColor,
+          boxShadow: `inset 0 0 4px ${customColor}60`
+        } : undefined}
+      />
       <div className="ios-thumb" />
     </label>
   );
@@ -230,12 +246,145 @@ function NeoSlider({
   );
 }
 
+// ─── Compact Device Item ─────────────────────────────────────────────────────
+
+function CompactDeviceItem({
+  icon, customColor, label, runtime, checked, onChange, disabled,
+  onMetadataChange, outputId, iconId, onRemove,
+}: {
+  icon: React.ReactNode;
+  customColor: string;
+  label: string;
+  runtime?: number;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  onMetadataChange?: (name: string, icon: string, color: string) => Promise<void>;
+  outputId?: string;
+  iconId?: string;
+  onRemove?: () => void;
+}) {
+  // Map outputId to hardware slot number (permanent mapping)
+  const getHardwareSlot = (id?: string): string => {
+    const slotMap: Record<string, string> = {
+      'light1': 'X1',
+      'light2': 'X2',
+      'light3': 'X3',
+      'fan1': 'X4',
+      'fan2': 'X5',
+      'custom1': 'X6'
+    };
+    return id ? (slotMap[id] || '') : '';
+  };
+
+  const hardwareSlot = getHardwareSlot(outputId);
+
+  return (
+    <div
+      className="rounded-2xl p-4 transition-all duration-300 relative"
+      style={
+        checked
+          ? {
+              background: `linear-gradient(135deg, ${customColor}08 0%, #F4F7FB 100%)`,
+              boxShadow: `0 0 20px ${customColor}25, 4px 4px 12px rgba(166,180,200,0.35), -4px -4px 10px rgba(255,255,255,0.9)`,
+              border: `1.5px solid ${customColor}30`,
+            }
+          : {
+              background: '#F4F7FB',
+              boxShadow: '4px 4px 10px rgba(166,180,200,0.4), -4px -4px 10px rgba(255,255,255,0.85)',
+              border: '1.5px solid transparent',
+            }
+      }
+    >
+      {/* Remove button */}
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          disabled={disabled}
+          className="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-red-50 z-10"
+          style={{
+            background: '#EEF2F7',
+            boxShadow: '2px 2px 4px rgba(166,180,200,0.3), -1px -1px 3px rgba(255,255,255,0.8)',
+          }}
+          title="Remove output"
+        >
+          <X size={12} className="text-neutral-400 hover:text-red-500" />
+        </button>
+      )}
+      
+      <div className="flex items-start justify-between mb-3">
+        {/* Icon */}
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all duration-300"
+          style={
+            checked
+              ? { 
+                  background: `${customColor}12`, 
+                  boxShadow: `0 0 12px ${customColor}30, 2px 2px 8px rgba(166,180,200,0.25)` 
+                }
+              : {
+                  background: '#EEF2F7',
+                  boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
+                }
+          }
+        >
+          <span style={{ color: checked ? customColor : '#9ca3af' }}>{icon}</span>
+        </div>
+        {/* Toggle - positioned with proper spacing from remove button */}
+        <div style={{ marginTop: onRemove ? '28px' : '0' }}>
+          <IOSToggle checked={checked} onChange={onChange} disabled={disabled} customColor={customColor} />
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mb-1">
+        {onMetadataChange && outputId ? (
+          <EditableOutputLabel
+            name={label}
+            icon={iconId || 'zap'}
+            color={customColor}
+            onSave={onMetadataChange}
+            disabled={disabled}
+            maxLength={40}
+            className=""
+          />
+        ) : (
+          <>
+            <span style={{ color: customColor }}>{icon}</span>
+            <p className="text-sm font-bold text-neutral-800">{label}</p>
+          </>
+        )}
+      </div>
+      <div className="flex items-center justify-between">
+        <span
+          className="text-xs font-semibold transition-colors duration-300"
+          style={{ color: checked ? customColor : '#9ca3af' }}
+        >
+          {checked ? '● ON' : '○ OFF'}
+        </span>
+        {runtime !== undefined && runtime > 0 && (
+          <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>
+            {fmtRuntime(runtime)}
+          </span>
+        )}
+      </div>
+      {/* Hardware slot label */}
+      {hardwareSlot && (
+        <div className="mt-2 pt-2 border-t border-neutral-200/50">
+          <span className="text-[10px] font-medium tracking-wide" style={{ color: '#9ca3af' }}>
+            {hardwareSlot}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Control Card (premium neomorphic device card) ────────────────────────────
 
 function ControlCard({
   icon, accentColor, accentBg, accentGlow,
   label, runtime, checked, onChange, disabled,
   sliderValue, onSliderChange, sliderLabel,
+  onMetadataChange, outputId, iconId, iconColor,
 }: {
   icon: React.ReactNode;
   accentColor: string;
@@ -249,16 +398,23 @@ function ControlCard({
   sliderValue?: number;
   onSliderChange?: (v: number) => void;
   sliderLabel?: string;
+  onMetadataChange?: (name: string, icon: string, color: string) => Promise<void>;
+  outputId?: string;
+  iconId?: string;
+  iconColor?: string;
 }) {
+  // Use the custom color for the ON state
+  const customColor = iconColor || accentColor;
+  
   return (
     <div
       className="rounded-2xl p-4 transition-all duration-300"
       style={
         checked
           ? {
-              background: `linear-gradient(135deg, ${accentBg} 0%, #F4F7FB 100%)`,
-              boxShadow: `4px 4px 12px ${accentGlow}, -4px -4px 10px rgba(255,255,255,0.9)`,
-              border: `1.5px solid ${accentColor}30`,
+              background: `linear-gradient(135deg, ${customColor}08 0%, #F4F7FB 100%)`,
+              boxShadow: `0 0 20px ${customColor}25, 4px 4px 12px rgba(166,180,200,0.35), -4px -4px 10px rgba(255,255,255,0.9)`,
+              border: `1.5px solid ${customColor}30`,
             }
           : {
               background: '#F4F7FB',
@@ -273,22 +429,43 @@ function ControlCard({
           className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all duration-300"
           style={
             checked
-              ? { background: accentBg, boxShadow: `2px 2px 8px ${accentGlow}` }
+              ? { 
+                  background: `${customColor}12`, 
+                  boxShadow: `0 0 12px ${customColor}30, 2px 2px 8px rgba(166,180,200,0.25)` 
+                }
               : {
                   background: '#EEF2F7',
                   boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
                 }
           }
         >
-          <span style={{ color: checked ? accentColor : '#9ca3af' }}>{icon}</span>
+          <span style={{ color: checked ? customColor : '#9ca3af' }}>{icon}</span>
         </div>
-        <IOSToggle checked={checked} onChange={onChange} disabled={disabled} />
+        {/* Toggle */}
+        <IOSToggle checked={checked} onChange={onChange} disabled={disabled} customColor={customColor} />
       </div>
-      <p className="text-sm font-bold text-neutral-800 mb-1">{label}</p>
+      <div className="flex items-center gap-2 mb-1">
+        {onMetadataChange && outputId ? (
+          <EditableOutputLabel
+            name={label}
+            icon={iconId || 'zap'}
+            color={iconColor || accentColor}
+            onSave={onMetadataChange}
+            disabled={disabled}
+            maxLength={40}
+            className=""
+          />
+        ) : (
+          <>
+            <span style={{ color: iconColor || accentColor }}>{icon}</span>
+            <p className="text-sm font-bold text-neutral-800">{label}</p>
+          </>
+        )}
+      </div>
       <div className="flex items-center justify-between">
         <span
-          className="text-xs font-semibold"
-          style={{ color: checked ? accentColor : '#9ca3af' }}
+          className="text-xs font-semibold transition-colors duration-300"
+          style={{ color: checked ? customColor : '#9ca3af' }}
         >
           {checked ? '● ON' : '○ OFF'}
         </span>
@@ -404,6 +581,7 @@ export default function DeviceDetails() {
   const [outputs, setOutputs]     = useState<DeviceOutputs | null>(null);
   const [health, setHealth]       = useState<DeviceHealth | null>(null);
   const [analytics, setAnalytics] = useState<DeviceAnalyticsData | null>(null);
+  const [outputMetadata, setOutputMetadata] = useState<DeviceOutputMetadata | null>(null);
   const [onAt, setOnAt]           = useState<Record<string, number>>({});
   const [now, setNow]             = useState<number>(Date.now());
   const [loading, setLoading]     = useState(true);
@@ -427,6 +605,10 @@ export default function DeviceDetails() {
 
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleting, setDeleting]       = useState(false);
+
+  const [removeModal, setRemoveModal] = useState(false);
+  const [removingOutputId, setRemovingOutputId] = useState<keyof DeviceOutputMetadata | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const performer = userData?.name || 'User';
 
@@ -458,7 +640,8 @@ export default function DeviceDetails() {
     const u2 = subscribeToHealth(did, setHealth);
     const u3 = subscribeToAnalytics(did, setAnalytics);
     const u4 = subscribeToOnAt(did, setOnAt);
-    return () => { u1(); u2(); u3(); u4(); };
+    const u5 = subscribeToOutputMetadata(did, setOutputMetadata);
+    return () => { u1(); u2(); u3(); u4(); u5(); };
   }, [device]);
 
   useEffect(() => {
@@ -547,6 +730,54 @@ export default function DeviceDetails() {
     await deleteDevice(device.id, device.deviceId, userData?.uid || '');
     navigate('/devices');
   }
+
+  const handleMetadataChange = useCallback(
+    async (outputId: keyof DeviceOutputMetadata, name: string, icon: string, color: string) => {
+      if (!device || !userData) return;
+      await updateOutputMetadata(device.deviceId, outputId, name, icon, color, userData.name || 'User');
+    },
+    [device, userData]
+  );
+
+  const handleShowNextOutput = useCallback(
+    async () => {
+      if (!device || !userData || !outputMetadata) return;
+      
+      // Define the output order (hardware limit: 6 outputs max)
+      const outputOrder: (keyof DeviceOutputMetadata)[] = ['light1', 'light2', 'light3', 'fan1', 'fan2', 'custom1'];
+      
+      // Find the first hidden output
+      const nextHidden = outputOrder.find(id => {
+        const meta = getOutputMetadata(outputMetadata, id);
+        return meta.visible === false;
+      });
+      
+      if (nextHidden) {
+        const { updateOutputVisibility } = await import('../../services/deviceService');
+        await updateOutputVisibility(device.deviceId, nextHidden, true, userData.name || 'User');
+      }
+    },
+    [device, userData, outputMetadata]
+  );
+
+  const handleRemoveClick = useCallback((outputId: keyof DeviceOutputMetadata) => {
+    setRemovingOutputId(outputId);
+    setRemoveModal(true);
+  }, []);
+
+  const handleRemoveConfirm = useCallback(async () => {
+    if (!device || !userData || !removingOutputId) return;
+    setRemoving(true);
+    await removeOutput(device.deviceId, removingOutputId, userData.name || 'User');
+    setRemoving(false);
+    setRemoveModal(false);
+    setRemovingOutputId(null);
+  }, [device, userData, removingOutputId]);
+
+  const handleRemoveCancel = useCallback(() => {
+    setRemoveModal(false);
+    setRemovingOutputId(null);
+  }, []);
 
   if (loading) return <Loader fullPage />;
   if (!device) return (
@@ -683,107 +914,92 @@ export default function DeviceDetails() {
       ══════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
-        {/* ═══ LIGHTS ═══ */}
-        <NeoCard>
-          <SectionHeader
-            icon={<Lightbulb size={17} />}
-            iconBg="linear-gradient(135deg,#fef9c3,#fde68a)"
-            iconColor="#d97706"
-            title="Lights"
-            actions={
-              <div className="flex gap-1.5">
-                <PillBtn label="All On"  active={allLightsOn}  activeColor="#92400e" activeBg="linear-gradient(135deg,#fde68a,#fcd34d)" activeGlow="rgba(217,119,6,0.3)" onClick={() => toggleAllLights(true)} />
-                <PillBtn label="All Off" active={allLightsOff} activeColor="#ffffff" activeBg="linear-gradient(135deg,#374151,#4b5563)" activeGlow="rgba(55,65,81,0.3)"   onClick={() => toggleAllLights(false)} />
-              </div>
-            }
-          />
-          <div className="space-y-3">
-            {([
-              { key: 'light1' as const, label: 'Light 1', stored: an?.light1Runtime || 0, bKey: 'light1Brightness' as const },
-              { key: 'light2' as const, label: 'Light 2', stored: an?.light2Runtime || 0, bKey: 'light2Brightness' as const },
-              { key: 'light3' as const, label: 'Light 3', stored: an?.light3Runtime || 0, bKey: 'light3Brightness' as const },
-            ]).map(item => {
-              const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
-              return (
-                <ControlCard
-                  key={item.key}
-                  icon={<Lightbulb size={19} />}
-                  accentColor="#d97706"
-                  accentBg="rgba(253,230,138,0.35)"
-                  accentGlow="rgba(217,119,6,0.2)"
-                  label={item.label}
-                  runtime={item.stored + liveExtra}
-                  checked={o?.[item.key] || false}
-                  onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
-                  disabled={isOffline}
-                  sliderValue={brightness[item.bKey]}
-                  onSliderChange={v => handleSlider(item.bKey, v, setBrightness)}
-                  sliderLabel="Brightness"
-                />
-              );
-            })}
-          </div>
-        </NeoCard>
+        {/* ═══ DEVICE OUTPUTS (MAX 6) ═══ */}
+        <NeoCard className="md:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(() => {
+              // Define all 6 output slots (hardware limit)
+              const allOutputs: Array<{
+                key: keyof DeviceOutputs;
+                outputId: keyof DeviceOutputMetadata;
+                stored: number;
+              }> = [
+                { key: 'light1', outputId: 'light1', stored: an?.light1Runtime || 0 },
+                { key: 'light2', outputId: 'light2', stored: an?.light2Runtime || 0 },
+                { key: 'light3', outputId: 'light3', stored: an?.light3Runtime || 0 },
+                { key: 'fan1', outputId: 'fan1', stored: an?.fan1Runtime || 0 },
+                { key: 'fan2', outputId: 'fan2', stored: an?.fan2Runtime || 0 },
+                { key: 'custom1', outputId: 'custom1', stored: an?.customRuntime || 0 },
+              ];
 
-        {/* ═══ FANS + CUSTOM ═══ */}
-        <NeoCard>
-          <SectionHeader
-            icon={<Wind size={17} />}
-            iconBg="linear-gradient(135deg,#dbeafe,#bfdbfe)"
-            iconColor="#2563eb"
-            title="Fans"
-            actions={
-              <div className="flex gap-1.5">
-                <PillBtn label="All On"  active={allFansOn}  activeColor="#1e40af" activeBg="linear-gradient(135deg,#bfdbfe,#93c5fd)" activeGlow="rgba(37,99,235,0.25)" onClick={() => toggleAllFans(true)} />
-                <PillBtn label="All Off" active={allFansOff} activeColor="#ffffff" activeBg="linear-gradient(135deg,#374151,#4b5563)" activeGlow="rgba(55,65,81,0.3)"   onClick={() => toggleAllFans(false)} />
-              </div>
-            }
-          />
-          <div className="space-y-3 mb-5">
-            {([
-              { key: 'fan1' as const, label: 'Fan 1', stored: an?.fan1Runtime || 0, sKey: 'fan1Speed' as const },
-              { key: 'fan2' as const, label: 'Fan 2', stored: an?.fan2Runtime || 0, sKey: 'fan2Speed' as const },
-            ]).map(item => {
-              const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
-              return (
-                <ControlCard
-                  key={item.key}
-                  icon={<Wind size={19} />}
-                  accentColor="#2563eb"
-                  accentBg="rgba(191,219,254,0.35)"
-                  accentGlow="rgba(37,99,235,0.2)"
-                  label={item.label}
-                  runtime={item.stored + liveExtra}
-                  checked={o?.[item.key] || false}
-                  onChange={v => toggle(item.key, v, `${item.label} turned ${v ? 'ON' : 'OFF'}`)}
-                  disabled={isOffline}
-                  sliderValue={fanSpeed[item.sKey]}
-                  onSliderChange={v => handleSlider(item.sKey, v, setFanSpeed)}
-                  sliderLabel="Speed"
-                />
-              );
-            })}
-          </div>
+              // Filter to only show visible outputs
+              const visibleOutputs = allOutputs.filter(item => {
+                if (!outputMetadata) return false;
+                const meta = getOutputMetadata(outputMetadata, item.outputId);
+                return meta.visible !== false; // show if visible=true or undefined (for backwards compat)
+              });
 
-          {/* Custom Device divider */}
-          <div className="h-px mb-5" style={{ background: 'rgba(166,180,200,0.3)' }} />
-          <SectionHeader
-            icon={<Bolt size={17} />}
-            iconBg="linear-gradient(135deg,#ede9fe,#ddd6fe)"
-            iconColor="#7c3aed"
-            title="Custom Device"
-          />
-          <ControlCard
-            icon={<Bolt size={19} />}
-            accentColor="#7c3aed"
-            accentBg="rgba(221,214,254,0.35)"
-            accentGlow="rgba(124,58,237,0.2)"
-            label="Custom Device"
-            runtime={(an?.customRuntime || 0) + ((o?.custom1 && onAt['custom1']) ? (now - onAt['custom1']) / 3_600_000 : 0)}
-            checked={o?.custom1 || false}
-            onChange={v => toggle('custom1', v, `Custom Device turned ${v ? 'ON' : 'OFF'}`)}
-            disabled={isOffline}
-          />
+              // Count visible outputs
+              const visibleCount = visibleOutputs.length;
+              const canAddMore = visibleCount < 6;
+
+              return (
+                <>
+                  {visibleOutputs.map(item => {
+                    const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
+                    const metadata = outputMetadata ? getOutputMetadata(outputMetadata, item.outputId) : { 
+                      name: item.key === 'custom1' ? 'Custom Device' : item.key === 'fan1' || item.key === 'fan2' ? 'Fan' : 'Light', 
+                      icon: item.key === 'custom1' ? 'zap' : item.key === 'fan1' || item.key === 'fan2' ? 'wind' : 'lightbulb', 
+                      color: item.key === 'custom1' ? '#7c3aed' : item.key === 'fan1' || item.key === 'fan2' ? '#2563eb' : '#d97706',
+                      visible: true 
+                    };
+                    return (
+                      <CompactDeviceItem
+                        key={item.key}
+                        icon={getIconById(metadata.icon)}
+                        customColor={metadata.color}
+                        label={metadata.name}
+                        runtime={item.stored + liveExtra}
+                        checked={o?.[item.key] || false}
+                        onChange={v => toggle(item.key, v, `${metadata.name} turned ${v ? 'ON' : 'OFF'}`)}
+                        disabled={isOffline}
+                        onMetadataChange={(name, icon, color) => handleMetadataChange(item.outputId, name, icon, color)}
+                        outputId={item.outputId}
+                        iconId={metadata.icon}
+                        onRemove={() => handleRemoveClick(item.outputId)}
+                      />
+                    );
+                  })}
+
+                  {/* ═══ ADD BUTTON ═══ */}
+                  {canAddMore && (
+                    <button
+                      onClick={handleShowNextOutput}
+                      disabled={isOffline}
+                      className="rounded-2xl p-4 transition-all duration-300 border-2 border-dashed flex flex-col items-center justify-center gap-2 min-h-[120px] hover:border-primary-400"
+                      style={{
+                        background: '#F4F7FB',
+                        boxShadow: '4px 4px 10px rgba(166,180,200,0.4), -4px -4px 10px rgba(255,255,255,0.85)',
+                        borderColor: '#d1d5db',
+                      }}
+                    >
+                      <div 
+                        className="w-11 h-11 rounded-2xl flex items-center justify-center"
+                        style={{
+                          background: '#EEF2F7',
+                          boxShadow: '2px 2px 6px rgba(166,180,200,0.4), -2px -2px 6px rgba(255,255,255,0.8)',
+                        }}
+                      >
+                        <Plus size={20} className="text-neutral-400" />
+                      </div>
+                      <span className="text-sm font-medium text-neutral-500">Add Output</span>
+                      <span className="text-xs text-neutral-400">{visibleCount} of 6</span>
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+          </div>
         </NeoCard>
 
         {/* ═══ DEVICE HEALTH ═══ */}
@@ -899,16 +1115,18 @@ export default function DeviceDetails() {
             {/* Per-channel bars */}
             <div className="space-y-3">
               {[
-                { key: 'light1',  label: 'Light 1', total: liveLight1, color: '#fbbf24', isOn: o?.light1  },
-                { key: 'light2',  label: 'Light 2', total: liveLight2, color: '#fbbf24', isOn: o?.light2  },
-                { key: 'light3',  label: 'Light 3', total: liveLight3, color: '#f59e0b', isOn: o?.light3  },
-                { key: 'fan1',    label: 'Fan 1',   total: liveFan1,   color: '#60a5fa', isOn: o?.fan1    },
-                { key: 'fan2',    label: 'Fan 2',   total: liveFan2,   color: '#38bdf8', isOn: o?.fan2    },
-                { key: 'custom1', label: 'Custom',  total: liveCustom, color: '#a78bfa', isOn: o?.custom1 },
-              ].map(item => (
+                { key: 'light1' as const,  total: liveLight1, color: '#fbbf24', isOn: o?.light1  },
+                { key: 'light2' as const,  total: liveLight2, color: '#fbbf24', isOn: o?.light2  },
+                { key: 'light3' as const,  total: liveLight3, color: '#f59e0b', isOn: o?.light3  },
+                { key: 'fan1' as const,    total: liveFan1,   color: '#60a5fa', isOn: o?.fan1    },
+                { key: 'fan2' as const,    total: liveFan2,   color: '#38bdf8', isOn: o?.fan2    },
+                { key: 'custom1' as const, total: liveCustom, color: '#a78bfa', isOn: o?.custom1 },
+              ].map(item => {
+                const metadata = outputMetadata ? getOutputMetadata(outputMetadata, item.key) : { name: item.key, icon: 'zap' };
+                return (
                 <div key={item.key} className="flex items-center gap-3">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
-                  <span className="text-xs font-medium text-neutral-500 w-14 flex-shrink-0">{item.label}</span>
+                  <span className="text-xs font-medium text-neutral-500 w-14 flex-shrink-0">{metadata.name}</span>
                   <RuntimeBar value={item.total} max={maxRuntime} color={item.color} />
                   <div className="flex items-center gap-1.5 w-24 justify-end flex-shrink-0">
                     {item.isOn && <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: '#22c55e' }} />}
@@ -917,7 +1135,8 @@ export default function DeviceDetails() {
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </NeoCard>
         </div>
@@ -1082,6 +1301,20 @@ export default function DeviceDetails() {
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
           <Button variant="danger" loading={deleting} onClick={handleDelete}>Remove Device</Button>
+        </div>
+      </Modal>
+
+      {/* ── Remove Output Modal ── */}
+      <Modal open={removeModal} onClose={handleRemoveCancel} title="Remove Output">
+        <p className="text-sm text-neutral-600 mb-2">
+          Remove this button?
+        </p>
+        <p className="text-xs text-neutral-500 mb-6">
+          This will remove the button configuration from this device. The output can be added again later.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <Button variant="secondary" onClick={handleRemoveCancel}>Cancel</Button>
+          <Button variant="danger" loading={removing} onClick={handleRemoveConfirm}>Remove</Button>
         </div>
       </Modal>
     </div>

@@ -81,6 +81,49 @@
           ".read":  "auth != null",
           ".write": "auth != null",
           ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+
+        "metadata": {
+          ".read":  "auth != null",
+          ".write": "auth != null",
+          "names": {
+            ".read":  "auth != null",
+            ".write": "auth != null",
+            "light1":  { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "light2":  { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "light3":  { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "fan1":    { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "fan2":    { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "custom1": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" }
+          },
+          "outputs": {
+            ".read":  "auth != null",
+            ".write": "auth != null",
+            "light1": {
+              "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+              "icon": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" }
+            },
+            "light2": {
+              "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+              "icon": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" }
+            },
+            "light3": {
+              "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+              "icon": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" }
+            },
+            "fan1": {
+              "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+              "icon": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" }
+            },
+            "fan2": {
+              "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+              "icon": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" }
+            },
+            "custom1": {
+              "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+              "icon": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" }
+            }
+          }
         }
       }
     },
