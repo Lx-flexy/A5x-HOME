@@ -623,6 +623,22 @@ export default function DeviceDetails() {
 
   const performer = userData?.name || 'User';
 
+  // DEBUG: Add test function to window for console testing
+  useEffect(() => {
+    if (device && typeof window !== 'undefined') {
+      (window as any).testBuzzerDirect = async (mode: 'single' | 'double' | 'alarm' = 'single') => {
+        const { testBuzzer } = await import('../../services/deviceService');
+        return testBuzzer(device.deviceId, mode);
+      };
+      console.log('[DEBUG] Added window.testBuzzerDirect() for console testing');
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).testBuzzerDirect;
+      }
+    };
+  }, [device]);
+
   const { isOnline, lastSeenLabel } = useDeviceStatus(device?.deviceId);
   const isOffline = false;
 
@@ -661,6 +677,18 @@ export default function DeviceDetails() {
   }, []);
 
   useEffect(() => () => { if (buzzerTimer.current) clearTimeout(buzzerTimer.current); }, []);
+
+  // Reset buzzer UI state when ESP32 turns off the buzzer
+  useEffect(() => {
+    if (outputs && !outputs.buzzer && buzzerMode !== 'idle') {
+      console.log('[DeviceDetails] ESP32 reset buzzer - updating UI state');
+      setBuzzerMode('idle');
+      if (buzzerTimer.current) {
+        clearTimeout(buzzerTimer.current);
+        buzzerTimer.current = null;
+      }
+    }
+  }, [outputs?.buzzer, buzzerMode]);
   useEffect(() => () => { Object.values(sliderDebounce.current).forEach(clearTimeout); }, []);
 
   const toggle = useCallback(
@@ -725,14 +753,49 @@ export default function DeviceDetails() {
   }
 
   async function triggerBuzzer(mode: 'single' | 'double' | 'alarm') {
-    if (!device || buzzerMode !== 'idle') return;
-    setBuzzerMode(mode);
-    await setOutput(device.deviceId, 'buzzer', true, performer, `Buzzer: ${mode}`);
-    const ms = mode === 'single' ? 600 : mode === 'double' ? 1200 : 3500;
-    buzzerTimer.current = setTimeout(async () => {
-      await setOutput(device.deviceId, 'buzzer', false, performer);
-      setBuzzerMode('idle');
-    }, ms);
+    if (!device || buzzerMode !== 'idle') {
+      console.warn('[triggerBuzzer] Blocked:', { deviceExists: !!device, buzzerMode, mode });
+      return;
+    }
+
+    try {
+      console.log('[triggerBuzzer] Starting:', { deviceId: device.deviceId, mode, performer });
+      console.log('[triggerBuzzer] Device state:', { isOnline, isOffline, device });
+      setBuzzerMode(mode);
+      
+      // Verify exact data being sent
+      const commandData = { 
+        buzzer: true, 
+        buzzerMode: mode 
+      };
+      
+      console.log('[triggerBuzzer] About to call updateDeviceState with:', commandData);
+      
+      // Send both buzzer trigger and mode to ESP32 atomically
+      await updateDeviceState(device.deviceId, commandData, performer, `Buzzer: ${mode}`);
+      
+      console.log('[triggerBuzzer] updateDeviceState completed successfully');
+      
+      // Also try direct Firebase write as backup verification
+      const { update } = await import('firebase/database');
+      const { rtdb } = await import('../../services/firebase');
+      const { ref } = await import('firebase/database');
+      
+      const directRef = ref(rtdb, `devices/${device.deviceId}/outputs`);
+      console.log('[triggerBuzzer] Also trying direct Firebase write to:', `devices/${device.deviceId}/outputs`);
+      await update(directRef, commandData);
+      console.log('[triggerBuzzer] Direct Firebase write completed');
+      
+      // Set a safety timeout to reset buzzer state if ESP32 doesn't respond
+      const ms = mode === 'single' ? 1000 : mode === 'double' ? 2000 : 4000;
+      buzzerTimer.current = setTimeout(() => {
+        setBuzzerMode('idle');
+        console.log('[triggerBuzzer] Safety timeout reset UI state');
+      }, ms);
+    } catch (error) {
+      console.error('[triggerBuzzer] Failed:', error);
+      setBuzzerMode('idle'); // Reset on error
+    }
   }
 
   async function handleDelete() {
@@ -1015,7 +1078,7 @@ export default function DeviceDetails() {
                         customColor={metadata.color}
                         label={metadata.name}
                         runtime={item.stored + liveExtra}
-                        checked={o?.[item.key] || false}
+                        checked={Boolean(o?.[item.key]) || false}
                         onChange={v => toggle(item.key, v, `${metadata.name} turned ${v ? 'ON' : 'OFF'}`)}
                         disabled={isOffline}
                         onMetadataChange={(name, icon, color) => handleMetadataChange(item.outputId, name, icon, color)}

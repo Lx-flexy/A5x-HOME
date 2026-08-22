@@ -81,7 +81,7 @@ export default function AddDevice() {
         name: deviceName,
         room: selectedRoom,
         location,
-        status: 'offline',
+        firmware: 'v1.2.4',
         dexBotId: '',
         createdAt: null,
       });

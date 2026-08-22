@@ -27,6 +27,7 @@
           "fan2":             { ".validate": "newData.isBoolean()" },
           "custom1":          { ".validate": "newData.isBoolean()" },
           "buzzer":           { ".validate": "newData.isBoolean()" },
+          "buzzerMode":       { ".validate": "newData.isString() && (newData.val() == 'single' || newData.val() == 'double' || newData.val() == 'alarm')" },
           "light1Brightness": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
           "light2Brightness": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
           "light3Brightness": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },

@@ -51,6 +51,7 @@ export interface DeviceOutputs {
   custom1: boolean;
   oledMessage: string;
   buzzer: boolean;
+  buzzerMode?: string; // 'single' | 'double' | 'alarm'
   // ── Future PWM / speed support (UI-ready, firmware pending) ──────────────
   light1Brightness?: number;   // 0-100
   light2Brightness?: number;
@@ -141,7 +142,7 @@ function defaultOutputs(): DeviceOutputs {
   return {
     light1: false, light2: false, light3: false,
     fan1: false, fan2: false, custom1: false,
-    oledMessage: '', buzzer: false,
+    oledMessage: '', buzzer: false, buzzerMode: 'single',
   };
 }
 
@@ -521,6 +522,9 @@ export async function removeOutput(
 ): Promise<void> {
   // Reset to default metadata with visible=false
   const defaultMeta = defaultOutputMetadata()[outputId];
+  if (!defaultMeta) {
+    throw new Error(`Unknown output ID: ${outputId}`);
+  }
   
   // Update in RTDB - reset to defaults and hide
   await update(rtdbOutputMetadata(deviceId), {
@@ -717,13 +721,23 @@ export async function updateDeviceState(
   label?: string
 ): Promise<void> {
   const outputKeys: (keyof DeviceOutputs)[] = [
-    'light1', 'light2', 'light3', 'fan1', 'fan2', 'custom1', 'oledMessage', 'buzzer',
+    'light1', 'light2', 'light3', 'fan1', 'fan2', 'custom1', 'oledMessage', 'buzzer', 'buzzerMode',
   ];
   const patch: Partial<DeviceOutputs> = {};
   outputKeys.forEach(k => {
     if (k in data) (patch as Record<string, unknown>)[k] = (data as Record<string, unknown>)[k];
   });
+  
+  // DEBUG: Log exact RTDB update
+  console.log('[updateDeviceState] Sending to RTDB:', {
+    path: `devices/${deviceId}/outputs`,
+    patch,
+    originalData: data
+  });
+  
   await update(rtdbOutputs(deviceId), patch);
+  
+  console.log('[updateDeviceState] RTDB update completed successfully');
 
   // Track runtime for trackable boolean keys via analyticsService
   type TK = 'light1'|'light2'|'light3'|'fan1'|'fan2'|'custom1';
@@ -742,6 +756,24 @@ export async function updateDeviceState(
   }
 
   if (label) await logActivity(deviceId, label, performedBy);
+}
+
+// DEBUG: Simple buzzer test function - bypasses UI complexity
+export async function testBuzzer(deviceId: string, mode: 'single' | 'double' | 'alarm' = 'single'): Promise<void> {
+  console.log('[testBuzzer] Direct RTDB test starting:', { deviceId, mode });
+  
+  const directPatch = {
+    buzzer: true,
+    buzzerMode: mode
+  };
+  
+  console.log('[testBuzzer] Writing directly to RTDB:', {
+    path: `devices/${deviceId}/outputs`,
+    patch: directPatch
+  });
+  
+  await update(rtdbOutputs(deviceId), directPatch);
+  console.log('[testBuzzer] Direct RTDB write completed');
 }
 
 export interface LegacyDeviceState extends DeviceOutputs {
