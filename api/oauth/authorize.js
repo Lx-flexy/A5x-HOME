@@ -54,8 +54,17 @@ async function handleAuthorizationRequest(req, res) {
     scope = 'openid'
   } = req.query;
 
+  console.log('[OAuth Authorize] GET received:', {
+    client_id,
+    redirect_uri,
+    response_type,
+    state,
+    scope
+  });
+
   // Validate required OAuth parameters
   if (!client_id) {
+    console.error('[OAuth Authorize] Missing client_id');
     return res.status(400).json({ 
       error: 'invalid_request',
       error_description: 'Missing client_id parameter' 
@@ -63,6 +72,7 @@ async function handleAuthorizationRequest(req, res) {
   }
 
   if (!redirect_uri) {
+    console.error('[OAuth Authorize] Missing redirect_uri');
     return res.status(400).json({ 
       error: 'invalid_request',
       error_description: 'Missing redirect_uri parameter' 
@@ -70,6 +80,7 @@ async function handleAuthorizationRequest(req, res) {
   }
 
   if (response_type !== 'code') {
+    console.error('[OAuth Authorize] Invalid response_type:', response_type);
     return res.status(400).json({ 
       error: 'unsupported_response_type',
       error_description: 'Only authorization code flow is supported' 
@@ -78,17 +89,23 @@ async function handleAuthorizationRequest(req, res) {
 
   try {
     // Validate client credentials
+    console.log('[OAuth Authorize] Validating client_id against:', process.env.GOOGLE_OAUTH_CLIENT_ID ? 'SET' : 'NOT SET');
     validateOAuthClient(client_id);
+    console.log('[OAuth Authorize] Client validation passed');
     
     // Validate redirect URI
+    console.log('[OAuth Authorize] Validating redirect_uri');
     if (!validateRedirectUri(redirect_uri)) {
+      console.error('[OAuth Authorize] Invalid redirect_uri:', redirect_uri);
       return res.status(400).json({ 
         error: 'invalid_request',
         error_description: 'Invalid redirect_uri' 
       });
     }
+    console.log('[OAuth Authorize] Redirect URI validation passed');
 
     // Generate a login page with OAuth context
+    console.log('[OAuth Authorize] Generating login page');
     const loginPageHtml = generateLoginPage({
       clientId: client_id,
       redirectUri: redirect_uri,
@@ -98,13 +115,15 @@ async function handleAuthorizationRequest(req, res) {
 
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(loginPageHtml);
+    console.log('[OAuth Authorize] Login page sent successfully');
 
   } catch (error) {
     console.error('[OAuth Authorize] Validation error:', error);
     
     // Redirect back to Google with error if redirect_uri is valid
     if (validateRedirectUri(redirect_uri)) {
-      const errorUrl = `${redirect_uri}?error=invalid_client&error_description=${encodeURIComponent(error.message)}&state=${state || ''}`;
+      const errorUrl = `${redirect_uri}?error=invalid_client&error_description=${encodeURIComponent(error.message)}&state=${encodeURIComponent(state || '')}`;
+      console.log('[OAuth Authorize] Redirecting to error URL:', errorUrl.substring(0, 100) + '...');
       res.redirect(302, errorUrl);
     } else {
       res.status(400).json({ 
@@ -127,8 +146,17 @@ async function handleAuthorizationGrant(req, res) {
     id_token 
   } = req.body;
 
+  console.log('[OAuth Authorize] POST received:', {
+    client_id,
+    redirect_uri,
+    state,
+    scope,
+    has_id_token: !!id_token
+  });
+
   // Validate required parameters
   if (!client_id || !redirect_uri || !id_token) {
+    console.error('[OAuth Authorize] Missing required parameters');
     return res.status(400).json({ 
       error: 'invalid_request',
       error_description: 'Missing required parameters' 
@@ -137,37 +165,39 @@ async function handleAuthorizationGrant(req, res) {
 
   try {
     // Validate client and redirect URI
+    console.log('[OAuth Authorize] Validating client_id:', client_id);
     validateOAuthClient(client_id);
+    
+    console.log('[OAuth Authorize] Validating redirect_uri:', redirect_uri);
     if (!validateRedirectUri(redirect_uri)) {
       throw new Error('Invalid redirect_uri');
     }
 
     // Verify Firebase ID token and get user
+    console.log('[OAuth Authorize] Verifying Firebase ID token');
     const uid = await verifyAuthToken(id_token);
     const userData = await getUserByUid(uid);
+    console.log('[OAuth Authorize] User authenticated:', { uid, userId: userData.userId });
 
     // Generate authorization code using Firebase UID (not A5X userId)
     const authCode = generateAuthCode(uid, client_id, redirect_uri, scope);
+    console.log('[OAuth Authorize] Authorization code generated:', authCode.substring(0, 8) + '...');
 
-    // Redirect back to Google with authorization code
-    const successUrl = `${redirect_uri}?code=${authCode}&state=${state || ''}`;
+    // Build redirect URL with code and state
+    const successUrl = `${redirect_uri}?code=${authCode}&state=${encodeURIComponent(state || '')}`;
+    console.log('[OAuth Authorize] Redirecting to:', successUrl.substring(0, 100) + '...');
     
-    res.status(200).json({ 
-      redirect_url: successUrl,
-      success: true 
-    });
+    // CRITICAL: Perform server-side redirect (302) instead of returning JSON
+    res.redirect(302, successUrl);
 
   } catch (error) {
     console.error('[OAuth Authorize] Grant error:', error);
     
     // Redirect back to Google with error
-    const errorUrl = `${redirect_uri}?error=access_denied&error_description=${encodeURIComponent(error.message)}&state=${state || ''}`;
+    const errorUrl = `${redirect_uri}?error=access_denied&error_description=${encodeURIComponent(error.message)}&state=${encodeURIComponent(state || '')}`;
+    console.log('[OAuth Authorize] Redirecting to error URL:', errorUrl.substring(0, 100) + '...');
     
-    res.status(400).json({ 
-      redirect_url: errorUrl,
-      success: false,
-      error: error.message
-    });
+    res.redirect(302, errorUrl);
   }
 }
 
@@ -295,35 +325,38 @@ function generateLoginPage(context) {
                 button.disabled = true;
                 errorDiv.style.display = 'none';
                 loading.style.display = 'block';
+                loading.textContent = 'Signing in...';
                 
                 try {
                     // Authenticate with Google
                     const result = await signInWithPopup(auth, googleProvider);
                     const idToken = await result.user.getIdToken();
                     
-                    // Send to authorization endpoint
-                    const response = await fetch('/api/oauth/authorize', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            client_id: '${clientId}',
-                            redirect_uri: '${redirectUri}',
-                            state: '${state}',
-                            scope: '${scope}',
-                            id_token: idToken
-                        })
-                    });
+                    loading.textContent = 'Completing authorization...';
                     
-                    const data = await response.json();
+                    // Create a form for POST submission (allows server redirect)
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/api/oauth/authorize';
                     
-                    if (data.success && data.redirect_url) {
-                        // Success - redirect back to Google
-                        window.location.href = data.redirect_url;
-                    } else {
-                        throw new Error(data.error || 'Authorization failed');
+                    const params = {
+                        client_id: '${clientId}',
+                        redirect_uri: '${redirectUri}',
+                        state: '${state}',
+                        scope: '${scope}',
+                        id_token: idToken
+                    };
+                    
+                    for (const [key, value] of Object.entries(params)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
                     }
+                    
+                    document.body.appendChild(form);
+                    form.submit();
                     
                 } catch (error) {
                     console.error('Authentication error:', error);

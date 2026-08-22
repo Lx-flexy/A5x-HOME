@@ -35,8 +35,18 @@ export default async function handler(req, res) {
       refresh_token 
     } = req.body;
 
+    console.log('[OAuth Token] POST received:', {
+      grant_type,
+      client_id,
+      code: code ? code.substring(0, 8) + '...' : undefined,
+      redirect_uri,
+      refresh_token: refresh_token ? refresh_token.substring(0, 8) + '...' : undefined,
+      has_client_secret: !!client_secret
+    });
+
     // Validate required parameters
     if (!grant_type || !client_id) {
+      console.error('[OAuth Token] Missing grant_type or client_id');
       return res.status(400).json({
         error: 'invalid_request',
         error_description: 'Missing required parameters'
@@ -45,8 +55,11 @@ export default async function handler(req, res) {
 
     // Validate client credentials
     try {
+      console.log('[OAuth Token] Validating client credentials');
       validateOAuthClient(client_id, client_secret);
+      console.log('[OAuth Token] Client validation passed');
     } catch (error) {
+      console.error('[OAuth Token] Client validation failed:', error.message);
       return res.status(401).json({
         error: 'invalid_client',
         error_description: error.message
@@ -86,7 +99,14 @@ export default async function handler(req, res) {
 async function handleAuthorizationCodeGrant(req, res, params) {
   const { code, client_id, redirect_uri } = params;
 
+  console.log('[OAuth Token] Authorization code grant request:', {
+    code: code ? code.substring(0, 8) + '...' : 'missing',
+    client_id,
+    redirect_uri
+  });
+
   if (!code || !redirect_uri) {
+    console.error('[OAuth Token] Missing code or redirect_uri');
     return res.status(400).json({
       error: 'invalid_request',
       error_description: 'Missing code or redirect_uri'
@@ -95,12 +115,21 @@ async function handleAuthorizationCodeGrant(req, res, params) {
 
   try {
     // Validate and consume authorization code
+    console.log('[OAuth Token] Validating authorization code');
     const codeData = validateAuthCode(code, client_id, redirect_uri);
+    console.log('[OAuth Token] Code validated for user UID:', codeData.uid);
     
     // Generate access and refresh tokens
+    console.log('[OAuth Token] Generating tokens');
     const tokens = generateTokens(codeData.uid, codeData.scope);
 
     console.log('[OAuth Token] Authorization code exchanged successfully for user UID:', codeData.uid);
+    console.log('[OAuth Token] Token response:', {
+      access_token: tokens.access_token.substring(0, 8) + '...',
+      refresh_token: tokens.refresh_token.substring(0, 8) + '...',
+      token_type: tokens.token_type,
+      expires_in: tokens.expires_in
+    });
 
     res.status(200).json(tokens);
 
