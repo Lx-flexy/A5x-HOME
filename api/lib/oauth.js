@@ -28,17 +28,42 @@ function createFingerprint(value) {
 
 /**
  * Generate authorization code for OAuth flow
+ * Uses base64url encoding to match Google's expected format
  * @param {string} uid - Firebase Auth UID
  */
 export async function generateAuthCode(uid, clientId, redirectUri, scope = 'openid') {
-  const code = generateSecureToken(16);
+  // Generate random token
+  const randomToken = generateSecureToken(16);
   
+  // Create a structured payload that Google might expect
+  const payload = {
+    uid,
+    clientId,
+    redirectUri,
+    scope,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 600 // 10 minutes
+  };
+  
+  // Encode as base64url (URL-safe base64)
+  const payloadJson = JSON.stringify(payload);
+  const code = Buffer.from(payloadJson)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+  
+  // Store with the base64url-encoded code as key
   await storeAuthCode(code, {
     uid,  // Store Firebase UID, not A5X userId
     clientId,
     redirectUri,
     scope
   });
+  
+  console.log('[OAuth] Generated base64url-encoded authorization code');
+  console.log('[OAuth] Code length:', code.length);
+  console.log('[OAuth] Code format: base64url JSON payload');
   
   return code;
 }
