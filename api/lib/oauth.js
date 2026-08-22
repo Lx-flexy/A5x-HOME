@@ -176,22 +176,36 @@ export function refreshAccessToken(refreshToken) {
 }
 
 /**
- * Validate OAuth client credentials (replace with actual client validation)
+ * Validate OAuth client credentials
  */
 export function validateOAuthClient(clientId, clientSecret = null) {
   // In production, validate against registered Google Home client credentials
   const validClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const validClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   
+  // Log for debugging (mask actual values)
+  console.log('[OAuth Validation] Checking client_id');
+  console.log('[OAuth Validation] Received client_id length:', clientId ? clientId.length : 0);
+  console.log('[OAuth Validation] Expected client_id length:', validClientId ? validClientId.length : 0);
+  console.log('[OAuth Validation] Received (first 10 chars):', clientId ? clientId.substring(0, 10) : 'none');
+  console.log('[OAuth Validation] Expected (first 10 chars):', validClientId ? validClientId.substring(0, 10) : 'none');
+  
   if (!validClientId) {
+    console.error('[OAuth Validation] GOOGLE_OAUTH_CLIENT_ID not set in environment');
     throw new Error('OAuth client not configured');
   }
   
   if (clientId !== validClientId) {
+    console.error('[OAuth Validation] Client ID mismatch!');
+    console.error('[OAuth Validation] Received:', clientId);
+    console.error('[OAuth Validation] Expected:', validClientId);
     throw new Error('Invalid client ID');
   }
   
+  console.log('[OAuth Validation] Client ID validated successfully');
+  
   if (clientSecret && clientSecret !== validClientSecret) {
+    console.error('[OAuth Validation] Client secret mismatch');
     throw new Error('Invalid client secret');
   }
   

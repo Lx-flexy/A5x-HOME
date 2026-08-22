@@ -56,6 +56,7 @@ async function handleAuthorizationRequest(req, res) {
 
   console.log('[OAuth Authorize] GET received:', {
     client_id,
+    client_id_length: client_id ? client_id.length : 0,
     redirect_uri,
     response_type,
     state,
