@@ -122,9 +122,18 @@ async function handleAuthorizationRequest(req, res) {
     
     // Redirect back to Google with error if redirect_uri is valid
     if (validateRedirectUri(redirect_uri)) {
-      const errorUrl = `${redirect_uri}?error=invalid_client&error_description=${encodeURIComponent(error.message)}&state=${encodeURIComponent(state || '')}`;
-      console.log('[OAuth Authorize] Redirecting to error URL (Google OAuth redirect)');
-      res.redirect(302, errorUrl);
+     const errorUrl = new URL(redirect_uri);
+
+errorUrl.searchParams.set('error', 'access_denied');
+errorUrl.searchParams.set('error_description', error.message);
+errorUrl.searchParams.set('state', state || '');
+
+res.writeHead(302, {
+  Location: errorUrl.toString(),
+  'Cache-Control': 'no-store'
+});
+res.end();
+return;
     } else {
       res.status(400).json({ 
         error: 'invalid_client',
