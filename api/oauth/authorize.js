@@ -185,12 +185,23 @@ async function handleAuthorizationGrant(req, res) {
     console.log('[OAuth Authorize] ✓ Authorization code generated (length:', authCode.length, ')');
 
     // Build redirect URL with code and state
-    const successUrl = `${redirect_uri}?code=${authCode}&state=${encodeURIComponent(state || '')}`;
-    console.log('[OAuth Authorize] Redirecting to Google with authorization code');
-    
-    // CRITICAL: Perform server-side redirect (302) instead of returning JSON
-    res.redirect(302, successUrl);
+    const callbackUrl = new URL(redirect_uri);
 
+callbackUrl.searchParams.set('code', authCode);
+callbackUrl.searchParams.set('state', state || '');
+
+console.log('[OAuth Authorize] Callback URL prepared');
+console.log('[OAuth Authorize] Callback host:', callbackUrl.host);
+console.log('[OAuth Authorize] Callback path:', callbackUrl.pathname);
+console.log('[OAuth Authorize] Has code:', callbackUrl.searchParams.has('code'));
+console.log('[OAuth Authorize] Has state:', callbackUrl.searchParams.has('state'));
+
+res.writeHead(302, {
+  Location: callbackUrl.toString(),
+  'Cache-Control': 'no-store'
+});
+res.end();
+return;
   } catch (error) {
     console.error('[OAuth Authorize] Grant error:', error.message);
     
