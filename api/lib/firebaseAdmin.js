@@ -41,22 +41,46 @@ function getAdminApp() {
   }
 
   try {
-    // Decode private key from base64
-    const privateKey = Buffer.from(process.env.FIREBASE_ADMIN_PRIVATE_KEY, 'base64').toString('utf8');
+    // Parse private key with robust handling for different storage formats
+    let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+    
+    // Handle base64-encoded keys (if stored that way)
+    // Check if it looks like base64 (no PEM headers and valid base64 chars)
+    if (!privateKey.includes('BEGIN PRIVATE KEY') && /^[A-Za-z0-9+/=]+$/.test(privateKey)) {
+      try {
+        privateKey = Buffer.from(privateKey, 'base64').toString('utf8');
+      } catch (decodeError) {
+        console.error('[Firebase Admin] Base64 decode failed, using raw value');
+      }
+    }
+    
+    // Handle escaped newlines (\\n stored as literal string in env vars)
+    // This is common in Vercel and other platforms
+    privateKey = privateKey.replace(/\\n/g, '\n');
+    
+    // Validate PEM format
+    if (!privateKey.includes('BEGIN PRIVATE KEY')) {
+      console.error('[Firebase Admin] Private key does not contain PEM header');
+      throw new Error('Invalid private key format: missing PEM header');
+    }
     
     adminApp = initializeApp({
       credential: cert({
         projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
         clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines
+        privateKey: privateKey,
       }),
       databaseURL: process.env.FIREBASE_DATABASE_URL,
     });
 
+    console.log('[Firebase Admin] Successfully initialized');
     return adminApp;
   } catch (error) {
-    console.error('[Firebase Admin] Initialization failed:', error);
-    throw new Error('Failed to initialize Firebase Admin SDK');
+    console.error('[Firebase Admin] Initialization failed:', error.message);
+    if (error.message.includes('PEM')) {
+      console.error('[Firebase Admin] Hint: Ensure FIREBASE_ADMIN_PRIVATE_KEY contains proper PEM format with \\n for newlines');
+    }
+    throw new Error('Failed to initialize Firebase Admin SDK: ' + error.message);
   }
 }
 
