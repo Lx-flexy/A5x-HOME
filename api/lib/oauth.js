@@ -139,6 +139,9 @@ export function validateOAuthClient(clientId, clientSecret = null) {
   const validClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const validClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   
+  // TEMPORARY: Legacy Client ID for migration period while Google propagates new Client ID
+  const legacyClientId = 'a5x-home-google';
+  
   // Safe diagnostic logging using fingerprints
   console.log('[OAuth Validation] Environment check:');
   console.log('[OAuth Validation] GOOGLE_OAUTH_CLIENT_ID is:', validClientId ? 'SET' : 'NOT SET');
@@ -157,7 +160,10 @@ export function validateOAuthClient(clientId, clientSecret = null) {
     throw new Error('OAuth client not configured');
   }
   
-  if (clientId !== validClientId) {
+  // TEMPORARY: Accept both new URL format and legacy Client ID during migration
+  const isValidClientId = (clientId === validClientId) || (clientId === legacyClientId);
+  
+  if (!isValidClientId) {
     console.error('[OAuth Validation] ERROR: Client ID mismatch detected');
     console.error('[OAuth Validation] The client_id from Google does not match GOOGLE_OAUTH_CLIENT_ID');
     console.error('[OAuth Validation] Received length:', clientId ? clientId.length : 0);
@@ -176,6 +182,14 @@ export function validateOAuthClient(clientId, clientSecret = null) {
     }
     
     throw new Error('Invalid client ID');
+  }
+  
+  // Log which Client ID was used
+  if (clientId === legacyClientId) {
+    console.warn('[OAuth Validation] ⚠ Using legacy Client ID (temporary migration support)');
+    console.warn('[OAuth Validation] This will be removed once Google propagates new Client ID');
+  } else {
+    console.log('[OAuth Validation] ✓ Using new URL-format Client ID');
   }
   
   console.log('[OAuth Validation] ✓ Client ID validated successfully');
