@@ -190,32 +190,29 @@ async function handleAuthorizationGrant(req, res) {
     console.log('[OAuth Authorize] ✓ User authenticated:', { uid, userId: userData.userId });
 
     // Generate authorization code using Firebase UID (not A5X userId)
-    const authCode = generateAuthCode(uid, client_id, redirect_uri, scope);
+    const authCode = await generateAuthCode(uid, client_id, redirect_uri, scope);
     console.log('[OAuth Authorize] ✓ Authorization code generated (length:', authCode.length, ')');
 
-    // Build redirect URL with code and state
+    // Build redirect URL with code and state - use URL constructor for safety
     const callbackUrl = new URL(redirect_uri);
+    callbackUrl.searchParams.set('code', authCode);
+    if (state) {
+      callbackUrl.searchParams.set('state', state);
+    }
+    
+    console.log('[OAuth Authorize] Callback URL prepared');
+    console.log('[OAuth Authorize] Callback host:', callbackUrl.host);
+    console.log('[OAuth Authorize] Callback path:', callbackUrl.pathname);
+    console.log('[OAuth Authorize] Has code:', callbackUrl.searchParams.has('code'));
+    console.log('[OAuth Authorize] Has state:', callbackUrl.searchParams.has('state'));
+    console.log('[OAuth Authorize] Query keys:', [...callbackUrl.searchParams.keys()].join(','));
 
-callbackUrl.searchParams.set('code', authCode);
-callbackUrl.searchParams.set('state', state || '');
-
-console.log('[OAuth Authorize] Callback URL prepared');
-console.log('[OAuth Authorize] Callback redirect host:', callbackUrl.host);
-console.log('[OAuth Authorize] Callback redirect path:', callbackUrl.pathname);
-console.log('[OAuth Authorize] Callback has code:', callbackUrl.searchParams.has('code'));
-console.log('[OAuth Authorize] Callback has state:', callbackUrl.searchParams.has('state'));
-console.log('[OAuth Authorize] Callback query keys:', [...callbackUrl.searchParams.keys()].join(','));
-console.log('[OAuth Authorize] Callback host:', callbackUrl.host);
-console.log('[OAuth Authorize] Callback path:', callbackUrl.pathname);
-console.log('[OAuth Authorize] Has code:', callbackUrl.searchParams.has('code'));
-console.log('[OAuth Authorize] Has state:', callbackUrl.searchParams.has('state'));
-
-res.writeHead(302, {
-  Location: callbackUrl.toString(),
-  'Cache-Control': 'no-store'
-});
-res.end();
-return;
+    res.writeHead(302, {
+      Location: callbackUrl.toString(),
+      'Cache-Control': 'no-store'
+    });
+    res.end();
+    return;
   } catch (error) {
     console.error('[OAuth Authorize] Grant error:', error.message);
     
@@ -360,11 +357,7 @@ function generateLoginPage(context) {
                     
                     loading.textContent = 'Completing authorization...';
                     
-                    // Create a form for POST submission (allows server redirect)
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = '/api/oauth/authorize';
-                    
+                    // Submit to POST endpoint with JSON payload
                     const params = {
                         client_id: '${clientId}',
                         redirect_uri: '${redirectUri}',
@@ -373,16 +366,33 @@ function generateLoginPage(context) {
                         id_token: idToken
                     };
                     
-                    for (const [key, value] of Object.entries(params)) {
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = key;
-                        input.value = value;
-                        form.appendChild(input);
-                    }
+                    const response = await fetch('/api/oauth/authorize', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(params),
+                        redirect: 'manual' // Don't follow redirects automatically
+                    });
                     
-                    document.body.appendChild(form);
-                    form.submit();
+                    // Check if response is a redirect (status 302 or 3xx)
+                    if (response.status >= 300 && response.status < 400) {
+                        const redirectUrl = response.headers.get('Location');
+                        if (redirectUrl) {
+                            // Follow the redirect manually
+                            window.location.href = redirectUrl;
+                        } else {
+                            throw new Error('Server returned redirect without Location header');
+                        }
+                    } else if (response.ok) {
+                        // Unexpected success without redirect
+                        const data = await response.json();
+                        throw new Error(data.error_description || 'Authorization failed');
+                    } else {
+                        // Error response
+                        const data = await response.json().catch(() => ({ error_description: 'Authorization failed' }));
+                        throw new Error(data.error_description || 'Authorization failed');
+                    }
                     
                 } catch (error) {
                     console.error('Authentication error:', error);

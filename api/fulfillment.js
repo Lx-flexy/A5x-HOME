@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     let uid;  // Firebase UID, not A5X userId
     
     try {
-      const tokenData = validateAccessToken(accessToken);
+      const tokenData = await validateAccessToken(accessToken);
       uid = tokenData.uid;
     } catch (error) {
       console.error('[Fulfillment] Token validation failed:', error);

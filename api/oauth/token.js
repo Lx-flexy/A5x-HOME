@@ -116,12 +116,12 @@ async function handleAuthorizationCodeGrant(req, res, params) {
   try {
     // Validate and consume authorization code
     console.log('[OAuth Token] Validating authorization code');
-    const codeData = validateAuthCode(code, client_id, redirect_uri);
+    const codeData = await validateAuthCode(code, client_id, redirect_uri);
     console.log('[OAuth Token] Code validated for user UID:', codeData.uid);
     
     // Generate access and refresh tokens
     console.log('[OAuth Token] Generating tokens');
-    const tokens = generateTokens(codeData.uid, codeData.scope);
+    const tokens = await generateTokens(codeData.uid, codeData.scope);
 
     console.log('[OAuth Token] Authorization code exchanged successfully for user UID:', codeData.uid);
     console.log('[OAuth Token] Token response:', {
@@ -165,7 +165,7 @@ async function handleRefreshTokenGrant(req, res, params) {
 
   try {
     // Refresh the access token
-    const newTokens = refreshAccessToken(refresh_token);
+    const newTokens = await refreshAccessToken(refresh_token);
 
     console.log('[OAuth Token] Access token refreshed successfully');
 
