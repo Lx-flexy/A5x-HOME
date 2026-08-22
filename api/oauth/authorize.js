@@ -14,6 +14,26 @@
 import { generateAuthCode, validateOAuthClient, validateRedirectUri } from '../lib/oauth.js';
 import { verifyAuthToken, getUserByUid } from '../lib/firebaseAdmin.js';
 
+/**
+ * Parse JSON body from request stream (required for Vercel serverless functions)
+ */
+async function parseJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        reject(new Error('Invalid JSON in request body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   // Set CORS headers for preflight requests
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,6 +46,26 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Parse JSON body for POST requests (Vercel doesn't auto-parse)
+    if (req.method === 'POST') {
+      console.log('[OAuth Authorize] POST request received');
+      console.log('[OAuth Authorize] Content-Type:', req.headers['content-type']);
+      
+      try {
+        req.body = await parseJsonBody(req);
+        console.log('[OAuth Authorize] Body parsed successfully');
+        console.log('[OAuth Authorize] Body keys:', Object.keys(req.body || {}));
+        console.log('[OAuth Authorize] has_id_token:', !!req.body.id_token);
+        console.log('[OAuth Authorize] has_client_id:', !!req.body.client_id);
+      } catch (parseError) {
+        console.error('[OAuth Authorize] Body parsing failed:', parseError.message);
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Invalid JSON in request body'
+        });
+      }
+    }
+    
     if (req.method === 'GET') {
       return handleAuthorizationRequest(req, res);
     } else if (req.method === 'POST') {
@@ -165,9 +205,12 @@ async function handleAuthorizationGrant(req, res) {
   // Validate required parameters
   if (!client_id || !redirect_uri || !id_token) {
     console.error('[OAuth Authorize] Missing required parameters');
+    console.error('[OAuth Authorize] client_id present:', !!client_id);
+    console.error('[OAuth Authorize] redirect_uri present:', !!redirect_uri);
+    console.error('[OAuth Authorize] id_token present:', !!id_token);
     return res.status(400).json({ 
       error: 'invalid_request',
-      error_description: 'Missing required parameters' 
+      error_description: 'Missing required parameters: client_id, redirect_uri, or id_token' 
     });
   }
 

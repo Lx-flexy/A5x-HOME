@@ -7,6 +7,26 @@
 
 import { validateAuthCode, generateTokens, refreshAccessToken, validateOAuthClient } from '../lib/oauth.js';
 
+/**
+ * Parse JSON body from request stream (required for Vercel serverless functions)
+ */
+async function parseJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        reject(new Error('Invalid JSON in request body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,6 +46,22 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Parse JSON body (Vercel doesn't auto-parse)
+    console.log('[OAuth Token] POST request received');
+    console.log('[OAuth Token] Content-Type:', req.headers['content-type']);
+    
+    try {
+      req.body = await parseJsonBody(req);
+      console.log('[OAuth Token] Body parsed successfully');
+      console.log('[OAuth Token] Body keys:', Object.keys(req.body || {}));
+    } catch (parseError) {
+      console.error('[OAuth Token] Body parsing failed:', parseError.message);
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Invalid JSON in request body'
+      });
+    }
+    
     const { 
       grant_type, 
       client_id, 
