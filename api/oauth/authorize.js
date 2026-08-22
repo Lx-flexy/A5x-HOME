@@ -200,6 +200,11 @@ callbackUrl.searchParams.set('code', authCode);
 callbackUrl.searchParams.set('state', state || '');
 
 console.log('[OAuth Authorize] Callback URL prepared');
+console.log('[OAuth Authorize] Callback redirect host:', callbackUrl.host);
+console.log('[OAuth Authorize] Callback redirect path:', callbackUrl.pathname);
+console.log('[OAuth Authorize] Callback has code:', callbackUrl.searchParams.has('code'));
+console.log('[OAuth Authorize] Callback has state:', callbackUrl.searchParams.has('state'));
+console.log('[OAuth Authorize] Callback query keys:', [...callbackUrl.searchParams.keys()].join(','));
 console.log('[OAuth Authorize] Callback host:', callbackUrl.host);
 console.log('[OAuth Authorize] Callback path:', callbackUrl.pathname);
 console.log('[OAuth Authorize] Has code:', callbackUrl.searchParams.has('code'));
