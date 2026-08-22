@@ -3,7 +3,7 @@
  * Replaces in-memory Map() to work correctly on Vercel serverless
  */
 
-import { getFirestore, getAdminAuth } from './firebaseAdmin.js';
+import { getAdminFirestore } from './firebaseAdmin.js';
 import crypto from 'crypto';
 
 // Token expiration times
@@ -26,7 +26,7 @@ export function generateSecureToken(length = 32) {
  * Store authorization code in Firestore
  */
 export async function storeAuthCode(code, data) {
-  const db = getFirestore();
+  const db = getAdminFirestore();
   const expiresAt = Date.now() + AUTH_CODE_EXPIRY_MS;
   
   await db.collection(AUTH_CODES_COLLECTION).doc(code).set({
@@ -43,7 +43,7 @@ export async function storeAuthCode(code, data) {
  * Retrieve and consume authorization code from Firestore
  */
 export async function consumeAuthCode(code) {
-  const db = getFirestore();
+  const db = getAdminFirestore();
   const docRef = db.collection(AUTH_CODES_COLLECTION).doc(code);
   
   const doc = await docRef.get();
@@ -83,7 +83,7 @@ export async function consumeAuthCode(code) {
  * Store access or refresh token in Firestore
  */
 export async function storeToken(token, data) {
-  const db = getFirestore();
+  const db = getAdminFirestore();
   
   const expiryMs = data.type === 'access_token' ? ACCESS_TOKEN_EXPIRY_MS : REFRESH_TOKEN_EXPIRY_MS;
   const expiresAt = Date.now() + expiryMs;
@@ -101,7 +101,7 @@ export async function storeToken(token, data) {
  * Retrieve token from Firestore
  */
 export async function getToken(token) {
-  const db = getFirestore();
+  const db = getAdminFirestore();
   const docRef = db.collection(TOKENS_COLLECTION).doc(token);
   
   const doc = await docRef.get();
@@ -125,7 +125,7 @@ export async function getToken(token) {
  * Delete token from Firestore
  */
 export async function deleteToken(token) {
-  const db = getFirestore();
+  const db = getAdminFirestore();
   await db.collection(TOKENS_COLLECTION).doc(token).delete();
   console.log('[TokenStore] Token deleted:', token.substring(0, 8) + '...');
 }
@@ -134,7 +134,7 @@ export async function deleteToken(token) {
  * Clean up expired codes and tokens (can be called periodically)
  */
 export async function cleanupExpired() {
-  const db = getFirestore();
+  const db = getAdminFirestore();
   const now = Date.now();
   
   // Clean up expired auth codes
