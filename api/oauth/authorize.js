@@ -54,14 +54,12 @@ async function handleAuthorizationRequest(req, res) {
     scope = 'openid'
   } = req.query;
 
-  console.log('[OAuth Authorize] GET received:', {
-    client_id,
-    client_id_length: client_id ? client_id.length : 0,
-    redirect_uri,
-    response_type,
-    state,
-    scope
-  });
+  console.log('[OAuth Authorize] GET received');
+  console.log('[OAuth Authorize] client_id_length:', client_id ? client_id.length : 0);
+  console.log('[OAuth Authorize] redirect_uri:', redirect_uri || 'missing');
+  console.log('[OAuth Authorize] response_type:', response_type || 'missing');
+  console.log('[OAuth Authorize] state_present:', !!state);
+  console.log('[OAuth Authorize] scope:', scope);
 
   // Validate required OAuth parameters
   if (!client_id) {
@@ -90,20 +88,21 @@ async function handleAuthorizationRequest(req, res) {
 
   try {
     // Validate client credentials
-    console.log('[OAuth Authorize] Validating client_id against:', process.env.GOOGLE_OAUTH_CLIENT_ID ? 'SET' : 'NOT SET');
+    console.log('[OAuth Authorize] Validating client_id');
+    console.log('[OAuth Authorize] GOOGLE_OAUTH_CLIENT_ID env var:', process.env.GOOGLE_OAUTH_CLIENT_ID ? 'SET' : 'NOT SET');
     validateOAuthClient(client_id);
-    console.log('[OAuth Authorize] Client validation passed');
+    console.log('[OAuth Authorize] ✓ Client validation passed');
     
     // Validate redirect URI
     console.log('[OAuth Authorize] Validating redirect_uri');
     if (!validateRedirectUri(redirect_uri)) {
-      console.error('[OAuth Authorize] Invalid redirect_uri:', redirect_uri);
+      console.error('[OAuth Authorize] Invalid redirect_uri pattern');
       return res.status(400).json({ 
         error: 'invalid_request',
         error_description: 'Invalid redirect_uri' 
       });
     }
-    console.log('[OAuth Authorize] Redirect URI validation passed');
+    console.log('[OAuth Authorize] ✓ Redirect URI validation passed');
 
     // Generate a login page with OAuth context
     console.log('[OAuth Authorize] Generating login page');
@@ -116,15 +115,15 @@ async function handleAuthorizationRequest(req, res) {
 
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(loginPageHtml);
-    console.log('[OAuth Authorize] Login page sent successfully');
+    console.log('[OAuth Authorize] ✓ Login page sent successfully');
 
   } catch (error) {
-    console.error('[OAuth Authorize] Validation error:', error);
+    console.error('[OAuth Authorize] Validation error:', error.message);
     
     // Redirect back to Google with error if redirect_uri is valid
     if (validateRedirectUri(redirect_uri)) {
       const errorUrl = `${redirect_uri}?error=invalid_client&error_description=${encodeURIComponent(error.message)}&state=${encodeURIComponent(state || '')}`;
-      console.log('[OAuth Authorize] Redirecting to error URL:', errorUrl.substring(0, 100) + '...');
+      console.log('[OAuth Authorize] Redirecting to error URL (Google OAuth redirect)');
       res.redirect(302, errorUrl);
     } else {
       res.status(400).json({ 
@@ -147,13 +146,12 @@ async function handleAuthorizationGrant(req, res) {
     id_token 
   } = req.body;
 
-  console.log('[OAuth Authorize] POST received:', {
-    client_id,
-    redirect_uri,
-    state,
-    scope,
-    has_id_token: !!id_token
-  });
+  console.log('[OAuth Authorize] POST received');
+  console.log('[OAuth Authorize] client_id_length:', client_id ? client_id.length : 0);
+  console.log('[OAuth Authorize] redirect_uri present:', !!redirect_uri);
+  console.log('[OAuth Authorize] state_present:', !!state);
+  console.log('[OAuth Authorize] scope:', scope);
+  console.log('[OAuth Authorize] has_id_token:', !!id_token);
 
   // Validate required parameters
   if (!client_id || !redirect_uri || !id_token) {
@@ -166,37 +164,39 @@ async function handleAuthorizationGrant(req, res) {
 
   try {
     // Validate client and redirect URI
-    console.log('[OAuth Authorize] Validating client_id:', client_id);
+    console.log('[OAuth Authorize] Validating client_id');
     validateOAuthClient(client_id);
+    console.log('[OAuth Authorize] ✓ Client validated');
     
-    console.log('[OAuth Authorize] Validating redirect_uri:', redirect_uri);
+    console.log('[OAuth Authorize] Validating redirect_uri');
     if (!validateRedirectUri(redirect_uri)) {
       throw new Error('Invalid redirect_uri');
     }
+    console.log('[OAuth Authorize] ✓ Redirect URI validated');
 
     // Verify Firebase ID token and get user
     console.log('[OAuth Authorize] Verifying Firebase ID token');
     const uid = await verifyAuthToken(id_token);
     const userData = await getUserByUid(uid);
-    console.log('[OAuth Authorize] User authenticated:', { uid, userId: userData.userId });
+    console.log('[OAuth Authorize] ✓ User authenticated:', { uid, userId: userData.userId });
 
     // Generate authorization code using Firebase UID (not A5X userId)
     const authCode = generateAuthCode(uid, client_id, redirect_uri, scope);
-    console.log('[OAuth Authorize] Authorization code generated:', authCode.substring(0, 8) + '...');
+    console.log('[OAuth Authorize] ✓ Authorization code generated (length:', authCode.length, ')');
 
     // Build redirect URL with code and state
     const successUrl = `${redirect_uri}?code=${authCode}&state=${encodeURIComponent(state || '')}`;
-    console.log('[OAuth Authorize] Redirecting to:', successUrl.substring(0, 100) + '...');
+    console.log('[OAuth Authorize] Redirecting to Google with authorization code');
     
     // CRITICAL: Perform server-side redirect (302) instead of returning JSON
     res.redirect(302, successUrl);
 
   } catch (error) {
-    console.error('[OAuth Authorize] Grant error:', error);
+    console.error('[OAuth Authorize] Grant error:', error.message);
     
     // Redirect back to Google with error
     const errorUrl = `${redirect_uri}?error=access_denied&error_description=${encodeURIComponent(error.message)}&state=${encodeURIComponent(state || '')}`;
-    console.log('[OAuth Authorize] Redirecting to error URL:', errorUrl.substring(0, 100) + '...');
+    console.log('[OAuth Authorize] Redirecting to error URL (Google OAuth redirect)');
     
     res.redirect(302, errorUrl);
   }

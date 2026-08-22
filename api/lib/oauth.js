@@ -22,6 +22,16 @@ function generateSecureToken(length = 32) {
 }
 
 /**
+ * Create a safe fingerprint of a string for logging (SHA-256 hash)
+ * @param {string} value - Value to fingerprint
+ * @returns {string} First 12 characters of SHA-256 hash
+ */
+function createFingerprint(value) {
+  if (!value) return 'null';
+  return crypto.createHash('sha256').update(value).digest('hex').substring(0, 12);
+}
+
+/**
  * Generate authorization code for OAuth flow
  * @param {string} uid - Firebase Auth UID
  */
@@ -183,26 +193,45 @@ export function validateOAuthClient(clientId, clientSecret = null) {
   const validClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const validClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   
-  // Log for debugging (mask actual values)
+  // Safe diagnostic logging using fingerprints
+  console.log('[OAuth Validation] Environment check:');
+  console.log('[OAuth Validation] GOOGLE_OAUTH_CLIENT_ID is:', validClientId ? 'SET' : 'NOT SET');
+  console.log('[OAuth Validation] GOOGLE_OAUTH_CLIENT_SECRET is:', validClientSecret ? 'SET' : 'NOT SET');
+  
   console.log('[OAuth Validation] Checking client_id');
-  console.log('[OAuth Validation] Received client_id length:', clientId ? clientId.length : 0);
-  console.log('[OAuth Validation] Expected client_id length:', validClientId ? validClientId.length : 0);
-  console.log('[OAuth Validation] Received (first 10 chars):', clientId ? clientId.substring(0, 10) : 'none');
-  console.log('[OAuth Validation] Expected (first 10 chars):', validClientId ? validClientId.substring(0, 10) : 'none');
+  console.log('[OAuth Validation] Received length:', clientId ? clientId.length : 0);
+  console.log('[OAuth Validation] Expected length:', validClientId ? validClientId.length : 0);
+  console.log('[OAuth Validation] Received fingerprint:', createFingerprint(clientId));
+  console.log('[OAuth Validation] Expected fingerprint:', createFingerprint(validClientId));
   
   if (!validClientId) {
-    console.error('[OAuth Validation] GOOGLE_OAUTH_CLIENT_ID not set in environment');
+    console.error('[OAuth Validation] ERROR: GOOGLE_OAUTH_CLIENT_ID not set in Vercel environment');
+    console.error('[OAuth Validation] This must be configured in Vercel Dashboard → Settings → Environment Variables');
     throw new Error('OAuth client not configured');
   }
   
   if (clientId !== validClientId) {
-    console.error('[OAuth Validation] Client ID mismatch!');
-    console.error('[OAuth Validation] Received:', clientId);
-    console.error('[OAuth Validation] Expected:', validClientId);
+    console.error('[OAuth Validation] ERROR: Client ID mismatch detected');
+    console.error('[OAuth Validation] The client_id from Google does not match GOOGLE_OAUTH_CLIENT_ID');
+    console.error('[OAuth Validation] Received length:', clientId ? clientId.length : 0);
+    console.error('[OAuth Validation] Expected length:', validClientId ? validClientId.length : 0);
+    console.error('[OAuth Validation] Received fingerprint:', createFingerprint(clientId));
+    console.error('[OAuth Validation] Expected fingerprint:', createFingerprint(validClientId));
+    
+    // Check for common issues
+    if (clientId && validClientId) {
+      if (clientId.trim() === validClientId.trim()) {
+        console.error('[OAuth Validation] HINT: Values match after trim - check for whitespace');
+      }
+      if (clientId.toLowerCase() === validClientId.toLowerCase()) {
+        console.error('[OAuth Validation] HINT: Values match case-insensitively - check capitalization');
+      }
+    }
+    
     throw new Error('Invalid client ID');
   }
   
-  console.log('[OAuth Validation] Client ID validated successfully');
+  console.log('[OAuth Validation] ✓ Client ID validated successfully');
   
   if (clientSecret && clientSecret !== validClientSecret) {
     console.error('[OAuth Validation] Client secret mismatch');
