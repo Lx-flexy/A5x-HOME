@@ -191,36 +191,28 @@ async function handleAuthorizationGrant(req, res) {
 
     // Generate authorization code using Firebase UID (not A5X userId)
     const authCode = await generateAuthCode(uid, client_id, redirect_uri, scope);
-    console.log('[OAuth Authorize] ✓ Authorization code generated (length:', authCode.length, ')');
+    console.log('[OAuth Authorize] ✓ Authorization code generated');
 
-    // Build redirect URL with code and state - use URL constructor for safety
+    // Build redirect URL with code and state
     const callbackUrl = new URL(redirect_uri);
     callbackUrl.searchParams.set('code', authCode);
     if (state) {
       callbackUrl.searchParams.set('state', state);
     }
     
-    console.log('[OAuth Authorize] Callback URL prepared');
-    console.log('[OAuth Authorize] Callback host:', callbackUrl.host);
-    console.log('[OAuth Authorize] Callback path:', callbackUrl.pathname);
-    console.log('[OAuth Authorize] Has code:', callbackUrl.searchParams.has('code'));
-    console.log('[OAuth Authorize] Has state:', callbackUrl.searchParams.has('state'));
-    console.log('[OAuth Authorize] Query keys:', [...callbackUrl.searchParams.keys()].join(','));
-
-    res.writeHead(302, {
-      Location: callbackUrl.toString(),
-      'Cache-Control': 'no-store'
+    // Return the redirect URL to the client for navigation
+    // The client will use window.location to navigate (full page redirect)
+    return res.status(200).json({
+      redirectUrl: callbackUrl.toString()
     });
-    res.end();
-    return;
   } catch (error) {
     console.error('[OAuth Authorize] Grant error:', error.message);
     
-    // Redirect back to Google with error
-    const errorUrl = `${redirect_uri}?error=access_denied&error_description=${encodeURIComponent(error.message)}&state=${encodeURIComponent(state || '')}`;
-    console.log('[OAuth Authorize] Redirecting to error URL (Google OAuth redirect)');
-    
-    res.redirect(302, errorUrl);
+    // Return error as JSON (client will handle display)
+    return res.status(400).json({
+      error: 'access_denied',
+      error_description: error.message
+    });
   }
 }
 
@@ -357,7 +349,7 @@ function generateLoginPage(context) {
                     
                     loading.textContent = 'Completing authorization...';
                     
-                    // Submit to POST endpoint with JSON payload
+                    // Submit authorization request to server
                     const params = {
                         client_id: '${clientId}',
                         redirect_uri: '${redirectUri}',
@@ -371,27 +363,21 @@ function generateLoginPage(context) {
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(params),
-                        redirect: 'manual' // Don't follow redirects automatically
+                        body: JSON.stringify(params)
                     });
                     
-                    // Check if response is a redirect (status 302 or 3xx)
-                    if (response.status >= 300 && response.status < 400) {
-                        const redirectUrl = response.headers.get('Location');
-                        if (redirectUrl) {
-                            // Follow the redirect manually
-                            window.location.href = redirectUrl;
-                        } else {
-                            throw new Error('Server returned redirect without Location header');
-                        }
-                    } else if (response.ok) {
-                        // Unexpected success without redirect
-                        const data = await response.json();
-                        throw new Error(data.error_description || 'Authorization failed');
-                    } else {
-                        // Error response
+                    if (!response.ok) {
                         const data = await response.json().catch(() => ({ error_description: 'Authorization failed' }));
                         throw new Error(data.error_description || 'Authorization failed');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.redirectUrl) {
+                        // Navigate to Google's callback URL (full page navigation)
+                        window.location.href = data.redirectUrl;
+                    } else {
+                        throw new Error('No redirect URL received from server');
                     }
                     
                 } catch (error) {
