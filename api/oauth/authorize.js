@@ -388,7 +388,21 @@ function generateLoginPage(context) {
                 try {
                     // Authenticate with Google
                     const result = await signInWithPopup(auth, googleProvider);
+                    
+                    if (!result || !result.user) {
+                        throw new Error('Google sign-in failed: No user data received');
+                    }
+                    
+                    loading.textContent = 'Getting authentication token...';
+                    
+                    // Get Firebase ID token
                     const idToken = await result.user.getIdToken();
+                    
+                    if (!idToken) {
+                        throw new Error('Failed to get authentication token from Firebase');
+                    }
+                    
+                    console.log('ID token obtained, length:', idToken.length);
                     
                     loading.textContent = 'Completing authorization...';
                     
@@ -401,6 +415,9 @@ function generateLoginPage(context) {
                         id_token: idToken
                     };
                     
+                    console.log('Sending POST request to /api/oauth/authorize');
+                    console.log('Params keys:', Object.keys(params));
+                    
                     const response = await fetch('/api/oauth/authorize', {
                         method: 'POST',
                         headers: {
@@ -409,12 +426,17 @@ function generateLoginPage(context) {
                         body: JSON.stringify(params)
                     });
                     
+                    console.log('Response status:', response.status);
+                    console.log('Response ok:', response.ok);
+                    
                     if (!response.ok) {
                         const data = await response.json().catch(() => ({ error_description: 'Authorization failed' }));
+                        console.error('Authorization failed:', data);
                         throw new Error(data.error_description || 'Authorization failed');
                     }
                     
                     const data = await response.json();
+                    console.log('Authorization successful, redirecting...');
                     
                     if (data.redirectUrl) {
                         // Navigate to Google's callback URL (full page navigation)
