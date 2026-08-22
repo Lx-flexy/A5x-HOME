@@ -153,6 +153,7 @@ export function validateOAuthClient(clientId, clientSecret = null) {
   if (!validClientId) {
     console.error('[OAuth Validation] ERROR: GOOGLE_OAUTH_CLIENT_ID not set in Vercel environment');
     console.error('[OAuth Validation] This must be configured in Vercel Dashboard → Settings → Environment Variables');
+    console.error('[OAuth Validation] FATAL: Set GOOGLE_OAUTH_CLIENT_ID in Vercel Production env vars — this must exactly match the client_id configured in Google Actions Console account linking settings.');
     throw new Error('OAuth client not configured');
   }
   
