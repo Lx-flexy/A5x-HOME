@@ -28,32 +28,17 @@ function createFingerprint(value) {
 
 /**
  * Generate authorization code for OAuth flow
- * Uses base64url encoding to match Google's expected format
  * @param {string} uid - Firebase Auth UID
+ * @param {string} clientId - OAuth client ID
+ * @param {string} redirectUri - OAuth redirect URI
+ * @param {string} scope - OAuth scope
+ * @returns {Promise<string>} Opaque authorization code
  */
 export async function generateAuthCode(uid, clientId, redirectUri, scope = 'openid') {
-  // Generate random token
-  const randomToken = generateSecureToken(16);
+  // Generate simple random opaque token
+  const code = generateSecureToken(32);
   
-  // Create a structured payload that Google might expect
-  const payload = {
-    uid,
-    clientId,
-    redirectUri,
-    scope,
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 600 // 10 minutes
-  };
-  
-  // Encode as base64url (URL-safe base64)
-  const payloadJson = JSON.stringify(payload);
-  const code = Buffer.from(payloadJson)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-  
-  // Store with the base64url-encoded code as key
+  // Store authorization code with associated data
   await storeAuthCode(code, {
     uid,  // Store Firebase UID, not A5X userId
     clientId,
@@ -61,9 +46,8 @@ export async function generateAuthCode(uid, clientId, redirectUri, scope = 'open
     scope
   });
   
-  console.log('[OAuth] Generated base64url-encoded authorization code');
+  console.log('[OAuth] Generated authorization code');
   console.log('[OAuth] Code length:', code.length);
-  console.log('[OAuth] Code format: base64url JSON payload');
   
   return code;
 }
@@ -164,9 +148,6 @@ export function validateOAuthClient(clientId, clientSecret = null) {
   const validClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const validClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   
-  // TEMPORARY: Legacy Client ID for migration period while Google propagates new Client ID
-  const legacyClientId = 'a5x-home-google';
-  
   // Safe diagnostic logging using fingerprints
   console.log('[OAuth Validation] Environment check:');
   console.log('[OAuth Validation] GOOGLE_OAUTH_CLIENT_ID is:', validClientId ? 'SET' : 'NOT SET');
@@ -185,10 +166,8 @@ export function validateOAuthClient(clientId, clientSecret = null) {
     throw new Error('OAuth client not configured');
   }
   
-  // TEMPORARY: Accept both new URL format and legacy Client ID during migration
-  const isValidClientId = (clientId === validClientId) || (clientId === legacyClientId);
-  
-  if (!isValidClientId) {
+  // Simple client ID comparison with whitespace safety
+  if (clientId.trim() !== validClientId.trim()) {
     console.error('[OAuth Validation] ERROR: Client ID mismatch detected');
     console.error('[OAuth Validation] The client_id from Google does not match GOOGLE_OAUTH_CLIENT_ID');
     console.error('[OAuth Validation] Received length:', clientId ? clientId.length : 0);
@@ -198,23 +177,12 @@ export function validateOAuthClient(clientId, clientSecret = null) {
     
     // Check for common issues
     if (clientId && validClientId) {
-      if (clientId.trim() === validClientId.trim()) {
-        console.error('[OAuth Validation] HINT: Values match after trim - check for whitespace');
-      }
       if (clientId.toLowerCase() === validClientId.toLowerCase()) {
         console.error('[OAuth Validation] HINT: Values match case-insensitively - check capitalization');
       }
     }
     
     throw new Error('Invalid client ID');
-  }
-  
-  // Log which Client ID was used
-  if (clientId === legacyClientId) {
-    console.warn('[OAuth Validation] ⚠ Using legacy Client ID (temporary migration support)');
-    console.warn('[OAuth Validation] This will be removed once Google propagates new Client ID');
-  } else {
-    console.log('[OAuth Validation] ✓ Using new URL-format Client ID');
   }
   
   console.log('[OAuth Validation] ✓ Client ID validated successfully');
