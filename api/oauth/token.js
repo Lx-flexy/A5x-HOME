@@ -8,9 +8,10 @@
 import { validateAuthCode, generateTokens, refreshAccessToken, validateOAuthClient } from '../lib/oauth.js';
 
 /**
- * Parse JSON body from request stream (required for Vercel serverless functions)
+ * Parse request body from stream (supports both application/x-www-form-urlencoded and application/json)
+ * RFC 6749 Section 4.1.3 requires application/x-www-form-urlencoded for token requests
  */
-async function parseJsonBody(req) {
+async function parseRequestBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
@@ -18,9 +19,32 @@ async function parseJsonBody(req) {
     });
     req.on('end', () => {
       try {
-        resolve(body ? JSON.parse(body) : {});
+        if (!body) {
+          resolve({});
+          return;
+        }
+
+        const contentType = req.headers['content-type'] || '';
+
+        // Parse application/x-www-form-urlencoded (standard OAuth 2.0 format)
+        if (contentType.includes('application/x-www-form-urlencoded')) {
+          const params = new URLSearchParams(body);
+          const parsed = {};
+          for (const [key, value] of params.entries()) {
+            parsed[key] = value;
+          }
+          resolve(parsed);
+        }
+        // Parse application/json (also supported)
+        else if (contentType.includes('application/json')) {
+          resolve(JSON.parse(body));
+        }
+        // Unsupported content type
+        else {
+          reject(new Error(`Unsupported Content-Type: ${contentType}`));
+        }
       } catch (error) {
-        reject(new Error('Invalid JSON in request body'));
+        reject(new Error(`Body parsing failed: ${error.message}`));
       }
     });
     req.on('error', reject);
@@ -46,19 +70,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Parse JSON body (Vercel doesn't auto-parse)
+    // Parse request body (supports both form-urlencoded and JSON)
     console.log('[OAuth Token] POST request received');
     console.log('[OAuth Token] Content-Type:', req.headers['content-type']);
     
     try {
-      req.body = await parseJsonBody(req);
-      console.log('[OAuth Token] Body parsed successfully');
+      req.body = await parseRequestBody(req);
+      const contentType = req.headers['content-type'] || '';
+      const parserUsed = contentType.includes('application/x-www-form-urlencoded') 
+        ? 'form-urlencoded' 
+        : contentType.includes('application/json') 
+        ? 'json' 
+        : 'unknown';
+      
+      console.log('[OAuth Token] Body parsed successfully using:', parserUsed);
       console.log('[OAuth Token] Body keys:', Object.keys(req.body || {}));
     } catch (parseError) {
       console.error('[OAuth Token] Body parsing failed:', parseError.message);
       return res.status(400).json({
         error: 'invalid_request',
-        error_description: 'Invalid JSON in request body'
+        error_description: parseError.message
       });
     }
     
