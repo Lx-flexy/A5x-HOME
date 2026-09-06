@@ -5,14 +5,16 @@
  *   RTDB path: devices/{deviceId}/
  *     status      "online" | "offline"
  *     lastSeen    unix ms
- *     outputs/    light1, light2, light3, fan1, fan2, custom1, oledMessage, buzzer
+ *     outputs/    light2, light3, fan1, custom1, oledMessage, buzzer
  *     health/     rssi, heap, restartCount, uptime, wifiUptime, wifiStatus, firebaseStatus
- *     analytics/  light1Runtime…customRuntime, energyUsage
+ *     analytics/  light2Runtime, light3Runtime, fan1Runtime, customRuntime, energyUsage
+ *     currentSense/ light2Current, light3Current, fan1Current, customCurrent (+ Mismatch flags)
  *
  * Firestore  →  persistent metadata & audit logs
  *   devices_meta/{autoId}   device registration (ownerId, name, room, etc.)
  *   activity_logs/{autoId}  every control action
  * ─────────────────────────────────────────────────────────────────────────────
+ * NOTE: 4-channel configuration (Light2, Light3, Fan1, Custom1) — no Light1 or Fan2
  */
 
 import {
@@ -43,21 +45,17 @@ export interface Device {
 }
 
 export interface DeviceOutputs {
-  light1: boolean;
   light2: boolean;
   light3: boolean;
   fan1: boolean;
-  fan2: boolean;
   custom1: boolean;
   oledMessage: string;
   buzzer: boolean;
   buzzerMode?: string; // 'single' | 'double' | 'alarm'
   // ── Future PWM / speed support (UI-ready, firmware pending) ──────────────
-  light1Brightness?: number;   // 0-100
-  light2Brightness?: number;
+  light2Brightness?: number;   // 0-100
   light3Brightness?: number;
   fan1Speed?: number;          // 0-100
-  fan2Speed?: number;
 }
 
 export interface DeviceHealth {
@@ -72,21 +70,28 @@ export interface DeviceHealth {
 }
 
 export interface DeviceAnalyticsData {
-  light1Runtime: number;
   light2Runtime: number;
   light3Runtime: number;
   fan1Runtime: number;
-  fan2Runtime: number;
   customRuntime: number;
   energyUsage: number;
 }
 
+export interface DeviceCurrentSense {
+  light2Current: number;
+  light3Current: number;
+  fan1Current: number;
+  customCurrent: number;
+  light2Mismatch: boolean;
+  light3Mismatch: boolean;
+  fan1Mismatch: boolean;
+  customMismatch: boolean;
+}
+
 export interface DeviceNames {
-  light1?: string;
   light2?: string;
   light3?: string;
   fan1?: string;
-  fan2?: string;
   custom1?: string;
 }
 
@@ -98,11 +103,9 @@ export interface OutputMetadata {
 }
 
 export interface DeviceOutputMetadata {
-  light1?: OutputMetadata;
   light2?: OutputMetadata;
   light3?: OutputMetadata;
   fan1?: OutputMetadata;
-  fan2?: OutputMetadata;
   custom1?: OutputMetadata;
 }
 
@@ -112,7 +115,7 @@ export interface ActivityLog {
   action: string;
   performedBy: string;
   timestamp: unknown;
-  outputId?: string; // Hardware output ID (light1, light2, light3, fan1, fan2, custom1)
+  outputId?: string; // Hardware output ID (light2, light3, fan1, custom1)
 }
 
 // ─── RTDB path helpers ────────────────────────────────────────────────────────
@@ -123,6 +126,7 @@ const rtdbHealth    = (did: string) => ref(rtdb, `devices/${did}/health`);
 const rtdbAnalytics = (did: string) => ref(rtdb, `devices/${did}/analytics`);
 const rtdbNames     = (did: string) => ref(rtdb, `devices/${did}/metadata/names`);
 const rtdbOutputMetadata = (did: string) => ref(rtdb, `devices/${did}/metadata/outputs`);
+const rtdbCurrentSense = (did: string) => ref(rtdb, `devices/${did}/currentSense`);
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -140,8 +144,8 @@ export async function getDeviceOutputMetadata(deviceId: string): Promise<DeviceO
 
 function defaultOutputs(): DeviceOutputs {
   return {
-    light1: false, light2: false, light3: false,
-    fan1: false, fan2: false, custom1: false,
+    light2: false, light3: false,
+    fan1: false, custom1: false,
     oledMessage: '', buzzer: false, buzzerMode: 'single',
   };
 }
@@ -156,29 +160,34 @@ function defaultHealth(): DeviceHealth {
 
 function defaultAnalytics(): DeviceAnalyticsData {
   return {
-    light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-    fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+    light2Runtime: 0, light3Runtime: 0,
+    fan1Runtime: 0, customRuntime: 0, energyUsage: 0,
+  };
+}
+
+function defaultCurrentSense(): DeviceCurrentSense {
+  return {
+    light2Current: 0, light3Current: 0,
+    fan1Current: 0, customCurrent: 0,
+    light2Mismatch: false, light3Mismatch: false,
+    fan1Mismatch: false, customMismatch: false,
   };
 }
 
 function defaultNames(): DeviceNames {
   return {
-    light1: 'Light 1',
     light2: 'Light 2',
     light3: 'Light 3',
     fan1: 'Fan 1',
-    fan2: 'Fan 2',
     custom1: 'Custom Device'
   };
 }
 
 function defaultOutputMetadata(): DeviceOutputMetadata {
   return {
-    light1: { name: 'Light 1', icon: 'lightbulb', color: '#d97706', visible: true },
     light2: { name: 'Light 2', icon: 'lightbulb', color: '#d97706', visible: true },
     light3: { name: 'Light 3', icon: 'lightbulb', color: '#d97706', visible: true },
     fan1: { name: 'Fan 1', icon: 'wind', color: '#2563eb', visible: false },
-    fan2: { name: 'Fan 2', icon: 'wind', color: '#2563eb', visible: false },
     custom1: { name: 'Custom Device', icon: 'zap', color: '#7c3aed', visible: false }
   };
 }
@@ -405,6 +414,22 @@ export function subscribeToAnalytics(
   return () => off(r, 'value', handler);
 }
 
+// ─── RTDB: currentSense ───────────────────────────────────────────────────────
+
+export function subscribeToCurrentSense(
+  deviceId: string,
+  callback: (currentSense: DeviceCurrentSense) => void
+): () => void {
+  const r = rtdbCurrentSense(deviceId);
+  const handler = (snap: DataSnapshot) => {
+    // If currentSense node doesn't exist (older devices), return defaults
+    // This prevents crashes on devices without current sensing hardware
+    callback((snap.val() as DeviceCurrentSense) || defaultCurrentSense());
+  };
+  onValue(r, handler);
+  return () => off(r, 'value', handler);
+}
+
 // ─── RTDB: device output metadata ───────────────────────────────────────────
 
 export function subscribeToOutputMetadata(
@@ -617,7 +642,7 @@ export async function getDeviceOnlineStatus(deviceId: string): Promise<boolean> 
 
 // ─── RTDB: write output toggle ────────────────────────────────────────────────
 
-const TRACKABLE_KEYS = new Set(['light1','light2','light3','fan1','fan2','custom1']);
+const TRACKABLE_KEYS = new Set(['light2','light3','fan1','custom1']);
 
 export async function setOutput(
   deviceId: string,
@@ -635,7 +660,7 @@ export async function setOutput(
   // Runtime tracking — only for boolean trackable keys
   if (typeof safeValue === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
     const { trackOutputChange } = await import('./analyticsService');
-    await trackOutputChange(deviceId, key as 'light1'|'light2'|'light3'|'fan1'|'fan2'|'custom1', safeValue).catch(err =>
+    await trackOutputChange(deviceId, key as 'light2'|'light3'|'fan1'|'custom1', safeValue).catch(err =>
       console.warn('[setOutput] trackOutputChange failed:', err)
     );
   }
@@ -654,7 +679,7 @@ export async function setOutput(
 
 export async function setOutputValue(
   deviceId: string,
-  key: 'light1Brightness' | 'light2Brightness' | 'light3Brightness' | 'fan1Speed' | 'fan2Speed',
+  key: 'light2Brightness' | 'light3Brightness' | 'fan1Speed',
   value: number
 ): Promise<void> {
   await update(rtdbOutputs(deviceId), { [key]: value });
@@ -721,7 +746,7 @@ export async function updateDeviceState(
   label?: string
 ): Promise<void> {
   const outputKeys: (keyof DeviceOutputs)[] = [
-    'light1', 'light2', 'light3', 'fan1', 'fan2', 'custom1', 'oledMessage', 'buzzer', 'buzzerMode',
+    'light2', 'light3', 'fan1', 'custom1', 'oledMessage', 'buzzer', 'buzzerMode',
   ];
   const patch: Partial<DeviceOutputs> = {};
   outputKeys.forEach(k => {
@@ -740,8 +765,8 @@ export async function updateDeviceState(
   console.log('[updateDeviceState] RTDB update completed successfully');
 
   // Track runtime for trackable boolean keys via analyticsService
-  type TK = 'light1'|'light2'|'light3'|'fan1'|'fan2'|'custom1';
-  const trackable: TK[] = ['light1','light2','light3','fan1','fan2','custom1'];
+  type TK = 'light2'|'light3'|'fan1'|'custom1';
+  const trackable: TK[] = ['light2','light3','fan1','custom1'];
   const changes: Partial<Record<TK, boolean>> = {};
   for (const k of trackable) {
     if (k in data && typeof (data as Record<string, unknown>)[k] === 'boolean') {

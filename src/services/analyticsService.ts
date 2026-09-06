@@ -5,15 +5,15 @@
  *
  * RTDB: devices/{deviceId}/
  *   onAt/{key}   = unix ms when device was turned ON (cleared on OFF)
- *   analytics/   = today's accumulated runtime (hours, float) — resets each day
+ *   analytics/   = today's accumulated runtime (SECONDS, int) — resets each day
  *   analyticsDate = "YYYY-MM-DD" of the current analytics window
  *
  * Firestore: device_analytics/{deviceId_YYYY-MM-DD}
- *   deviceId, date, light1Runtime .. customRuntime, energyUsage, savedAt
+ *   deviceId, date, light2Runtime .. customRuntime, energyUsage, savedAt
  *   One document per device per day — upserted when device turns OFF or at midnight.
  *
- * DeviceDetails shows: today's live runtime (RTDB onAt + today's stored)
- * Analytics page shows: Today / Last 7 days / Last 30 days (Firestore history)
+ * NOTE: 4-channel configuration (Light2, Light3, Fan1, Custom1) — no Light1 or Fan2
+ * Runtime stored in SECONDS (matching firmware), displayed in hours/minutes
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -22,7 +22,7 @@ import {
   where, orderBy, limit, onSnapshot, serverTimestamp,
 } from 'firebase/firestore';
 import {
-  ref, get, set, update, remove, onValue, off, DataSnapshot,
+  ref, get, set, update, remove, onValue, off, DataSnapshot, runTransaction,
 } from 'firebase/database';
 import { db, rtdb } from './firebase';
 
@@ -34,18 +34,16 @@ export interface ActivityLog {
   action: string;
   performedBy: string;
   timestamp: unknown;
-  outputId?: string; // Hardware output ID (light1, light2, light3, fan1, fan2, custom1)
+  outputId?: string; // Hardware output ID (light2, light3, fan1, custom1)
 }
 
 export interface DailyAnalytics {
   id?: string;
   deviceId: string;
   date: string;        // "YYYY-MM-DD"
-  light1Runtime: number;
   light2Runtime: number;
   light3Runtime: number;
   fan1Runtime: number;
-  fan2Runtime: number;
   customRuntime: number;
   energyUsage: number;
   savedAt?: unknown;
@@ -60,9 +58,16 @@ export interface AnalyticsEntry extends DailyAnalytics {
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
+// IST offset: UTC +5:30 = 19800 seconds (matching firmware NTP_OFFSET_SEC)
+const IST_OFFSET_MS = 19800 * 1000;
+
+/**
+ * Get today's date string in IST timezone (YYYY-MM-DD).
+ * Matches the device's local clock (firmware uses NTP_OFFSET_SEC = 19800).
+ */
 export function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const now = new Date(Date.now() + IST_OFFSET_MS);
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`;
 }
 
 function docId(deviceId: string, date: string): string {
@@ -74,13 +79,16 @@ function docId(deviceId: string, date: string): string {
 const rtdbAnalytics    = (did: string) => ref(rtdb, `devices/${did}/analytics`);
 const rtdbOnAt         = (did: string) => ref(rtdb, `devices/${did}/onAt`);
 const rtdbAnalyticsDate = (did: string) => ref(rtdb, `devices/${did}/analyticsDate`);
+const rtdbCurrentSense = (did: string) => ref(rtdb, `devices/${did}/currentSense`);
 
+// Power consumption constants
+const NOMINAL_VOLTAGE = 230; // Volts (Indian standard)
 const WATT: Record<string, number> = {
-  light1: 40, light2: 40, light3: 40,
-  fan1: 25, fan2: 25, custom1: 30,
+  light2: 40, light3: 40,
+  fan1: 25, custom1: 30,
 };
 
-const TRACKABLE = ['light1','light2','light3','fan1','fan2','custom1'] as const;
+const TRACKABLE = ['light2','light3','fan1','custom1'] as const;
 type TrackableKey = typeof TRACKABLE[number];
 
 function runtimeField(key: string): string {
@@ -124,8 +132,8 @@ export async function ensureTodayWindow(deviceId: string): Promise<void> {
       if (hasGarbage) {
         // Data is corrupted — reset today's window
         await set(rtdbAnalytics(deviceId), {
-          light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-          fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+          light2Runtime: 0, light3Runtime: 0,
+          fan1Runtime: 0, customRuntime: 0, energyUsage: 0,
         });
         await remove(rtdbOnAt(deviceId));
         // Re-seed onAt for currently ON devices
@@ -150,8 +158,8 @@ export async function ensureTodayWindow(deviceId: string): Promise<void> {
   }
 
   await set(rtdbAnalytics(deviceId), {
-    light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-    fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+    light2Runtime: 0, light3Runtime: 0,
+    fan1Runtime: 0, customRuntime: 0, energyUsage: 0,
   });
   await set(rtdbAnalyticsDate(deviceId), today);
   await remove(rtdbOnAt(deviceId));
@@ -199,6 +207,13 @@ async function flushDayToFirestore(deviceId: string, date: string): Promise<void
  * Called when a device output changes.
  * ON  → set onAt timestamp
  * OFF → compute elapsed, add to today's RTDB analytics, flush to Firestore
+ * 
+ * NOTE: Energy is primarily accumulated by server-side Cloud Function (every 60s).
+ * This OFF-event calculation is a final cleanup to capture the last partial period.
+ * 
+ * CRITICAL: Uses RTDB transaction to prevent race condition with server-side tick.
+ * Without transaction, OFF-event and server-side tick could both read the same
+ * lastTickMs and double-count the overlapping time window.
  */
 export async function trackOutputChange(
   deviceId: string,
@@ -211,30 +226,81 @@ export async function trackOutputChange(
     // Turning ON — record start timestamp
     await update(rtdbOnAt(deviceId), { [key]: Date.now() });
   } else {
-    // Turning OFF — compute elapsed and save
+    // Turning OFF — atomically compute and update energy using transaction
     const onAtSnap = await get(ref(rtdb, `devices/${deviceId}/onAt/${key}`));
     const onAtMs   = (onAtSnap.val() as number) || 0;
 
     if (onAtMs > 0) {
-      const elapsed = (Date.now() - onAtMs) / 3_600_000; // hours
-      if (elapsed > 0) {
-        // Add to RTDB today counter
+      const now = Date.now();
+      
+      // Read current sense data (outside transaction since read-only reference data)
+      let currentData: Record<string, number> | null = null;
+      try {
+        const currentSnap = await get(rtdbCurrentSense(deviceId));
+        if (currentSnap.exists()) {
+          currentData = currentSnap.val() as Record<string, number>;
+        }
+      } catch {
+        // currentSense not available
+      }
+
+      // Use transaction to atomically read lastTickMs and update energyTick + analytics
+      const tickRef = ref(rtdb, `devices/${deviceId}/energyTick/${key}`);
+      
+      await runTransaction(tickRef, (lastTickMs) => {
+        // Abort if channel was already turned off by another concurrent operation
+        if (lastTickMs === null) return null;
+        
+        const tickMs = lastTickMs || onAtMs;
+        const elapsed = (now - onAtMs) / 3_600_000; // hours
+        const elapsedSinceTick = (now - tickMs) / 3_600_000;
+        
+        if (elapsed <= 0 || elapsedSinceTick <= 0) {
+          return null; // Abort transaction
+        }
+
+        // Calculate energy delta for time since last server tick
+        let energyDelta = 0;
+        if (currentData) {
+          const currentField = `${key}Current`;
+          const actualCurrent = currentData[currentField];
+          if (actualCurrent && actualCurrent > 0.01 && actualCurrent < 15) {
+            const powerW = NOMINAL_VOLTAGE * actualCurrent;
+            energyDelta = (powerW / 1000) * elapsedSinceTick;
+          } else {
+            energyDelta = (WATT[key] / 1000) * elapsedSinceTick;
+          }
+        } else {
+          energyDelta = (WATT[key] / 1000) * elapsedSinceTick;
+        }
+
+        // Store computed values for post-transaction analytics update
+        (tickRef as any)._offEventData = { elapsed, energyDelta, key };
+        
+        // Clear tick tracking (marks channel as OFF)
+        return null;
+      });
+
+      // After transaction commits, update analytics and onAt
+      const offData = (tickRef as any)._offEventData;
+      if (offData) {
         const field = runtimeField(key);
         const curSnap = await get(rtdbAnalytics(deviceId));
         const cur = (curSnap.val() as Record<string, number>) || {};
-        const prevRuntime = cur[field] || 0;
-        const prevEnergy  = cur.energyUsage || 0;
-
+        
         await update(rtdbAnalytics(deviceId), {
-          [field]:      prevRuntime + elapsed,
-          energyUsage:  prevEnergy  + (WATT[key] / 1000) * elapsed,
+          [field]: (cur[field] || 0) + offData.elapsed,
+          energyUsage: (cur.energyUsage || 0) + offData.energyDelta,
         });
 
-        // Also flush the updated day to Firestore immediately
         const today = todayStr();
         await flushDayToFirestore(deviceId, today);
+        
+        // Clean up temp data
+        delete (tickRef as any)._offEventData;
       }
-      // Clear onAt
+      
+      // Clear onAt (marks channel as OFF in state tracking)
       await update(rtdbOnAt(deviceId), { [key]: null });
     }
   }
@@ -242,6 +308,9 @@ export async function trackOutputChange(
 
 /**
  * Bulk version for All On/Off buttons.
+ * 
+ * CRITICAL: Uses RTDB transaction for each OFF event to prevent race condition
+ * with server-side tick. Sequential processing (not parallel) to avoid deadlocks.
  */
 export async function trackBulkOutputChange(
   deviceId: string,
@@ -254,31 +323,97 @@ export async function trackBulkOutputChange(
   const onAtData = (onAtSnap.val() as Record<string, number>) || {};
   const onAtPatch: Record<string, number | null> = {};
 
-  const curSnap = await get(rtdbAnalytics(deviceId));
-  const cur = (curSnap.val() as Record<string, number>) || {};
-  const analyticsPatch: Record<string, number> = {};
+  // Read current sense data once (shared across all channels)
+  let currentData: Record<string, number> | null = null;
+  try {
+    const currentSnap = await get(rtdbCurrentSense(deviceId));
+    if (currentSnap.exists()) {
+      currentData = currentSnap.val() as Record<string, number>;
+    }
+  } catch {
+    // currentSense not available
+  }
 
+  // Collect OFF events that need transaction-based energy calculation
+  const offEvents: Array<{ key: TrackableKey; onAtMs: number }> = [];
+  
   for (const [k, val] of Object.entries(changes) as [TrackableKey, boolean][]) {
     if (val) {
+      // Turning ON
       onAtPatch[k] = now;
     } else {
+      // Turning OFF
       const onAtMs = onAtData[k] || 0;
       if (onAtMs > 0) {
-        const elapsed = (now - onAtMs) / 3_600_000;
-        if (elapsed > 0) {
-          const field = runtimeField(k);
-          analyticsPatch[field] = (cur[field] || 0) + elapsed;
-          analyticsPatch['energyUsage'] = (analyticsPatch['energyUsage'] ?? cur['energyUsage'] ?? 0) + (WATT[k] / 1000) * elapsed;
-        }
-        onAtPatch[k] = null;
+        offEvents.push({ key: k, onAtMs });
+        onAtPatch[k] = null; // Will clear after energy calculation
       }
     }
   }
 
-  if (Object.keys(analyticsPatch).length > 0) {
+  // Process OFF events sequentially using transactions (to prevent deadlocks)
+  const energyUpdates: Array<{ field: string; runtime: number; energy: number }> = [];
+  
+  for (const { key, onAtMs } of offEvents) {
+    const tickRef = ref(rtdb, `devices/${deviceId}/energyTick/${key}`);
+    
+    await runTransaction(tickRef, (lastTickMs) => {
+      // Abort if already cleared
+      if (lastTickMs === null) return null;
+      
+      const tickMs = lastTickMs || onAtMs;
+      const elapsed = (now - onAtMs) / 3_600_000;
+      const elapsedSinceTick = (now - tickMs) / 3_600_000;
+      
+      if (elapsed <= 0 || elapsedSinceTick <= 0) {
+        return null; // Abort
+      }
+
+      // Calculate energy delta
+      let energyDelta = 0;
+      if (currentData) {
+        const currentField = `${key}Current`;
+        const actualCurrent = currentData[currentField];
+        if (actualCurrent && actualCurrent > 0.01 && actualCurrent < 15) {
+          const powerW = NOMINAL_VOLTAGE * actualCurrent;
+          energyDelta = (powerW / 1000) * elapsedSinceTick;
+        } else {
+          energyDelta = (WATT[key] / 1000) * elapsedSinceTick;
+        }
+      } else {
+        energyDelta = (WATT[key] / 1000) * elapsedSinceTick;
+      }
+
+      // Store for batch analytics update
+      energyUpdates.push({
+        field: runtimeField(key),
+        runtime: elapsed,
+        energy: energyDelta,
+      });
+      
+      // Clear tick (marks OFF)
+      return null;
+    });
+  }
+
+  // Batch update analytics after all transactions complete
+  if (energyUpdates.length > 0) {
+    const curSnap = await get(rtdbAnalytics(deviceId));
+    const cur = (curSnap.val() as Record<string, number>) || {};
+    const analyticsPatch: Record<string, number> = {};
+    
+    let totalEnergy = cur.energyUsage || 0;
+    for (const update of energyUpdates) {
+      analyticsPatch[update.field] = (cur[update.field] || 0) + update.runtime;
+      totalEnergy += update.energy;
+    }
+    analyticsPatch['energyUsage'] = totalEnergy;
+    
     await update(rtdbAnalytics(deviceId), analyticsPatch);
     await flushDayToFirestore(deviceId, todayStr());
   }
+
+  // Update onAt states (all ON/OFF changes)
   if (Object.keys(onAtPatch).length > 0) {
     await update(rtdbOnAt(deviceId), onAtPatch);
   }
@@ -348,16 +483,14 @@ export async function getTodayAnalytics(deviceId: string): Promise<DailyAnalytic
  */
 export function aggregateDailyRecords(records: DailyAnalytics[]): Omit<DailyAnalytics, 'id' | 'deviceId' | 'date' | 'savedAt'> {
   return records.reduce((acc, r) => ({
-    light1Runtime: acc.light1Runtime + (r.light1Runtime || 0),
     light2Runtime: acc.light2Runtime + (r.light2Runtime || 0),
     light3Runtime: acc.light3Runtime + (r.light3Runtime || 0),
     fan1Runtime:   acc.fan1Runtime   + (r.fan1Runtime   || 0),
-    fan2Runtime:   acc.fan2Runtime   + (r.fan2Runtime   || 0),
     customRuntime: acc.customRuntime + (r.customRuntime  || 0),
     energyUsage:   acc.energyUsage   + (r.energyUsage   || 0),
   }), {
-    light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-    fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+    light2Runtime: 0, light3Runtime: 0,
+    fan1Runtime: 0, customRuntime: 0, energyUsage: 0,
   });
 }
 
@@ -367,8 +500,8 @@ export async function resetTodayAnalytics(deviceId: string): Promise<void> {
   const today = todayStr();
   // Zero RTDB
   await set(rtdbAnalytics(deviceId), {
-    light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-    fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+    light2Runtime: 0, light3Runtime: 0,
+    fan1Runtime: 0, customRuntime: 0, energyUsage: 0,
   });
   await set(rtdbAnalyticsDate(deviceId), today);
   await remove(rtdbOnAt(deviceId));
@@ -377,8 +510,8 @@ export async function resetTodayAnalytics(deviceId: string): Promise<void> {
   try {
     await setDoc(doc(db, 'device_analytics', docId(deviceId, today)), {
       deviceId, date: today,
-      light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-      fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+      light2Runtime: 0, light3Runtime: 0,
+      fan1Runtime: 0, customRuntime: 0, energyUsage: 0,
       savedAt: serverTimestamp(),
     });
   } catch { /* ignore */ }
@@ -480,8 +613,8 @@ export async function resetCorruptedAnalyticsIfNeeded(deviceId: string): Promise
 
     // Corrupted — reset everything and start fresh from today
     await set(rtdbAnalytics(deviceId), {
-      light1Runtime: 0, light2Runtime: 0, light3Runtime: 0,
-      fan1Runtime: 0, fan2Runtime: 0, customRuntime: 0, energyUsage: 0,
+      light2Runtime: 0, light3Runtime: 0,
+      fan1Runtime: 0, customRuntime: 0, energyUsage: 0,
     });
     await set(rtdbAnalyticsDate(deviceId), todayStr());
     await remove(rtdbOnAt(deviceId));

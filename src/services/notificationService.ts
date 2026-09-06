@@ -246,7 +246,7 @@ export async function deleteNotification(userId: string, notificationId: string)
 
 /**
  * Enrich notifications with output colors from device metadata
- * Uses the outputId directly from activity logs (light1, light2, light3, fan1, fan2, custom1)
+ * Uses the outputId directly from activity logs (light2, light3, fan1, custom1)
  */
 async function enrichNotificationsWithColors(notifications: Notification[]): Promise<Notification[]> {
   // Get unique device IDs
@@ -280,8 +280,8 @@ async function enrichNotificationsWithColors(notifications: Notification[]): Pro
       return notification;
     }
     
-    // Valid output IDs: light1, light2, light3, fan1, fan2, custom1
-    const validOutputIds = ['light1', 'light2', 'light3', 'fan1', 'fan2', 'custom1'];
+    // Valid output IDs: light2, light3, fan1, custom1
+    const validOutputIds = ['light2', 'light3', 'fan1', 'custom1'];
     if (!validOutputIds.includes(notification.outputId)) {
       console.warn('[enrichNotifications] Invalid outputId:', notification.outputId);
       return notification;

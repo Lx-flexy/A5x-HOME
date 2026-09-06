@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Lightbulb, Wind, Zap, Activity, Clock, BarChart3 } from 'lucide-react';
+import { Lightbulb, Wind, Zap, Activity, Clock, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   subscribeToUserDevices,
   subscribeToAnalytics,
   subscribeToOnAt,
   subscribeToLastSeen,
+  subscribeToCurrentSense,
   Device,
   DeviceAnalyticsData,
+  DeviceCurrentSense,
 } from '../../services/deviceService';
 import { calcIsOnline } from '../../hooks/useDeviceStatus';
 import {
@@ -36,6 +38,13 @@ function fmtRuntime(h: number): string {
   const ss = Math.round(((h - hh) * 60 - mm) * 60);
   if (hh === 0) return ss > 0 ? `${mm}m ${ss}s` : `${mm}m`;
   return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
+}
+
+function fmtCurrent(amps: number): string {
+  // Clamp near-zero readings to exactly 0 (sensor noise floor)
+  if (amps < 0.01) return '0.00 A';
+  // Format to 2 decimal places
+  return `${amps.toFixed(2)} A`;
 }
 
 function timeAgo(timestamp: unknown): string {
@@ -87,6 +96,8 @@ export default function Analytics() {
   // Live onAt timestamps — devices currently ON
   const [onAtMap, setOnAtMap]         = useState<Record<string, Record<string, number>>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
+  // Current sense data — live current readings and mismatch flags
+  const [currentSenseMap, setCurrentSenseMap] = useState<Record<string, DeviceCurrentSense>>({});
   const [now, setNow]                 = useState(Date.now());
   const [logs, setLogs]               = useState<ActivityLog[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -110,7 +121,7 @@ export default function Analytics() {
     return unsub;
   }, [user]);
 
-  // For each device: ensure today's window is clean, then subscribe to analytics + onAt + lastSeen
+  // For each device: ensure today's window is clean, then subscribe to analytics + onAt + lastSeen + currentSense
   useEffect(() => {
     if (!devices.length) return;
     const unsubs: (() => void)[] = [];
@@ -136,7 +147,12 @@ export default function Analytics() {
         setLastSeenMap(prev => ({ ...prev, [dev.deviceId]: ms }));
       });
 
-      unsubs.push(u1, u2, u3);
+      // Subscribe to currentSense — live current readings and mismatch flags
+      const u4 = subscribeToCurrentSense(dev.deviceId, currentSense => {
+        setCurrentSenseMap(prev => ({ ...prev, [dev.deviceId]: currentSense }));
+      });
+
+      unsubs.push(u1, u2, u3, u4);
     });
 
     return () => unsubs.forEach(u => u());
@@ -184,15 +200,13 @@ export default function Analytics() {
         const a = todayRtdb[dev.deviceId];
         if (!a) return acc;
         return {
-          light1Runtime: acc.light1Runtime + liveRuntime(dev.deviceId, 'light1', a.light1Runtime || 0),
           light2Runtime: acc.light2Runtime + liveRuntime(dev.deviceId, 'light2', a.light2Runtime || 0),
           light3Runtime: acc.light3Runtime + liveRuntime(dev.deviceId, 'light3', a.light3Runtime || 0),
           fan1Runtime:   acc.fan1Runtime   + liveRuntime(dev.deviceId, 'fan1',   a.fan1Runtime   || 0),
-          fan2Runtime:   acc.fan2Runtime   + liveRuntime(dev.deviceId, 'fan2',   a.fan2Runtime   || 0),
           customRuntime: acc.customRuntime + liveRuntime(dev.deviceId, 'custom1',a.customRuntime || 0),
           energyUsage:   acc.energyUsage   + (a.energyUsage || 0),
         };
-      }, { light1Runtime:0, light2Runtime:0, light3Runtime:0, fan1Runtime:0, fan2Runtime:0, customRuntime:0, energyUsage:0 });
+      }, { light2Runtime:0, light3Runtime:0, fan1Runtime:0, customRuntime:0, energyUsage:0 });
     }
     // Historical tabs — use Firestore data
     const allRecords = Object.values(historyMap).flat();
@@ -200,11 +214,11 @@ export default function Analytics() {
   };
 
   const totals = computeTotals();
-  const totalRuntime = totals.light1Runtime + totals.light2Runtime + totals.light3Runtime +
-                       totals.fan1Runtime + totals.fan2Runtime + totals.customRuntime;
+  const totalRuntime = totals.light2Runtime + totals.light3Runtime +
+                       totals.fan1Runtime + totals.customRuntime;
   const maxRuntime = Math.max(
-    totals.light1Runtime, totals.light2Runtime, totals.light3Runtime,
-    totals.fan1Runtime, totals.fan2Runtime, totals.customRuntime, 0.001
+    totals.light2Runtime, totals.light3Runtime,
+    totals.fan1Runtime, totals.customRuntime, 0.001
   );
 
   const today = todayStr();
@@ -279,14 +293,14 @@ export default function Analytics() {
               },
               {
                 label: 'Light Runtime',
-                value: fmtRuntime(totals.light1Runtime + totals.light2Runtime + totals.light3Runtime),
+                value: fmtRuntime(totals.light2Runtime + totals.light3Runtime),
                 unit: '',
                 icon: <Lightbulb size={20} className="sm:w-[18px] sm:h-[18px]" style={{ color: '#d97706' }} />,
                 iconBg: 'linear-gradient(135deg, #fef9c3, #fde68a)',
               },
               {
                 label: 'Fan Runtime',
-                value: fmtRuntime(totals.fan1Runtime + totals.fan2Runtime),
+                value: fmtRuntime(totals.fan1Runtime),
                 unit: '',
                 icon: <Wind size={20} className="sm:w-[18px] sm:h-[18px]" style={{ color: '#2563eb' }} />,
                 iconBg: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
@@ -310,6 +324,89 @@ export default function Analytics() {
             ))}
           </div>
 
+          {/* ── Live Current Monitoring (Today only) ── */}
+          {tab === 'today' && devices.length > 0 && (
+            <Card>
+              <div className="flex items-center gap-2 mb-5">
+                <Zap size={18} className="sm:w-4 sm:h-4" style={{ color: '#2563eb' }} />
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Live Current Monitor</h3>
+                <span className="ml-auto text-xs" style={{ color: 'var(--text-tertiary)' }}>Real-time</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[
+                  { key: 'light2', label: 'Light 2', color: '#fbbf24' },
+                  { key: 'light3', label: 'Light 3', color: '#f59e0b' },
+                  { key: 'fan1', label: 'Fan 1', color: '#60a5fa' },
+                  { key: 'custom1', label: 'Custom', color: '#a78bfa' },
+                ].map(channel => {
+                  // Aggregate current across all devices for this channel
+                  let totalCurrent = 0;
+                  let hasMismatch = false;
+                  let hasData = false;
+
+                  devices.forEach(dev => {
+                    const cs = currentSenseMap[dev.deviceId];
+                    if (cs) {
+                      const currentField = `${channel.key}Current` as keyof DeviceCurrentSense;
+                      const mismatchField = `${channel.key}Mismatch` as keyof DeviceCurrentSense;
+                      const current = cs[currentField] as number;
+                      const mismatch = cs[mismatchField] as boolean;
+                      
+                      if (typeof current === 'number') {
+                        hasData = true;
+                        totalCurrent += current;
+                      }
+                      if (mismatch === true) {
+                        hasMismatch = true;
+                      }
+                    }
+                  });
+
+                  return (
+                    <div 
+                      key={channel.key} 
+                      className="p-3 rounded-lg border"
+                      style={{ 
+                        background: hasMismatch ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-secondary)',
+                        borderColor: hasMismatch ? '#ef4444' : 'var(--border-color)'
+                      }}
+                    >
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div 
+                          className="w-2 h-2 rounded-full flex-shrink-0" 
+                          style={{ background: channel.color }}
+                        />
+                        <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                          {channel.label}
+                        </p>
+                      </div>
+                      {hasData ? (
+                        <>
+                          <p className="text-lg font-bold mb-1" style={{ color: hasMismatch ? '#ef4444' : 'var(--text-primary)' }}>
+                            {fmtCurrent(totalCurrent)}
+                          </p>
+                          {hasMismatch && (
+                            <div className="flex items-start gap-1 mt-2 pt-2 border-t" style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                              <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                              <p className="text-xs leading-tight" style={{ color: '#ef4444' }}>
+                                Not responding — check switch or bulb
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No data</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs mt-4" style={{ color: 'var(--text-tertiary)' }}>
+                Current sensing requires compatible hardware. Older devices may show "No data".
+              </p>
+            </Card>
+          )}
+
           {/* ── Channel runtimes + Devices overview ── */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
             {/* Channel runtimes */}
@@ -321,11 +418,9 @@ export default function Analytics() {
               </div>
               <div className="space-y-4 sm:space-y-3.5">
                 {[
-                  { label: 'Light 1', value: totals.light1Runtime, color: '#fbbf24' },
                   { label: 'Light 2', value: totals.light2Runtime, color: '#fbbf24' },
                   { label: 'Light 3', value: totals.light3Runtime, color: '#f59e0b'  },
                   { label: 'Fan 1',   value: totals.fan1Runtime,   color: '#60a5fa'   },
-                  { label: 'Fan 2',   value: totals.fan2Runtime,   color: '#38bdf8'    },
                   { label: 'Custom',  value: totals.customRuntime, color: '#a78bfa' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-3">
@@ -352,11 +447,9 @@ export default function Analytics() {
                   {devices.map(device => {
                     const a = todayRtdb[device.deviceId];
                     const deviceRuntime = a
-                      ? liveRuntime(device.deviceId, 'light1', a.light1Runtime || 0)
-                        + liveRuntime(device.deviceId, 'light2', a.light2Runtime || 0)
+                      ? liveRuntime(device.deviceId, 'light2', a.light2Runtime || 0)
                         + liveRuntime(device.deviceId, 'light3', a.light3Runtime || 0)
                         + liveRuntime(device.deviceId, 'fan1',   a.fan1Runtime   || 0)
-                        + liveRuntime(device.deviceId, 'fan2',   a.fan2Runtime   || 0)
                         + liveRuntime(device.deviceId, 'custom1',a.customRuntime || 0)
                       : tab !== 'today'
                         ? aggregateDailyRecords(historyMap[device.deviceId] || []).energyUsage
