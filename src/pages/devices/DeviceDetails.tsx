@@ -265,14 +265,12 @@ function CompactDeviceItem({
   iconId?: string;
   onRemove?: () => void;
 }) {
-  // Map outputId to hardware slot number (permanent mapping)
+  // Map outputId to hardware slot number (permanent mapping - only 4 slots used)
   const getHardwareSlot = (id?: string): string => {
     const slotMap: Record<string, string> = {
-      'light1': 'X1',
       'light2': 'X2',
       'light3': 'X3',
       'fan1': 'X4',
-      'fan2': 'X5',
       'custom1': 'X6'
     };
     return id ? (slotMap[id] || '') : '';
@@ -601,10 +599,10 @@ export default function DeviceDetails() {
   // ── Brightness / Speed local state (synced from RTDB outputs) ────────────
   // We keep local state so the slider is smooth; we debounce the RTDB write.
   const [brightness, setBrightness] = useState<Record<string, number>>({
-    light1Brightness: 100, light2Brightness: 100, light3Brightness: 100,
+    light2Brightness: 100, light3Brightness: 100,
   });
   const [fanSpeed, setFanSpeed] = useState<Record<string, number>>({
-    fan1Speed: 100, fan2Speed: 100,
+    fan1Speed: 100,
   });
   const sliderDebounce = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -655,13 +653,11 @@ export default function DeviceDetails() {
       setOutputs(out);
       // Sync brightness/speed defaults from RTDB (fallback to 100 if not set)
       setBrightness({
-        light1Brightness: out.light1Brightness ?? 100,
         light2Brightness: out.light2Brightness ?? 100,
         light3Brightness: out.light3Brightness ?? 100,
       });
       setFanSpeed({
         fan1Speed: out.fan1Speed ?? 100,
-        fan2Speed: out.fan2Speed ?? 100,
       });
     });
     const u2 = subscribeToHealth(did, setHealth);
@@ -701,23 +697,23 @@ export default function DeviceDetails() {
 
   const toggleAllLights = useCallback(async (value: boolean) => {
     if (!device) return;
-    await updateDeviceState(device.deviceId, { light1: value, light2: value, light3: value }, performer, `All Lights turned ${value ? 'ON' : 'OFF'}`);
+    await updateDeviceState(device.deviceId, { light2: value, light3: value }, performer, `All Lights turned ${value ? 'ON' : 'OFF'}`);
   }, [device, performer]);
 
   const toggleAllFans = useCallback(async (value: boolean) => {
     if (!device) return;
-    await updateDeviceState(device.deviceId, { fan1: value, fan2: value }, performer, `All Fans turned ${value ? 'ON' : 'OFF'}`);
+    await updateDeviceState(device.deviceId, { fan1: value }, performer, `All Fans turned ${value ? 'ON' : 'OFF'}`);
   }, [device, performer]);
 
   const toggleAllDevices = useCallback(async (value: boolean) => {
     if (!device) return;
-    await updateDeviceState(device.deviceId, { light1: value, light2: value, light3: value, fan1: value, fan2: value, custom1: value }, performer, `All Devices turned ${value ? 'ON' : 'OFF'}`);
+    await updateDeviceState(device.deviceId, { light2: value, light3: value, fan1: value, custom1: value }, performer, `All Devices turned ${value ? 'ON' : 'OFF'}`);
   }, [device, performer]);
 
   // ── Slider handler — debounced RTDB write ────────────────────────────────
   const handleSlider = useCallback(
     (
-      key: 'light1Brightness' | 'light2Brightness' | 'light3Brightness' | 'fan1Speed' | 'fan2Speed',
+      key: 'light2Brightness' | 'light3Brightness' | 'fan1Speed',
       value: number,
       setFn: React.Dispatch<React.SetStateAction<Record<string, number>>>
     ) => {
@@ -834,8 +830,8 @@ export default function DeviceDetails() {
     async () => {
       if (!device || !userData || !outputMetadata) return;
       
-      // Define the output order (hardware limit: 6 outputs max)
-      const outputOrder: (keyof DeviceOutputMetadata)[] = ['light1', 'light2', 'light3', 'fan1', 'fan2', 'custom1'];
+      // Define the output order (hardware limit: 4 outputs max - removed X1/light1 and X5/fan2)
+      const outputOrder: (keyof DeviceOutputMetadata)[] = ['light2', 'light3', 'fan1', 'custom1'];
       
       // Find the first hidden output
       const nextHidden = outputOrder.find(id => {
@@ -889,22 +885,20 @@ export default function DeviceDetails() {
     return stored + extra;
   };
 
-  const liveLight1  = liveRuntime('light1',  an?.light1Runtime  || 0, o?.light1);
   const liveLight2  = liveRuntime('light2',  an?.light2Runtime  || 0, o?.light2);
   const liveLight3  = liveRuntime('light3',  an?.light3Runtime  || 0, o?.light3);
   const liveFan1    = liveRuntime('fan1',    an?.fan1Runtime    || 0, o?.fan1);
-  const liveFan2    = liveRuntime('fan2',    an?.fan2Runtime    || 0, o?.fan2);
   const liveCustom  = liveRuntime('custom1', an?.customRuntime  || 0, o?.custom1);
 
-  const totalRuntime = liveLight1 + liveLight2 + liveLight3 + liveFan1 + liveFan2 + liveCustom;
-  const maxRuntime   = Math.max(liveLight1, liveLight2, liveLight3, liveFan1, liveFan2, liveCustom, 0.001);
+  const totalRuntime = liveLight2 + liveLight3 + liveFan1 + liveCustom;
+  const maxRuntime   = Math.max(liveLight2, liveLight3, liveFan1, liveCustom, 0.001);
 
-  const allOn  = !!(o?.light1 && o?.light2 && o?.light3 && o?.fan1 && o?.fan2 && o?.custom1);
-  const allOff = !o?.light1 && !o?.light2 && !o?.light3 && !o?.fan1 && !o?.fan2 && !o?.custom1;
-  const allLightsOn  = !!(o?.light1 && o?.light2 && o?.light3);
-  const allLightsOff = !o?.light1 && !o?.light2 && !o?.light3;
-  const allFansOn  = !!(o?.fan1 && o?.fan2);
-  const allFansOff = !o?.fan1 && !o?.fan2;
+  const allOn  = !!(o?.light2 && o?.light3 && o?.fan1 && o?.custom1);
+  const allOff = !o?.light2 && !o?.light3 && !o?.fan1 && !o?.custom1;
+  const allLightsOn  = !!(o?.light2 && o?.light3);
+  const allLightsOff = !o?.light2 && !o?.light3;
+  const allFansOn  = !!o?.fan1;
+  const allFansOff = !o?.fan1;
 
   return (
     <div className="space-y-4 md:space-y-6 max-w-7xl pb-8">
@@ -1042,11 +1036,9 @@ export default function DeviceDetails() {
                 outputId: keyof DeviceOutputMetadata;
                 stored: number;
               }> = [
-                { key: 'light1', outputId: 'light1', stored: an?.light1Runtime || 0 },
                 { key: 'light2', outputId: 'light2', stored: an?.light2Runtime || 0 },
                 { key: 'light3', outputId: 'light3', stored: an?.light3Runtime || 0 },
                 { key: 'fan1', outputId: 'fan1', stored: an?.fan1Runtime || 0 },
-                { key: 'fan2', outputId: 'fan2', stored: an?.fan2Runtime || 0 },
                 { key: 'custom1', outputId: 'custom1', stored: an?.customRuntime || 0 },
               ];
 
@@ -1057,18 +1049,18 @@ export default function DeviceDetails() {
                 return meta.visible !== false; // show if visible=true or undefined (for backwards compat)
               });
 
-              // Count visible outputs
+              // Count visible outputs (hardware limit: 4 outputs max)
               const visibleCount = visibleOutputs.length;
-              const canAddMore = visibleCount < 6;
+              const canAddMore = visibleCount < 4;
 
               return (
                 <>
                   {visibleOutputs.map(item => {
                     const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
                     const metadata = outputMetadata ? getOutputMetadata(outputMetadata, item.outputId) : { 
-                      name: item.key === 'custom1' ? 'Custom Device' : item.key === 'fan1' || item.key === 'fan2' ? 'Fan' : 'Light', 
-                      icon: item.key === 'custom1' ? 'zap' : item.key === 'fan1' || item.key === 'fan2' ? 'wind' : 'lightbulb', 
-                      color: item.key === 'custom1' ? '#7c3aed' : item.key === 'fan1' || item.key === 'fan2' ? '#2563eb' : '#d97706',
+                      name: item.key === 'custom1' ? 'Custom Device' : item.key === 'fan1' ? 'Fan' : 'Light', 
+                      icon: item.key === 'custom1' ? 'zap' : item.key === 'fan1' ? 'wind' : 'lightbulb', 
+                      color: item.key === 'custom1' ? '#7c3aed' : item.key === 'fan1' ? '#2563eb' : '#d97706',
                       visible: true 
                     };
                     return (
@@ -1112,7 +1104,7 @@ export default function DeviceDetails() {
                           <Plus size={20} style={{ color: 'var(--text-secondary)' }} />
                         </div>
                         <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Add Output</span>
-                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{visibleCount} of 6</span>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{visibleCount} of 4</span>
                       </button>
                     )}
                 </>
@@ -1216,8 +1208,8 @@ export default function DeviceDetails() {
               {[
                 { label: 'Total Runtime', value: fmtRuntime(totalRuntime),                            icon: <Clock size={15} />,    grad: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', ic: '#2563eb' },
                 { label: 'Energy Used',   value: `${(an?.energyUsage || 0).toFixed(3)} kWh`,         icon: <Zap size={15} />,      grad: 'linear-gradient(135deg,#fef9c3,#fde68a)', ic: '#d97706' },
-                { label: 'Lights Active', value: `${[o?.light1,o?.light2,o?.light3].filter(Boolean).length} / 3`, icon: <Lightbulb size={15} />, grad: 'linear-gradient(135deg,#fef9c3,#fde68a)', ic: '#d97706' },
-                { label: 'Fans Active',   value: `${[o?.fan1,o?.fan2].filter(Boolean).length} / 2`,  icon: <Wind size={15} />,     grad: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', ic: '#2563eb' },
+                { label: 'Lights Active', value: `${[o?.light2,o?.light3].filter(Boolean).length} / 2`, icon: <Lightbulb size={15} />, grad: 'linear-gradient(135deg,#fef9c3,#fde68a)', ic: '#d97706' },
+                { label: 'Fans Active',   value: `${o?.fan1 ? 1 : 0} / 1`,  icon: <Wind size={15} />,     grad: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', ic: '#2563eb' },
               ].map(item => (
                 <div
                   key={item.label}
@@ -1239,11 +1231,9 @@ export default function DeviceDetails() {
             {/* Per-channel bars */}
             <div className="space-y-3">
               {[
-                { key: 'light1' as const,  total: liveLight1, color: '#fbbf24', isOn: o?.light1  },
                 { key: 'light2' as const,  total: liveLight2, color: '#fbbf24', isOn: o?.light2  },
                 { key: 'light3' as const,  total: liveLight3, color: '#f59e0b', isOn: o?.light3  },
                 { key: 'fan1' as const,    total: liveFan1,   color: '#60a5fa', isOn: o?.fan1    },
-                { key: 'fan2' as const,    total: liveFan2,   color: '#38bdf8', isOn: o?.fan2    },
                 { key: 'custom1' as const, total: liveCustom, color: '#a78bfa', isOn: o?.custom1 },
               ].map(item => {
                 const metadata = outputMetadata ? getOutputMetadata(outputMetadata, item.key) : { name: item.key, icon: 'zap' };

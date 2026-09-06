@@ -36,6 +36,9 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   
   // Track shown notifications to prevent duplicates
   const shownNotificationsRef = useRef<Set<string>>(new Set());
+  
+  // Track session start time to avoid showing toasts for old notifications on login
+  const sessionStartTimeRef = useRef<number>(Date.now());
 
   // Subscribe to user's devices
   useEffect(() => {
@@ -69,22 +72,34 @@ export default function Header({ onMenuToggle }: HeaderProps) {
       (newNotifications) => {
         setNotifications(newNotifications);
 
-        // Show toast for new notifications
+        // Show toast for new notifications (only those created AFTER session start)
         newNotifications.forEach(notif => {
-          // Only show toast for unread notifications we haven't shown yet
-          if (!notif.read && !shownNotificationsRef.current.has(notif.id)) {
+          // Get notification timestamp
+          const notifTimestamp = (notif.timestamp as { seconds?: number })?.seconds;
+          const notifTimeMs = notifTimestamp ? notifTimestamp * 1000 : 0;
+          
+          // Only show toast for:
+          // 1. Unread notifications
+          // 2. We haven't shown yet
+          // 3. Created AFTER this session started (prevents old notifications on login)
+          if (
+            !notif.read && 
+            !shownNotificationsRef.current.has(notif.id) &&
+            notifTimeMs > sessionStartTimeRef.current
+          ) {
             shownNotificationsRef.current.add(notif.id);
             
             // DEBUG: Log notification data
-            console.log('[Header] New notification:', {
+            console.log('[Header] New notification (fresh):', {
               action: notif.action,
               outputId: notif.outputId,
               color: notif.color,
-              hasColor: !!notif.color
+              timestamp: new Date(notifTimeMs).toISOString(),
+              sessionStart: new Date(sessionStartTimeRef.current).toISOString()
             });
             
             // Pass the notification's color (from output metadata) to the toast
-            const toast = createToastFromAction(notif.action, notif.deviceId, notif.color);
+            const toast = createToastFromAction(notif.action, notif.deviceId, notif.color, notif.performedBy);
             if (toast) {
               console.log('[Header] Toast created:', {
                 title: toast.title,

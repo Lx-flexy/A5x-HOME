@@ -402,7 +402,17 @@ export default function NotificationPanel({
           </div>
         ) : (
           <div>
-            {notifications.map(notification => (
+            {notifications.map(notification => {
+              // DEBUG: Log notification data
+              console.log('[NotificationPanel] Notification:', {
+                id: notification.id,
+                action: notification.action.substring(0, 30),
+                performedBy: notification.performedBy,
+                hasPerformedBy: !!notification.performedBy,
+                performedByType: typeof notification.performedBy
+              });
+              
+              return (
               <button
                 key={notification.id}
                 onClick={() => handleNotificationClick(notification)}
@@ -446,7 +456,16 @@ export default function NotificationPanel({
                   >
                     {notification.action}
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Show who performed the action */}
+                    {notification.performedBy && (
+                      <span className="text-[10px] font-medium" style={{ color: notification.color || 'var(--text-secondary)' }}>
+                        {notification.performedBy}
+                      </span>
+                    )}
+                    {notification.performedBy && (
+                      <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>•</span>
+                    )}
                     <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
                       {timeAgo(notification.timestamp)}
                     </span>
@@ -459,7 +478,8 @@ export default function NotificationPanel({
                   </div>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

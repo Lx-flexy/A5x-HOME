@@ -299,9 +299,13 @@ export function subscribeToToasts(
 export function createToastFromAction(
   action: string,
   deviceId: string,
-  outputColor?: string
+  outputColor?: string,
+  performedBy?: string  // ← Member/Owner name
 ): Omit<ToastNotification, 'timestamp'> | null {
   const lower = action.toLowerCase();
+  
+  // Add "by [Name]" to description if performedBy is provided
+  const description = performedBy ? `${action} by ${performedBy}` : action;
 
   // Device status
   if (lower.includes('went online') || lower.includes('device online')) {
@@ -310,7 +314,7 @@ export function createToastFromAction(
       type: 'success',
       icon: 'wifi',
       title: 'Device Online',
-      description: action,
+      description,
       deviceId,
       color: '#16a34a',
     };
@@ -322,7 +326,7 @@ export function createToastFromAction(
       type: 'warning',
       icon: 'wifi-off',
       title: 'Device Offline',
-      description: action,
+      description,
       deviceId,
       color: '#d97706',
     };
@@ -339,7 +343,7 @@ export function createToastFromAction(
       type: 'info',
       icon: isLight ? 'lightbulb' : isFan ? 'wind' : 'zap',
       title: isLight ? 'Light Turned ON' : isFan ? 'Fan Turned ON' : 'Device Turned ON',
-      description: action,
+      description,
       deviceId,
       color: outputColor || (isLight ? '#f59e0b' : isFan ? '#06b6d4' : '#7c3aed'),
     };
@@ -355,7 +359,7 @@ export function createToastFromAction(
       type: 'info',
       icon: isLight ? 'lightbulb-off' : isFan ? 'wind' : 'zap',
       title: isLight ? 'Light Turned OFF' : isFan ? 'Fan Turned OFF' : 'Device Turned OFF',
-      description: action,
+      description,
       deviceId,
       color: outputColor || '#6b7280',
     };
@@ -368,7 +372,7 @@ export function createToastFromAction(
       type: 'success',
       icon: 'cpu',
       title: 'Device Added',
-      description: action,
+      description,
       deviceId,
       color: '#16a34a',
     };
@@ -380,7 +384,7 @@ export function createToastFromAction(
       type: 'error',
       icon: 'cpu',
       title: 'Device Removed',
-      description: action,
+      description,
       deviceId,
       color: '#ef4444',
     };
@@ -393,7 +397,7 @@ export function createToastFromAction(
       type: 'info',
       icon: 'bot',
       title: 'Dex Bot',
-      description: action,
+      description,
       deviceId,
       color: '#8b5cf6',
     };
@@ -407,7 +411,7 @@ export function createToastFromAction(
       type: isError ? 'error' : 'success',
       icon: isError ? 'wifi-off' : 'wifi',
       title: isError ? 'Connection Lost' : 'Connection Restored',
-      description: action,
+      description,
       deviceId,
       color: isError ? '#ef4444' : '#16a34a',
     };
@@ -421,7 +425,7 @@ export function createToastFromAction(
       type: 'info',
       icon: 'zap',
       title: isOn ? 'All Devices ON' : 'All Devices OFF',
-      description: action,
+      description,
       deviceId,
       color: isOn ? '#f59e0b' : '#6b7280',
     };
