@@ -212,8 +212,13 @@ async function flushDayToFirestore(deviceId: string, date: string): Promise<void
  * This OFF-event calculation is a final cleanup to capture the last partial period.
  * 
  * CRITICAL: Uses RTDB transaction to prevent race condition with server-side tick.
- * Without transaction, OFF-event and server-side tick could both read the same
- * lastTickMs and double-count the overlapping time window.
+ * 
+ * CORRECT TRANSACTION PATTERN:
+ * 1. Read current tick value BEFORE transaction (previousTickMs)
+ * 2. Run transaction to atomically clear tick (marks channel OFF)
+ * 3. Use previousTickMs (from step 1) to calculate final energy delta
+ * 
+ * This avoids side-channel properties on ref objects and correctly handles transaction retries.
  */
 export async function trackOutputChange(
   deviceId: string,
@@ -233,7 +238,7 @@ export async function trackOutputChange(
     if (onAtMs > 0) {
       const now = Date.now();
       
-      // Read current sense data (outside transaction since read-only reference data)
+      // Read current sense data (outside transaction since read-only reference)
       let currentData: Record<string, number> | null = null;
       try {
         const currentSnap = await get(rtdbCurrentSense(deviceId));
@@ -244,21 +249,56 @@ export async function trackOutputChange(
         // currentSense not available
       }
 
-      // Use transaction to atomically read lastTickMs and update energyTick + analytics
+      // CORRECT PATTERN: Capture previous value via closure, NOT separate get()
+      // The transaction callback may run multiple times on conflict.
+      // capturedPreviousMs will hold the value from the exact invocation that commits.
       const tickRef = ref(rtdb, `devices/${deviceId}/energyTick/${key}`);
+      let capturedPreviousMs: number | null = null;
       
-      await runTransaction(tickRef, (lastTickMs) => {
-        // Abort if channel was already turned off by another concurrent operation
-        if (lastTickMs === null) return null;
+      const transactionResult = await runTransaction(tickRef, (currentValue) => {
+        // Capture current value (overwritten on each retry)
+        capturedPreviousMs = (typeof currentValue === 'number') ? currentValue : null;
         
-        const tickMs = lastTickMs || onAtMs;
-        const elapsed = (now - onAtMs) / 3_600_000; // hours
-        const elapsedSinceTick = (now - tickMs) / 3_600_000;
-        
-        if (elapsed <= 0 || elapsedSinceTick <= 0) {
-          return null; // Abort transaction
+        // If already processed by another writer, abort to prevent double-counting
+        if (currentValue === 'PROCESSED') {
+          return; // abort - another concurrent OFF already handled this
         }
+        
+        // Mark as processed with sentinel (distinguishable from null/absent "never ticked")
+        // This creates a real value change that Firebase can detect for conflict resolution,
+        // preventing null→null no-op that would allow duplicate processing
+        return 'PROCESSED';
+      });
 
+      // Check if transaction committed
+      if (!transactionResult.committed) {
+        // Transaction aborted - explicitly log and skip energy accounting
+        console.warn(`[trackOutputChange] Transaction aborted for ${key} (device ${deviceId})`);
+        // Still clear onAt since user intent was to turn OFF
+        await update(rtdbOnAt(deviceId), { [key]: null });
+        return;
+      }
+
+      // Safe to use capturedPreviousMs - it's from the committed invocation
+      const previousTickMs = capturedPreviousMs || onAtMs;
+      const elapsed = (now - onAtMs) / 3_600_000; // hours
+      const elapsedSinceTick = (now - previousTickMs) / 3_600_000;
+      
+      // CRITICAL: Detect genuine race via SIGN of elapsedSinceTick, not null-check.
+      // If elapsedSinceTick < 0, server initialized tick to a timestamp AFTER our OFF
+      // moment → server will account for this window, skip to avoid double-counting.
+      // For short ON/OFF cycles (< 60s), capturedPreviousMs is null BUT elapsedSinceTick
+      // is POSITIVE (equals elapsed) → correctly calculated here by client.
+      if (elapsedSinceTick < 0) {
+        console.info(`[trackOutputChange] Skipping client energy calc for ${key} — server tick raced ahead`);
+        await update(rtdbOnAt(deviceId), { [key]: null });
+        return;
+      }
+      
+      if (elapsed > 0 && elapsedSinceTick > 0) {
+        // Normal case, including short ON/OFF cycles where server never ticked:
+        // capturedPreviousMs was null → previousTickMs falls back to onAtMs →
+        // elapsedSinceTick === elapsed → full duration correctly calculated here.
         // Calculate energy delta for time since last server tick
         let energyDelta = 0;
         if (currentData) {
@@ -274,30 +314,18 @@ export async function trackOutputChange(
           energyDelta = (WATT[key] / 1000) * elapsedSinceTick;
         }
 
-        // Store computed values for post-transaction analytics update
-        (tickRef as any)._offEventData = { elapsed, energyDelta, key };
-        
-        // Clear tick tracking (marks channel as OFF)
-        return null;
-      });
-
-      // After transaction commits, update analytics and onAt
-      const offData = (tickRef as any)._offEventData;
-      if (offData) {
+        // Update analytics
         const field = runtimeField(key);
         const curSnap = await get(rtdbAnalytics(deviceId));
         const cur = (curSnap.val() as Record<string, number>) || {};
         
         await update(rtdbAnalytics(deviceId), {
-          [field]: (cur[field] || 0) + offData.elapsed,
-          energyUsage: (cur.energyUsage || 0) + offData.energyDelta,
+          [field]: (cur[field] || 0) + elapsed,
+          energyUsage: (cur.energyUsage || 0) + energyDelta,
         });
 
         const today = todayStr();
         await flushDayToFirestore(deviceId, today);
-        
-        // Clean up temp data
-        delete (tickRef as any)._offEventData;
       }
       
       // Clear onAt (marks channel as OFF in state tracking)
@@ -311,6 +339,11 @@ export async function trackOutputChange(
  * 
  * CRITICAL: Uses RTDB transaction for each OFF event to prevent race condition
  * with server-side tick. Sequential processing (not parallel) to avoid deadlocks.
+ * 
+ * CORRECT TRANSACTION PATTERN:
+ * 1. Read current tick value BEFORE transaction for each channel
+ * 2. Run transaction to atomically clear tick
+ * 3. Use previousTickMs (from step 1) to calculate energy delta
  */
 export async function trackBulkOutputChange(
   deviceId: string,
@@ -334,7 +367,7 @@ export async function trackBulkOutputChange(
     // currentSense not available
   }
 
-  // Collect OFF events that need transaction-based energy calculation
+  // Collect ON/OFF changes
   const offEvents: Array<{ key: TrackableKey; onAtMs: number }> = [];
   
   for (const [k, val] of Object.entries(changes) as [TrackableKey, boolean][]) {
@@ -342,7 +375,7 @@ export async function trackBulkOutputChange(
       // Turning ON
       onAtPatch[k] = now;
     } else {
-      // Turning OFF
+      // Turning OFF - prepare for transaction
       const onAtMs = onAtData[k] || 0;
       if (onAtMs > 0) {
         offEvents.push({ key: k, onAtMs });
@@ -351,49 +384,77 @@ export async function trackBulkOutputChange(
     }
   }
 
-  // Process OFF events sequentially using transactions (to prevent deadlocks)
+  // Process OFF events sequentially using transactions
   const energyUpdates: Array<{ field: string; runtime: number; energy: number }> = [];
   
-  for (const { key, onAtMs } of offEvents) {
-    const tickRef = ref(rtdb, `devices/${deviceId}/energyTick/${key}`);
+  for (const event of offEvents) {
+    const tickRef = ref(rtdb, `devices/${deviceId}/energyTick/${event.key}`);
     
-    await runTransaction(tickRef, (lastTickMs) => {
-      // Abort if already cleared
-      if (lastTickMs === null) return null;
+    // CORRECT PATTERN: Capture previous value via closure
+    let capturedPreviousMs: number | null = null;
+    
+    const transactionResult = await runTransaction(tickRef, (currentValue) => {
+      // Capture current value (overwritten on each retry)
+      capturedPreviousMs = (typeof currentValue === 'number') ? currentValue : null;
       
-      const tickMs = lastTickMs || onAtMs;
-      const elapsed = (now - onAtMs) / 3_600_000;
-      const elapsedSinceTick = (now - tickMs) / 3_600_000;
-      
-      if (elapsed <= 0 || elapsedSinceTick <= 0) {
-        return null; // Abort
+      // If already processed by another writer, abort to prevent double-counting
+      if (currentValue === 'PROCESSED') {
+        return; // abort - another concurrent OFF already handled this
       }
+      
+      // Mark as processed with sentinel (distinguishable from null/absent "never ticked")
+      // This creates a real value change that Firebase can detect for conflict resolution,
+      // preventing null→null no-op that would allow duplicate processing
+      return 'PROCESSED';
+    });
 
+    // Check if committed
+    if (!transactionResult.committed) {
+      // Transaction aborted - log and skip energy accounting for this channel
+      console.warn(`[trackBulkOutputChange] Transaction aborted for ${event.key} (device ${deviceId})`);
+      continue;
+    }
+
+    // Safe to use capturedPreviousMs - it's from the committed invocation
+    const previousTickMs = capturedPreviousMs || event.onAtMs;
+    const elapsed = (now - event.onAtMs) / 3_600_000;
+    const elapsedSinceTick = (now - previousTickMs) / 3_600_000;
+    
+    // CRITICAL: Detect genuine race via SIGN of elapsedSinceTick, not null-check.
+    // If elapsedSinceTick < 0, server initialized tick to a timestamp AFTER our OFF
+    // moment → server will account for this window, skip to avoid double-counting.
+    // For short ON/OFF cycles (< 60s), capturedPreviousMs is null BUT elapsedSinceTick
+    // is POSITIVE (equals elapsed) → correctly calculated here by client.
+    if (elapsedSinceTick < 0) {
+      console.info(`[trackBulkOutputChange] Skipping client energy calc for ${event.key} — server tick raced ahead`);
+      continue;
+    }
+    
+    if (elapsed > 0 && elapsedSinceTick > 0) {
+      // Normal case, including short ON/OFF cycles where server never ticked:
+      // capturedPreviousMs was null → previousTickMs falls back to event.onAtMs →
+      // elapsedSinceTick === elapsed → full duration correctly calculated here.
       // Calculate energy delta
       let energyDelta = 0;
       if (currentData) {
-        const currentField = `${key}Current`;
+        const currentField = `${event.key}Current`;
         const actualCurrent = currentData[currentField];
         if (actualCurrent && actualCurrent > 0.01 && actualCurrent < 15) {
           const powerW = NOMINAL_VOLTAGE * actualCurrent;
           energyDelta = (powerW / 1000) * elapsedSinceTick;
         } else {
-          energyDelta = (WATT[key] / 1000) * elapsedSinceTick;
+          energyDelta = (WATT[event.key] / 1000) * elapsedSinceTick;
         }
       } else {
-        energyDelta = (WATT[key] / 1000) * elapsedSinceTick;
+        energyDelta = (WATT[event.key] / 1000) * elapsedSinceTick;
       }
 
-      // Store for batch analytics update
       energyUpdates.push({
-        field: runtimeField(key),
+        field: runtimeField(event.key),
         runtime: elapsed,
         energy: energyDelta,
       });
-      
-      // Clear tick (marks OFF)
-      return null;
-    });
+    }
   }
 
   // Batch update analytics after all transactions complete
