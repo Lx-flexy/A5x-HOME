@@ -24,6 +24,7 @@ export interface Member {
   name: string;
   email: string;
   role: 'owner' | 'member';
+  status?: 'active' | 'blocked' | 'restricted';  // Member access status
   joinedAt: unknown;
 }
 
@@ -88,6 +89,7 @@ export async function addMember(data: Omit<Member, 'id' | 'joinedAt'>) {
     name:     safeName,
     email:    safeEmail,
     role:     data.role,
+    status:   'active',  // Default status when adding new member
     joinedAt: serverTimestamp(),
   });
 }
@@ -117,6 +119,20 @@ export async function removeMember(memberId: string) {
 export async function updateMemberRole(memberId: string, role: 'owner' | 'member') {
   if (!VALID_ROLES.has(role)) throw new Error('Invalid role.');
   await updateDoc(doc(db, 'members', memberId), { role });
+}
+
+// ─── Block/Unblock/Restrict members ────────────────────────────────────────────
+
+export async function blockMember(memberId: string) {
+  await updateDoc(doc(db, 'members', memberId), { status: 'blocked' });
+}
+
+export async function unblockMember(memberId: string) {
+  await updateDoc(doc(db, 'members', memberId), { status: 'active' });
+}
+
+export async function restrictMember(memberId: string) {
+  await updateDoc(doc(db, 'members', memberId), { status: 'restricted' });
 }
 
 // ─── Get total member count across all user's devices ─────────────────────────

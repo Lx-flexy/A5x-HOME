@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, UserCheck, Crown, MoreVertical, Trash2, Shield, Search } from 'lucide-react';
+import { Plus, UserCheck, Crown, MoreVertical, Trash2, Shield, Search, Ban, UserX, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { subscribeToUserDevices, Device } from '../../services/deviceService';
 import {
@@ -9,6 +9,9 @@ import {
   updateMemberRole,
   findUserByA5xId,
   Member,
+  blockMember,
+  unblockMember,
+  restrictMember,
 } from '../../services/memberService';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -45,6 +48,24 @@ function RoleBadge({ role }: { role: string }) {
       <Shield size={11} />Member
     </span>
   );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  if (status === 'blocked') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium bg-red-50 text-red-700 px-2.5 py-1 rounded-full">
+        <Ban size={11} />Blocked
+      </span>
+    );
+  }
+  if (status === 'restricted') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium bg-orange-50 text-orange-700 px-2.5 py-1 rounded-full">
+        <ShieldAlert size={11} />Restricted
+      </span>
+    );
+  }
+  return null; // Active status - no badge needed
 }
 
 export default function Members() {
@@ -148,6 +169,21 @@ export default function Members() {
     setMenuOpen(null);
   }
 
+  async function handleBlock(member: Member) {
+    await blockMember(member.id);
+    setMenuOpen(null);
+  }
+
+  async function handleUnblock(member: Member) {
+    await unblockMember(member.id);
+    setMenuOpen(null);
+  }
+
+  async function handleRestrict(member: Member) {
+    await restrictMember(member.id);
+    setMenuOpen(null);
+  }
+
   function formatDate(ts: unknown) {
     if (!ts) return '–';
     const secs = (ts as { seconds: number })?.seconds;
@@ -217,7 +253,7 @@ export default function Members() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-neutral-200">
-                        {['Name', 'Email', 'User ID', 'Role', 'Joined On', 'Actions'].map(col => (
+                        {['Name', 'Email', 'User ID', 'Role', 'Status', 'Joined On', 'Actions'].map(col => (
                           <th key={col} className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase tracking-wide">
                             {col}
                           </th>
@@ -241,6 +277,7 @@ export default function Members() {
                           <td className="py-4 px-5 text-xs text-neutral-500">{member.email}</td>
                           <td className="py-4 px-5 text-xs text-neutral-500 font-mono">{member.userId}</td>
                           <td className="py-4 px-5"><RoleBadge role={member.role} /></td>
+                          <td className="py-4 px-5"><StatusBadge status={member.status} /></td>
                           <td className="py-4 px-5 text-neutral-500 text-xs">{formatDate(member.joinedAt)}</td>
                           <td className="py-4 px-5">
                             <div className="relative">
@@ -261,6 +298,43 @@ export default function Members() {
                                     <Crown size={13} />
                                     {member.role === 'owner' ? 'Make Member' : 'Make Owner'}
                                   </button>
+                                  
+                                  {member.status === 'blocked' ? (
+                                    <button
+                                      className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-green-600 hover:bg-green-50 min-h-[44px]"
+                                      onClick={() => handleUnblock(member)}
+                                      style={{ touchAction: 'manipulation' }}
+                                    >
+                                      <UserCheck size={13} /> Unblock
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-orange-600 hover:bg-orange-50 min-h-[44px]"
+                                      onClick={() => handleBlock(member)}
+                                      style={{ touchAction: 'manipulation' }}
+                                    >
+                                      <Ban size={13} /> Block
+                                    </button>
+                                  )}
+                                  
+                                  {member.status === 'restricted' ? (
+                                    <button
+                                      className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-green-600 hover:bg-green-50 min-h-[44px]"
+                                      onClick={() => handleUnblock(member)}
+                                      style={{ touchAction: 'manipulation' }}
+                                    >
+                                      <UserCheck size={13} /> Remove Restriction
+                                    </button>
+                                  ) : member.status !== 'blocked' && (
+                                    <button
+                                      className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-yellow-600 hover:bg-yellow-50 min-h-[44px]"
+                                      onClick={() => handleRestrict(member)}
+                                      style={{ touchAction: 'manipulation' }}
+                                    >
+                                      <ShieldAlert size={13} /> Restrict
+                                    </button>
+                                  )}
+                                  
                                   <button
                                     className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-error-500 hover:bg-error-50 min-h-[44px]"
                                     onClick={() => handleRemove(member)}
@@ -294,6 +368,7 @@ export default function Members() {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <RoleBadge role={member.role} />
+                          <StatusBadge status={member.status} />
                           <div className="relative">
                             <button
                               onClick={() => setMenuOpen(menuOpen === member.id ? null : member.id)}
@@ -312,6 +387,43 @@ export default function Members() {
                                   <Crown size={16} />
                                   {member.role === 'owner' ? 'Make Member' : 'Make Owner'}
                                 </button>
+                                
+                                {member.status === 'blocked' ? (
+                                  <button
+                                    className="flex items-center gap-3 w-full px-4 py-3.5 text-sm text-green-600 hover:bg-green-50 min-h-[48px]"
+                                    onClick={() => handleUnblock(member)}
+                                    style={{ touchAction: 'manipulation' }}
+                                  >
+                                    <UserCheck size={16} /> Unblock Member
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="flex items-center gap-3 w-full px-4 py-3.5 text-sm text-orange-600 hover:bg-orange-50 min-h-[48px]"
+                                    onClick={() => handleBlock(member)}
+                                    style={{ touchAction: 'manipulation' }}
+                                  >
+                                    <Ban size={16} /> Block Member
+                                  </button>
+                                )}
+                                
+                                {member.status === 'restricted' ? (
+                                  <button
+                                    className="flex items-center gap-3 w-full px-4 py-3.5 text-sm text-green-600 hover:bg-green-50 min-h-[48px]"
+                                    onClick={() => handleUnblock(member)}
+                                    style={{ touchAction: 'manipulation' }}
+                                  >
+                                    <UserCheck size={16} /> Remove Restriction
+                                  </button>
+                                ) : member.status !== 'blocked' && (
+                                  <button
+                                    className="flex items-center gap-3 w-full px-4 py-3.5 text-sm text-yellow-600 hover:bg-yellow-50 min-h-[48px]"
+                                    onClick={() => handleRestrict(member)}
+                                    style={{ touchAction: 'manipulation' }}
+                                  >
+                                    <ShieldAlert size={16} /> Restrict Member
+                                  </button>
+                                )}
+                                
                                 <button
                                   className="flex items-center gap-3 w-full px-4 py-3.5 text-sm text-error-500 hover:bg-error-50 min-h-[48px]"
                                   onClick={() => handleRemove(member)}
