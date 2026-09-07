@@ -135,6 +135,49 @@ export async function restrictMember(memberId: string) {
   await updateDoc(doc(db, 'members', memberId), { status: 'restricted' });
 }
 
+// ─── Check if user can control device ──────────────────────────────────────────
+
+export async function canUserControlDevice(deviceId: string, userId: string): Promise<{ canControl: boolean; status?: string; message?: string }> {
+  try {
+    // Find member record for this user and device
+    const q = query(
+      collection(db, 'members'),
+      where('deviceId', '==', deviceId),
+      where('userId', '==', userId)
+    );
+    const snap = await getDocs(q);
+    
+    if (snap.empty) {
+      // User is not a member, might be owner from device record - allow by default
+      return { canControl: true };
+    }
+    
+    const memberData = snap.docs[0].data();
+    const status = memberData.status || 'active';
+    
+    if (status === 'blocked') {
+      return { 
+        canControl: false, 
+        status: 'blocked',
+        message: 'You are blocked from accessing this device' 
+      };
+    }
+    
+    if (status === 'restricted') {
+      return { 
+        canControl: false, 
+        status: 'restricted',
+        message: 'Your access to this device is restricted' 
+      };
+    }
+    
+    return { canControl: true, status: 'active' };
+  } catch (err) {
+    console.warn('[canUserControlDevice] Failed:', err);
+    return { canControl: true }; // Fail open to not break existing functionality
+  }
+}
+
 // ─── Get total member count across all user's devices ─────────────────────────
 
 export async function getTotalMembersForUser(deviceIds: string[]): Promise<number> {

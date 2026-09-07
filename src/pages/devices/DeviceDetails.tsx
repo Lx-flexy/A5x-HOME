@@ -30,6 +30,7 @@ import {
   updateDeviceState,
 } from '../../services/deviceService';
 import { ensureTodayWindow } from '../../services/analyticsService';
+import { canUserControlDevice } from '../../services/memberService';
 import { useAuth } from '../../context/AuthContext';
 import { useDeviceStatus } from '../../hooks/useDeviceStatus';
 import Button from '../../components/ui/Button';
@@ -619,6 +620,11 @@ export default function DeviceDetails() {
   const [removingOutputId, setRemovingOutputId] = useState<keyof DeviceOutputMetadata | null>(null);
   const [removing, setRemoving] = useState(false);
 
+  // ── Access Control State ──────────────────────────────────────────────────
+  const [userAccess, setUserAccess] = useState<{ canControl: boolean; status?: string; message?: string }>({ canControl: true });
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
+
   const performer = userData?.name || 'User';
 
   // DEBUG: Add test function to window for console testing
@@ -644,6 +650,27 @@ export default function DeviceDetails() {
     if (!id) return;
     getDevice(id).then(dev => { setDevice(dev); setLoading(false); });
   }, [id]);
+
+  // ── Check user access when device loads ──────────────────────────────────
+  useEffect(() => {
+    async function checkAccess() {
+      if (!device || !userData?.userId) {
+        setAccessChecked(true);
+        return;
+      }
+      
+      const access = await canUserControlDevice(device.deviceId, userData.userId);
+      setUserAccess(access);
+      setAccessChecked(true);
+      
+      // Show modal if user is blocked
+      if (!access.canControl && access.status === 'blocked') {
+        setShowBlockedModal(true);
+      }
+    }
+    
+    checkAccess();
+  }, [device, userData?.userId]);
 
   useEffect(() => {
     if (!device) return;
@@ -690,25 +717,53 @@ export default function DeviceDetails() {
   const toggle = useCallback(
     async (key: keyof DeviceOutputs, value: boolean, label: string) => {
       if (!device) return;
+      
+      // Check access before allowing toggle
+      if (!userAccess.canControl) {
+        setShowBlockedModal(true);
+        return;
+      }
+      
       await setOutput(device.deviceId, key, value, performer, label);
     },
-    [device, performer]
+    [device, performer, userAccess]
   );
 
   const toggleAllLights = useCallback(async (value: boolean) => {
     if (!device) return;
+    
+    // Check access
+    if (!userAccess.canControl) {
+      setShowBlockedModal(true);
+      return;
+    }
+    
     await updateDeviceState(device.deviceId, { light2: value, light3: value }, performer, `All Lights turned ${value ? 'ON' : 'OFF'}`);
-  }, [device, performer]);
+  }, [device, performer, userAccess]);
 
   const toggleAllFans = useCallback(async (value: boolean) => {
     if (!device) return;
+    
+    // Check access
+    if (!userAccess.canControl) {
+      setShowBlockedModal(true);
+      return;
+    }
+    
     await updateDeviceState(device.deviceId, { fan1: value }, performer, `All Fans turned ${value ? 'ON' : 'OFF'}`);
-  }, [device, performer]);
+  }, [device, performer, userAccess]);
 
   const toggleAllDevices = useCallback(async (value: boolean) => {
     if (!device) return;
+    
+    // Check access
+    if (!userAccess.canControl) {
+      setShowBlockedModal(true);
+      return;
+    }
+    
     await updateDeviceState(device.deviceId, { light2: value, light3: value, fan1: value, custom1: value }, performer, `All Devices turned ${value ? 'ON' : 'OFF'}`);
-  }, [device, performer]);
+  }, [device, performer, userAccess]);
 
   // ── Slider handler — debounced RTDB write ────────────────────────────────
   const handleSlider = useCallback(
@@ -1448,6 +1503,33 @@ export default function DeviceDetails() {
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={handleRemoveCancel}>Cancel</Button>
           <Button variant="danger" loading={removing} onClick={handleRemoveConfirm}>Remove</Button>
+        </div>
+      </Modal>
+
+      {/* ── Access Denied Modal ── */}
+      <Modal 
+        open={showBlockedModal} 
+        onClose={() => setShowBlockedModal(false)} 
+        title={userAccess.status === 'blocked' ? 'Access Blocked' : 'Access Restricted'}
+      >
+        <div className="text-center py-4">
+          <div 
+            className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
+            style={{ 
+              background: userAccess.status === 'blocked' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)' 
+            }}
+          >
+            <X size={32} style={{ color: userAccess.status === 'blocked' ? '#ef4444' : '#f59e0b' }} />
+          </div>
+          <p className="text-base font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+            {userAccess.status === 'blocked' ? 'You are blocked' : 'Access is restricted'}
+          </p>
+          <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+            {userAccess.message || 'You do not have permission to control this device.'}
+          </p>
+          <Button onClick={() => setShowBlockedModal(false)} className="w-full">
+            Understood
+          </Button>
         </div>
       </Modal>
     </div>
