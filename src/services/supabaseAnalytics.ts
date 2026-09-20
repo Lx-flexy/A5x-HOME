@@ -1,18 +1,22 @@
 /**
  * Supabase Analytics Service — PostgreSQL Long-Term Storage
  * ═══════════════════════════════════════════════════════════════════════════
- * Bridges Firebase RTDB analytics → Supabase PostgreSQL for long-term storage.
+ * Supabase = SOLE persistence layer for analytics/history data
  * 
  * EXISTING SCHEMA (Do NOT modify):
  *   - runtime_sessions: ON→OFF session tracking
  *   - daily_runtime: Per-channel daily totals
  *   - daily_analytics: Daily summary (optional)
  * 
+ * ARCHITECTURE:
+ *   - Firebase RTDB: Live device state, device control, ESP32 communication
+ *   - Supabase PostgreSQL: Analytics persistence, runtime sessions, history
+ * 
  * CRITICAL RULES:
- *   1. Firebase is PRIMARY - all calculations happen in Firebase first
- *   2. Supabase writes are NON-FATAL - device control works if Supabase fails
- *   3. NO double-counting - use Firebase calculation result, persist to Supabase
- *   4. Format conversion: Firebase hours→Supabase seconds, Firebase kWh→Supabase Wh
+ *   1. NO Firebase imports in this file
+ *   2. Supabase writes are NON-FATAL - device control continues if Supabase fails
+ *   3. NO double-counting - each ON→OFF event creates ONE session
+ *   4. Format conversion: hours→seconds, kWh→Wh for storage
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -114,17 +118,47 @@ export async function startRuntimeSession(
       .single();
 
     if (error) {
-      console.error(`[SUPABASE] Session start failed:`, error);
+      console.error(`[SUPABASE] Session start FAILED:`, {
+        status: error.status,
+        statusText: error.status === 401 ? 'Unauthorized' : 'Error',
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        fullError: error,
+      });
+      
+      // Specific diagnosis for 401 errors
+      if (error.status === 401) {
+        console.error('[SUPABASE] 401 Unauthorized - Possible causes:');
+        
+        if (error.code === 'PGRST301') {
+          console.error('  - PGRST301: JWT token is invalid or could not be decoded');
+          console.error('  - Check: Is the Authorization header being set incorrectly?');
+          console.error('  - Check: Is Firebase Auth trying to override Supabase auth?');
+        } else {
+          console.error('  - API key may be invalid or expired');
+          console.error('  - Check: VITE_SUPABASE_PUBLISHABLE_KEY in Vercel environment variables');
+          console.error('  - Check: Project URL matches the API key');
+        }
+        
+        console.error('[SUPABASE] Debug: Check Network tab for /rest/v1/runtime_sessions:');
+        console.error('  - Verify "apikey" header is present');
+        console.error('  - Verify "Authorization" header is NOT overriding the API key');
+        console.error('  - Verify request URL uses correct Supabase project URL');
+      }
+      
       return null;
     }
 
     const sessionId = data?.id;
-    if (sessionId) {
-      activeSessions.set(key, sessionId);
-      console.log(`[SUPABASE] Session started: ID ${sessionId}`);
-    } else {
-      console.warn(`[SUPABASE] Session insert succeeded but no ID returned`);
+    if (!sessionId) {
+      console.error(`[SUPABASE] Session insert returned success but no ID in response:`, data);
+      return null;
     }
+    
+    activeSessions.set(key, sessionId);
+    console.log(`[SUPABASE] Session started successfully: ID ${sessionId}`);
     
     return sessionId;
   } catch (err) {
@@ -135,11 +169,12 @@ export async function startRuntimeSession(
 
 /**
  * Close a runtime session (OFF event).
+ * Calculates runtime from session start timestamp if runtimeSeconds is 0.
  * 
  * @param deviceId Device ID
  * @param channel Channel name
- * @param runtimeSeconds Runtime in SECONDS (converted from Firebase hours)
- * @param energyWh Energy in Wh (converted from Firebase kWh)
+ * @param runtimeSeconds Runtime in SECONDS (0 to auto-calculate from session)
+ * @param energyWh Energy in Wh
  */
 export async function closeRuntimeSession(
   deviceId: string,
@@ -158,7 +193,28 @@ export async function closeRuntimeSession(
       return;
     }
     
-    const cappedRuntime = Math.min(Math.round(runtimeSeconds), 86400); // 24h max
+    let finalRuntimeSeconds = runtimeSeconds;
+    
+    // If runtime is 0, calculate from session's started_at
+    if (runtimeSeconds === 0) {
+      const { data, error } = await supabase
+        .from('runtime_sessions')
+        .select('started_at')
+        .eq('id', sessionId)
+        .single();
+      
+      if (error || !data) {
+        console.error(`[SUPABASE] Failed to fetch session started_at:`, error);
+        finalRuntimeSeconds = 0;
+      } else {
+        const startedAt = new Date(data.started_at).getTime();
+        const now = Date.now();
+        finalRuntimeSeconds = Math.round((now - startedAt) / 1000);
+        console.log(`[SUPABASE] Auto-calculated runtime: ${finalRuntimeSeconds}s from session start`);
+      }
+    }
+    
+    const cappedRuntime = Math.min(Math.round(finalRuntimeSeconds), 86400); // 24h max
     
     console.log(`[SUPABASE] Updating session ${sessionId}: runtime=${cappedRuntime}s, energy=${energyWh}Wh`);
     
@@ -172,14 +228,30 @@ export async function closeRuntimeSession(
       .eq('id', sessionId);
 
     if (error) {
-      console.error(`[SUPABASE] Session close failed:`, error);
+      console.error(`[SUPABASE] Session close FAILED:`, {
+        status: error.status,
+        statusText: error.status === 401 ? 'Unauthorized' : 'Error',
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        sessionId,
+        fullError: error,
+      });
+      
+      // Specific diagnosis for 401 errors
+      if (error.status === 401 && error.code === 'PGRST301') {
+        console.error('[SUPABASE] PGRST301: JWT token is invalid or could not be decoded');
+        console.error('[SUPABASE] Check: Is Authorization header being set incorrectly?');
+      }
+      
       return;
     }
     
     activeSessions.delete(key);
-    console.log(`[SUPABASE] Session closed successfully`);
+    console.log(`[SUPABASE] Session closed successfully: ID ${sessionId}`);
   } catch (err) {
-    console.error('[SUPABASE] closeRuntimeSession error:', err);
+    console.error('[SUPABASE] closeRuntimeSession exception:', err);
   }
 }
 
@@ -226,11 +298,26 @@ export async function upsertDailyRuntime(
       });
 
     if (error) {
-      console.error(`[SUPABASE] Daily runtime upsert failed:`, error);
+      console.error(`[SUPABASE] Daily runtime upsert FAILED:`, {
+        status: error.status,
+        statusText: error.status === 401 ? 'Unauthorized' : 'Error',
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        fullError: error,
+      });
+      
+      // Specific diagnosis for 401 errors
+      if (error.status === 401 && error.code === 'PGRST301') {
+        console.error('[SUPABASE] PGRST301: JWT token is invalid or could not be decoded');
+        console.error('[SUPABASE] Check: Is Authorization header being set incorrectly?');
+      }
+      
       throw error;
     }
     
-    console.log(`[SUPABASE] Daily runtime upserted successfully`);
+    console.log(`[SUPABASE] Daily runtime upserted successfully: ${deviceId}/${channel}/${localDate}`);
   } catch (err) {
     console.error('[SUPABASE] upsertDailyRuntime error:', err);
     throw err; // Re-throw to be caught by caller's .catch()
@@ -273,24 +360,38 @@ export function whToKwh(wh: number): number {
  * Get daily runtime records for a device.
  * 
  * @param deviceId Device ID
- * @param days Number of days to fetch
+ * @param channel Optional channel filter
+ * @param localDate Optional date filter (YYYY-MM-DD)
  * @returns Array of daily runtime records (per-channel)
  */
 export async function getDailyRuntime(
   deviceId: string,
-  days: number = 30
+  channel?: string,
+  localDate?: string
 ): Promise<DailyRuntime[]> {
   try {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    const startDateStr = startDate.toISOString().split('T')[0];
-
-    const { data, error } = await supabase
+    let query = supabase
       .from('daily_runtime')
       .select('*')
-      .eq('device_id', deviceId)
-      .gte('local_date', startDateStr)
-      .order('local_date', { ascending: false });
+      .eq('device_id', deviceId);
+    
+    if (channel) {
+      query = query.eq('channel', channel);
+    }
+    
+    if (localDate) {
+      query = query.eq('local_date', localDate);
+    } else {
+      // Default: last 30 days
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      query = query.gte('local_date', startDateStr);
+    }
+    
+    query = query.order('local_date', { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('[SUPABASE] getDailyRuntime failed:', error);
@@ -325,7 +426,26 @@ export async function getAggregatedDailyAnalytics(
   energyUsage: number; // kWh
 }>> {
   try {
-    const records = await getDailyRuntime(deviceId, days);
+    // Fetch all records for the device (no channel filter)
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    const { data: records, error } = await supabase
+      .from('daily_runtime')
+      .select('*')
+      .eq('device_id', deviceId)
+      .gte('local_date', startDateStr)
+      .order('local_date', { ascending: false });
+
+    if (error) {
+      console.error('[SUPABASE] getAggregatedDailyAnalytics failed:', error);
+      return [];
+    }
+
+    if (!records) {
+      return [];
+    }
     
     // Group by date
     const byDate = new Map<string, DailyRuntime[]>();

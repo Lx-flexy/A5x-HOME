@@ -36,6 +36,14 @@ if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')
   );
 }
 
+// Log key info for debugging (show first/last chars only)
+console.log('[Supabase] Initializing with:', {
+  url: supabaseUrl,
+  keyPrefix: supabaseKey.substring(0, 20),
+  keySuffix: supabaseKey.substring(supabaseKey.length - 10),
+  keyLength: supabaseKey.length,
+});
+
 // ── Initialize Supabase client ────────────────────────────────────────────────
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
   auth: {
@@ -50,6 +58,40 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
   db: {
     schema: 'public',
   },
+  global: {
+    headers: {
+      // Explicitly set apikey in headers for debugging
+      // This should match the Authorization: Bearer <key> header
+      'x-debug-apikey-prefix': supabaseKey.substring(0, 20),
+    },
+  },
+});
+
+// Log client initialization complete
+console.log('[Supabase] Client initialized. Testing connectivity...');
+
+// Test a simple query to verify auth works
+supabase.from('runtime_sessions').select('id').limit(1).then(({ data, error }) => {
+  if (error) {
+    console.error('[Supabase] Initial connectivity test FAILED:', {
+      status: error.status,
+      code: error.code,
+      message: error.message,
+    });
+    
+    if (error.status === 401) {
+      console.error('[Supabase] 401 UNAUTHORIZED detected at initialization!');
+      console.error('[Supabase] This means the API key is invalid or the table does not allow anon access');
+      console.error('[Supabase] Check:');
+      console.error('  1. Is VITE_SUPABASE_PUBLISHABLE_KEY correct in Vercel?');
+      console.error('  2. Does runtime_sessions table have RLS policies for anon role?');
+      console.error('  3. Is the Supabase project URL correct?');
+    }
+  } else {
+    console.log('[Supabase] Initial connectivity test OK');
+  }
+}).catch(err => {
+  console.error('[Supabase] Initial connectivity test exception:', err);
 });
 
 // ── Helper: Check Supabase connectivity ───────────────────────────────────────
@@ -70,6 +112,39 @@ export async function checkSupabaseConnection(): Promise<boolean> {
     console.error('[Supabase] Connection check error:', err);
     return false;
   }
+}
+
+// ── Helper: Diagnose RLS policies (for debugging 401 errors) ──────────────────
+export async function diagnoseSupabaseRLS(): Promise<void> {
+  console.log('[Supabase] Diagnosing RLS policies...');
+  
+  const tables = ['runtime_sessions', 'daily_runtime', 'daily_analytics'];
+  
+  for (const table of tables) {
+    console.log(`[Supabase] Testing ${table}...`);
+    
+    // Test SELECT
+    const { data: selectData, error: selectError } = await supabase
+      .from(table)
+      .select('*')
+      .limit(1);
+    
+    if (selectError) {
+      console.error(`[Supabase] ${table} SELECT failed:`, {
+        code: selectError.code,
+        message: selectError.message,
+        status: selectError.status,
+      });
+    } else {
+      console.log(`[Supabase] ${table} SELECT OK (rows: ${selectData?.length || 0})`);
+    }
+  }
+  
+  console.log('[Supabase] RLS diagnosis complete');
+  console.log('[Supabase] If you see 401/PGRST301 errors, check:');
+  console.log('[Supabase] 1. Supabase Dashboard → Authentication → Policies');
+  console.log('[Supabase] 2. Enable RLS policies for INSERT/UPDATE/SELECT on runtime_sessions and daily_runtime');
+  console.log('[Supabase] 3. Policy should allow "anon" role or be based on auth.uid()');
 }
 
 export default supabase;

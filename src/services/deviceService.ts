@@ -1,26 +1,36 @@
 /**
- * HYBRID ARCHITECTURE
- * ─────────────────────────────────────────────────────────────────────────────
- * Firebase Realtime Database  →  live device state (outputs, health, analytics, status)
+ * Device Service — Firebase Device Control & Live State
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ARCHITECTURE:
+ * 
+ * Firebase Realtime Database → Live device state (outputs, health, status)
  *   RTDB path: devices/{deviceId}/
- *     status      "online" | "offline"
- *     lastSeen    unix ms
- *     outputs/    light2, light3, fan1, custom1, oledMessage, buzzer
- *     health/     rssi, heap, restartCount, uptime, wifiUptime, wifiStatus, firebaseStatus
- *     analytics/  light2Runtime, light3Runtime, fan1Runtime, customRuntime, energyUsage
+ *     status        "online" | "offline"
+ *     lastSeen      unix ms
+ *     outputs/      light2, light3, fan1, custom1, oledMessage, buzzer
+ *     health/       rssi, heap, restartCount, uptime, wifiUptime, wifiStatus, firebaseStatus
+ *     analytics/    light2Runtime, light3Runtime, fan1Runtime, customRuntime, energyUsage (LIVE only)
  *     currentSense/ light2Current, light3Current, fan1Current, customCurrent (+ Mismatch flags)
  *
- * Firestore  →  persistent metadata & audit logs
+ * Firestore → Persistent metadata & audit logs
  *   devices_meta/{autoId}   device registration (ownerId, name, room, etc.)
  *   activity_logs/{autoId}  every control action
- * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Analytics Integration:
+ *   - When outputs change, this service calls analyticsService.trackOutputChange()
+ *   - Analytics events are persisted to Supabase (NOT Firebase/Firestore)
+ *   - Firebase RTDB analytics/ is for LIVE display only (managed by Cloud Functions)
+ * 
+ * CRITICAL: This file handles device control and live state.
+ *           It does NOT handle analytics persistence (that's analyticsService + Supabase).
+ * ═════════════════════════════════════════════════════════════════════════════
  * NOTE: 4-channel configuration (Light2, Light3, Fan1, Custom1) — no Light1 or Fan2
  */
 
 import {
   collection, doc, addDoc, getDoc, getDocs,
   setDoc, updateDoc, deleteDoc, onSnapshot,
-  query, where, serverTimestamp, orderBy,
+  query, where, serverTimestamp, orderBy, limit,
 } from 'firebase/firestore';
 import {
   ref, set, update, onValue, off,
@@ -657,10 +667,17 @@ export async function setOutput(
   // Write to RTDB — ESP32 onValue listener picks this up instantly
   await update(rtdbOutputs(deviceId), { [key]: safeValue });
 
-  // Runtime tracking — only for boolean trackable keys
+  // ANALYTICS INTEGRATION: Track output changes for runtime/energy analytics
+  // Analytics are persisted to Supabase (NOT Firebase)
+  // This is event-driven: we pass the state change to analyticsService
   if (typeof safeValue === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
     const { trackOutputChange } = await import('./analyticsService');
-    await trackOutputChange(deviceId, key as 'light2'|'light3'|'fan1'|'custom1', safeValue).catch(err =>
+    await trackOutputChange({
+      deviceId,
+      channel: key as 'light2'|'light3'|'fan1'|'custom1',
+      isOn: safeValue,
+      timestamp: Date.now(),
+    }).catch(err =>
       console.warn('[setOutput] trackOutputChange failed:', err)
     );
   }
@@ -712,18 +729,63 @@ export async function logActivity(
   }
 }
 
+export async function getActivityLogs(deviceIds: string[], count = 20): Promise<ActivityLog[]> {
+  if (!deviceIds.length) return [];
+  try {
+    const results: ActivityLog[] = [];
+    for (let i = 0; i < deviceIds.length; i += 10) {
+      const chunk = deviceIds.slice(i, i + 10);
+      const q = query(
+        collection(db, 'activity_logs'),
+        where('deviceId', 'in', chunk),
+        orderBy('timestamp', 'desc'),
+        limit(count)
+      );
+      const snap = await getDocs(q);
+      snap.docs.forEach(d => results.push({ id: d.id, ...d.data() } as ActivityLog));
+    }
+    return results.sort((a, b) => {
+      const at = (a.timestamp as { seconds: number })?.seconds || 0;
+      const bt = (b.timestamp as { seconds: number })?.seconds || 0;
+      return bt - at;
+    }).slice(0, count);
+  } catch (err) {
+    console.warn('[getActivityLogs] Failed:', err);
+    return [];
+  }
+}
+
 export function subscribeToActivityLogs(
-  deviceId: string,
-  callback: (logs: ActivityLog[]) => void
+  deviceIds: string[],
+  callback: (logs: ActivityLog[]) => void,
+  count = 20
 ): () => void {
-  const q = query(
-    collection(db, 'activity_logs'),
-    where('deviceId', '==', deviceId),
-    orderBy('timestamp', 'desc')
-  );
-  return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActivityLog)));
+  if (!deviceIds.length) { callback([]); return () => {}; }
+  const unsubscribers: (() => void)[] = [];
+  const allLogs = new Map<string, ActivityLog[]>();
+  const merge = () => {
+    const merged = Array.from(allLogs.values()).flat()
+      .sort((a, b) => {
+        const at = (a.timestamp as { seconds: number })?.seconds || 0;
+        const bt = (b.timestamp as { seconds: number })?.seconds || 0;
+        return bt - at;
+      }).slice(0, count);
+    callback(merged);
+  };
+  deviceIds.slice(0, 5).forEach(deviceId => {
+    const q = query(
+      collection(db, 'activity_logs'),
+      where('deviceId', '==', deviceId),
+      orderBy('timestamp', 'desc'),
+      limit(count)
+    );
+    const unsub = onSnapshot(q, snap => {
+      allLogs.set(deviceId, snap.docs.map(d => ({ id: d.id, ...d.data() } as ActivityLog)));
+      merge();
+    });
+    unsubscribers.push(unsub);
   });
+  return () => unsubscribers.forEach(u => u());
 }
 
 // ─── Legacy shims (DexBot / old pages still import these) ────────────────────
@@ -764,7 +826,9 @@ export async function updateDeviceState(
   
   console.log('[updateDeviceState] RTDB update completed successfully');
 
-  // Track runtime for trackable boolean keys via analyticsService
+  // ANALYTICS INTEGRATION: Track bulk output changes for runtime/energy analytics
+  // Analytics are persisted to Supabase (NOT Firebase)
+  // This is event-driven: we pass the state changes to analyticsService
   type TK = 'light2'|'light3'|'fan1'|'custom1';
   const trackable: TK[] = ['light2','light3','fan1','custom1'];
   const changes: Partial<Record<TK, boolean>> = {};
@@ -775,7 +839,8 @@ export async function updateDeviceState(
   }
   if (Object.keys(changes).length > 0) {
     const { trackBulkOutputChange } = await import('./analyticsService');
-    await trackBulkOutputChange(deviceId, changes).catch(err =>
+    const timestamp = Date.now();
+    await trackBulkOutputChange(deviceId, changes, timestamp).catch(err =>
       console.warn('[updateDeviceState] trackBulkOutputChange failed:', err)
     );
   }
