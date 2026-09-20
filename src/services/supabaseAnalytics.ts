@@ -184,62 +184,87 @@ export async function closeRuntimeSession(
   energyWh: number
 ): Promise<void> {
   try {
-    console.log(`[SUPABASE] closeRuntimeSession: deviceId=${deviceId}, channel=${channel}, runtime=${runtimeSeconds}s, energy=${energyWh}Wh`);
+    console.log(`[SUPABASE] Closing session for ${deviceId}/${channel}`);
     
-    const key = sessionKey(deviceId, channel);
-    const sessionId = activeSessions.get(key);
+    // Find the most recent open session from database (not in-memory map)
+    // This handles page reloads and ensures we always close the correct session
+    const { data: openSessions, error: findError } = await supabase
+      .from('runtime_sessions')
+      .select('id, started_at')
+      .eq('device_id', deviceId)
+      .eq('output_key', channel)
+      .is('ended_at', null)
+      .order('started_at', { ascending: false })
+      .limit(1);
     
-    if (!sessionId) {
-      console.warn(`[SUPABASE] No active session for ${deviceId}/${channel}, skipping close`);
+    if (findError) {
+      console.error(`[SUPABASE] Failed to find open session:`, {
+        code: findError.code,
+        message: findError.message,
+        deviceId,
+        channel,
+      });
       return;
     }
     
+    if (!openSessions || openSessions.length === 0) {
+      console.warn(`[SUPABASE] No open session found for ${deviceId}/${channel} - may have already been closed or never started`);
+      return;
+    }
+    
+    const session = openSessions[0];
+    const sessionId = session.id;
+    
+    console.log(`[SUPABASE] Open session found: ID ${sessionId}`);
+    
+    // Calculate runtime from session start to now
     let finalRuntimeSeconds = runtimeSeconds;
     
-    // If runtime is 0, calculate from session's started_at
     if (runtimeSeconds === 0) {
-      const { data, error } = await supabase
-        .from('runtime_sessions')
-        .select('started_at')
-        .eq('id', sessionId)
-        .single();
-      
-      if (error || !data) {
-        console.error(`[SUPABASE] Failed to fetch session started_at:`, error);
-        finalRuntimeSeconds = 0;
-      } else {
-        const startedAt = new Date(data.started_at).getTime();
-        const now = Date.now();
-        finalRuntimeSeconds = Math.round((now - startedAt) / 1000);
-        console.log(`[SUPABASE] Auto-calculated runtime: ${finalRuntimeSeconds}s from session start`);
-      }
+      const startedAt = new Date(session.started_at).getTime();
+      const now = Date.now();
+      finalRuntimeSeconds = Math.round((now - startedAt) / 1000);
+      console.log(`[SUPABASE] Runtime calculated: ${finalRuntimeSeconds}s (${(finalRuntimeSeconds / 60).toFixed(1)}min)`);
     }
     
     const cappedRuntime = Math.min(Math.round(finalRuntimeSeconds), 86400); // 24h max
     
-    console.log(`[SUPABASE] Updating session ${sessionId}: runtime=${cappedRuntime}s, energy=${energyWh}Wh`);
+    // Calculate energy if not provided
+    let finalEnergyWh = energyWh;
+    if (energyWh === 0 && cappedRuntime > 0) {
+      // Use nominal power for the channel
+      const WATT: Record<string, number> = {
+        light2: 40, light3: 40,
+        fan1: 25, custom1: 30,
+      };
+      const powerW = WATT[channel] || 30;
+      const runtimeHours = cappedRuntime / 3600;
+      finalEnergyWh = (powerW * runtimeHours);
+      console.log(`[SUPABASE] Energy calculated: ${finalEnergyWh.toFixed(2)}Wh (${powerW}W × ${runtimeHours.toFixed(2)}h)`);
+    }
     
-    const { error } = await supabase
+    // Update the session with final values
+    const { error: updateError } = await supabase
       .from('runtime_sessions')
       .update({
         ended_at: new Date().toISOString(),
         runtime_seconds: cappedRuntime,
-        energy_wh: energyWh,
+        energy_wh: finalEnergyWh,
       })
       .eq('id', sessionId);
 
-    if (error) {
+    if (updateError) {
       console.error(`[SUPABASE] Session close FAILED:`, {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
         sessionId,
-        fullError: error,
+        fullError: updateError,
       });
       
       // Specific diagnosis for common error codes
-      if (error.code === 'PGRST301') {
+      if (updateError.code === 'PGRST301') {
         console.error('[SUPABASE] PGRST301: JWT token is invalid or could not be decoded');
         console.error('[SUPABASE] Check: Is Authorization header being set incorrectly?');
       }
@@ -247,14 +272,17 @@ export async function closeRuntimeSession(
       return;
     }
     
+    // Remove from in-memory tracking
+    const key = sessionKey(deviceId, channel);
     activeSessions.delete(key);
-    console.log(`[SUPABASE] Session closed successfully: ID ${sessionId}`);
+    
+    console.log(`[SUPABASE] Session closed successfully: ID ${sessionId}, runtime=${cappedRuntime}s, energy=${finalEnergyWh.toFixed(2)}Wh`);
     
     // Update daily_runtime with the session data
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      await upsertDailyRuntime(deviceId, channel, today, cappedRuntime, energyWh);
-      console.log(`[SUPABASE] Daily runtime updated for ${deviceId}/${channel}/${today}`);
+      await upsertDailyRuntime(deviceId, channel, today, cappedRuntime, finalEnergyWh);
+      console.log(`[SUPABASE] Daily runtime updated successfully: ${deviceId}/${channel}/${today}`);
     } catch (dailyErr) {
       console.error('[SUPABASE] Failed to update daily_runtime (non-fatal):', dailyErr);
     }

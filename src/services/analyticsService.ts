@@ -136,31 +136,15 @@ export async function trackOutputChange(event: OutputChangeEvent): Promise<void>
     console.log(`[Analytics] Output OFF: ${deviceId}/${channel} at ${new Date(timestamp).toISOString()}`);
     
     try {
-      // closeRuntimeSession will calculate runtime from the session's started_at
-      // But we need to provide runtime and energy for the update
-      // We'll use a simplified approach: calculate based on Supabase session data
+      // closeRuntimeSession will find the open session and calculate runtime
+      // Energy calculation: We pass 0 and let closeRuntimeSession calculate based on actual runtime
+      // The function will fetch the session, calculate runtime, then calculate energy
       
-      // For now, call closeRuntimeSession with minimal data
-      // The function will handle runtime calculation internally
-      // We just need to pass energy estimate
+      // For now, pass 0 for energy - closeRuntimeSession will calculate it
+      // TODO: Enhance closeRuntimeSession to calculate energy internally
+      await closeRuntimeSession(deviceId, channel, 0, 0);
       
-      const powerW = currentAmps && currentAmps > 0.01 && currentAmps < 15
-        ? NOMINAL_VOLTAGE * currentAmps
-        : WATT[channel];
-      
-      // Estimate energy based on nominal power
-      // This will be refined when we fetch actual session duration
-      const estimatedRuntimeHours = 1; // Placeholder - actual runtime calculated in closeRuntimeSession
-      const energyKwh = (powerW / 1000) * estimatedRuntimeHours;
-      const energyWh = kwhToWh(energyKwh);
-      
-      // Close session - pass 0 for runtime since closeRuntimeSession will calculate it
-      await closeRuntimeSession(deviceId, channel, 0, energyWh);
-      
-      console.log(`[Analytics] Session closed for ${deviceId}/${channel}`);
-      
-      // Note: closeRuntimeSession updates daily_runtime automatically
-      // No need for explicit upsertDailyRuntime call here
+      console.log(`[Analytics] Session close initiated for ${deviceId}/${channel}`);
       
     } catch (err) {
       console.error('[Analytics] Failed to close session (non-fatal):', err);
