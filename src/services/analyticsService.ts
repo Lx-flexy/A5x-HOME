@@ -230,6 +230,15 @@ export async function trackOutputChange(
   if (value) {
     // Turning ON — record start timestamp
     await update(rtdbOnAt(deviceId), { [key]: Date.now() });
+    
+    // Start Supabase runtime session (non-blocking, non-fatal)
+    import('./supabaseAnalytics').then(({ startRuntimeSession }) => {
+      startRuntimeSession(deviceId, key).catch(err => {
+        console.warn('[trackOutputChange] Supabase session start failed (non-fatal):', err);
+      });
+    }).catch(err => {
+      console.warn('[trackOutputChange] Supabase import failed:', err);
+    });
   } else {
     // Turning OFF — atomically compute and update energy using transaction
     const onAtSnap = await get(ref(rtdb, `devices/${deviceId}/onAt/${key}`));
@@ -324,7 +333,28 @@ export async function trackOutputChange(
           energyUsage: (cur.energyUsage || 0) + energyDelta,
         });
 
+        // Persist to Supabase (non-blocking, non-fatal)
         const today = todayStr();
+        import('./supabaseAnalytics').then(({ closeRuntimeSession, upsertDailyRuntime, hoursToSeconds, kwhToWh }) => {
+          // Close session
+          const runtimeSeconds = hoursToSeconds(elapsed);
+          const energyWh = kwhToWh(energyDelta);
+          closeRuntimeSession(deviceId, key, runtimeSeconds, energyWh).catch(err => {
+            console.warn('[trackOutputChange] Supabase session close failed (non-fatal):', err);
+          });
+          
+          // Update daily totals
+          const newRuntime = (cur[field] || 0) + elapsed;
+          const newEnergy = (cur.energyUsage || 0) + energyDelta;
+          const totalRuntimeSeconds = hoursToSeconds(newRuntime);
+          const totalEnergyWh = kwhToWh(newEnergy);
+          upsertDailyRuntime(deviceId, key, today, totalRuntimeSeconds, totalEnergyWh).catch(err => {
+            console.warn('[trackOutputChange] Supabase daily runtime upsert failed (non-fatal):', err);
+          });
+        }).catch(err => {
+          console.warn('[trackOutputChange] Supabase import failed:', err);
+        });
+
         await flushDayToFirestore(deviceId, today);
       }
       
@@ -369,11 +399,13 @@ export async function trackBulkOutputChange(
 
   // Collect ON/OFF changes
   const offEvents: Array<{ key: TrackableKey; onAtMs: number }> = [];
+  const onKeys: TrackableKey[] = []; // Track which keys turned ON
   
   for (const [k, val] of Object.entries(changes) as [TrackableKey, boolean][]) {
     if (val) {
       // Turning ON
       onAtPatch[k] = now;
+      onKeys.push(k); // Track for Supabase session start
     } else {
       // Turning OFF - prepare for transaction
       const onAtMs = onAtData[k] || 0;
@@ -454,6 +486,8 @@ export async function trackBulkOutputChange(
         runtime: elapsed,
         energy: energyDelta,
       });
+      // Store channel key for Supabase persistence
+      (energyUpdates[energyUpdates.length - 1] as any).channelKey = event.key;
     }
   }
 
@@ -471,12 +505,53 @@ export async function trackBulkOutputChange(
     analyticsPatch['energyUsage'] = totalEnergy;
     
     await update(rtdbAnalytics(deviceId), analyticsPatch);
+    
+    // Persist to Supabase (non-blocking, non-fatal)
+    const today = todayStr();
+    import('./supabaseAnalytics').then(({ closeRuntimeSession, upsertDailyRuntime, hoursToSeconds, kwhToWh }) => {
+      for (const update of energyUpdates) {
+        const channelKey = (update as any).channelKey as string;
+        if (!channelKey) continue;
+        
+        // Close session (individual delta)
+        const runtimeSeconds = hoursToSeconds(update.runtime);
+        const energyWh = kwhToWh(update.energy);
+        closeRuntimeSession(deviceId, channelKey, runtimeSeconds, energyWh).catch(err => {
+          console.warn(`[trackBulkOutputChange] Supabase session close failed for ${channelKey} (non-fatal):`, err);
+        });
+        
+        // Update daily totals (accumulated)
+        const newRuntime = analyticsPatch[update.field] || 0;
+        const newEnergy = analyticsPatch['energyUsage'] || 0;
+        const totalRuntimeSeconds = hoursToSeconds(newRuntime);
+        const totalEnergyWh = kwhToWh(newEnergy);
+        upsertDailyRuntime(deviceId, channelKey, today, totalRuntimeSeconds, totalEnergyWh).catch(err => {
+          console.warn(`[trackBulkOutputChange] Supabase daily runtime upsert failed for ${channelKey} (non-fatal):`, err);
+        });
+      }
+    }).catch(err => {
+      console.warn('[trackBulkOutputChange] Supabase import failed:', err);
+    });
+    
     await flushDayToFirestore(deviceId, todayStr());
   }
 
   // Update onAt states (all ON/OFF changes)
   if (Object.keys(onAtPatch).length > 0) {
     await update(rtdbOnAt(deviceId), onAtPatch);
+  }
+  
+  // Start Supabase sessions for ON events (non-blocking, non-fatal)
+  if (onKeys.length > 0) {
+    import('./supabaseAnalytics').then(({ startRuntimeSession }) => {
+      for (const key of onKeys) {
+        startRuntimeSession(deviceId, key).catch(err => {
+          console.warn(`[trackBulkOutputChange] Supabase session start failed for ${key} (non-fatal):`, err);
+        });
+      }
+    }).catch(err => {
+      console.warn('[trackBulkOutputChange] Supabase import failed:', err);
+    });
   }
 }
 
@@ -693,5 +768,59 @@ export async function resetCorruptedAnalyticsIfNeeded(deviceId: string): Promise
     }
   } catch {
     // Non-fatal — analytics will self-correct on next ensureTodayWindow call
+  }
+}
+
+// ─── Supabase Read Functions ─────────────────────────────────────────────────
+
+/**
+ * Get multi-device analytics from Supabase (optimized query).
+ * Falls back to Firestore if Supabase fails.
+ * 
+ * @param deviceIds Array of device IDs
+ * @param days Number of days to fetch
+ * @returns Array of daily analytics for all devices
+ */
+export async function getMultiDeviceAnalyticsFromSupabase(
+  deviceIds: string[],
+  days: number
+): Promise<DailyAnalytics[]> {
+  if (deviceIds.length === 0) return [];
+  
+  try {
+    const { getAggregatedDailyAnalytics } = await import('./supabaseAnalytics');
+    
+    // Fetch from Supabase for each device (parallel)
+    const results = await Promise.all(
+      deviceIds.map(deviceId => getAggregatedDailyAnalytics(deviceId, days))
+    );
+    
+    // Flatten and convert to DailyAnalytics format
+    const allRecords: DailyAnalytics[] = [];
+    for (const deviceRecords of results) {
+      for (const record of deviceRecords) {
+        allRecords.push({
+          id: `${record.deviceId}_${record.date}`,
+          deviceId: record.deviceId,
+          date: record.date,
+          light2Runtime: record.light2Runtime,
+          light3Runtime: record.light3Runtime,
+          fan1Runtime: record.fan1Runtime,
+          customRuntime: record.customRuntime,
+          energyUsage: record.energyUsage,
+          savedAt: undefined,
+        });
+      }
+    }
+    
+    return allRecords;
+  } catch (err) {
+    console.warn('[analytics] Multi-device Supabase read failed, falling back to Firestore:', err);
+    
+    // Fallback to Firestore
+    const results = await Promise.all(
+      deviceIds.map(deviceId => getDailyAnalytics(deviceId, days))
+    );
+    return results.flat();
   }
 }
