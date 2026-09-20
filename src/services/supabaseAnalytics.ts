@@ -26,8 +26,80 @@ import { supabase } from './supabase';
 // Maps "${deviceId}:${channel}" → session_id
 const activeSessions = new Map<string, number>();
 
+// Maps "${deviceId}:${channel}" → timer ID for live runtime updates
+const liveUpdateTimers = new Map<string, NodeJS.Timeout>();
+
 function sessionKey(deviceId: string, channel: string): string {
   return `${deviceId}:${channel}`;
+}
+
+// ═══ Live Runtime Updater ══════════════════════════════════════════════════
+
+/**
+ * Start live runtime updater for an active session.
+ * Updates runtime_seconds in database every 10 seconds.
+ */
+function startLiveRuntimeUpdater(
+  deviceId: string,
+  channel: string,
+  sessionId: number,
+  startedAt: string
+): void {
+  const key = sessionKey(deviceId, channel);
+  
+  // Clear any existing timer for this channel
+  const existingTimer = liveUpdateTimers.get(key);
+  if (existingTimer) {
+    clearInterval(existingTimer);
+  }
+  
+  console.log(`[SUPABASE LIVE] TIMER STARTED ${deviceId}/${channel} session=${sessionId}`);
+  
+  // Update every 10 seconds
+  const timer = setInterval(async () => {
+    try {
+      const startTime = new Date(startedAt).getTime();
+      const now = Date.now();
+      const runtimeSeconds = Math.floor((now - startTime) / 1000);
+      
+      console.log(`[SUPABASE LIVE] TICK ${deviceId}/${channel} session=${sessionId} runtime=${runtimeSeconds}s`);
+      
+      // Update database with current runtime
+      const { error } = await supabase
+        .from('runtime_sessions')
+        .update({ runtime_seconds: runtimeSeconds })
+        .eq('id', sessionId);
+      
+      if (error) {
+        console.error(`[SUPABASE LIVE] DB UPDATE FAILED ${deviceId}/${channel}:`, {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          sessionId,
+        });
+      } else {
+        console.log(`[SUPABASE LIVE] DB UPDATED ${deviceId}/${channel} runtime=${runtimeSeconds}s`);
+      }
+    } catch (err) {
+      console.error(`[SUPABASE LIVE] TICK ERROR ${deviceId}/${channel}:`, err);
+    }
+  }, 10000); // 10 seconds
+  
+  liveUpdateTimers.set(key, timer);
+}
+
+/**
+ * Stop live runtime updater for a channel.
+ */
+function stopLiveRuntimeUpdater(deviceId: string, channel: string): void {
+  const key = sessionKey(deviceId, channel);
+  const timer = liveUpdateTimers.get(key);
+  
+  if (timer) {
+    clearInterval(timer);
+    liveUpdateTimers.delete(key);
+    console.log(`[SUPABASE LIVE] TIMER STOPPED ${deviceId}/${channel}`);
+  }
 }
 
 // ═══ TypeScript Interfaces (Matching EXISTING Supabase Schema) ════════════
@@ -159,6 +231,9 @@ export async function startRuntimeSession(
     activeSessions.set(key, sessionId);
     console.log(`[SUPABASE] Session started successfully: ID ${sessionId}`);
     
+    // Start live runtime updater
+    startLiveRuntimeUpdater(deviceId, channel, sessionId, session.started_at);
+    
     return sessionId;
   } catch (err) {
     console.error('[SUPABASE] startRuntimeSession error:', err);
@@ -272,9 +347,10 @@ export async function closeRuntimeSession(
       return;
     }
     
-    // Remove from in-memory tracking
+    // Remove from in-memory tracking and stop live updater
     const key = sessionKey(deviceId, channel);
     activeSessions.delete(key);
+    stopLiveRuntimeUpdater(deviceId, channel);
     
     console.log(`[SUPABASE] Session closed successfully: ID ${sessionId}, runtime=${cappedRuntime}s, energy=${finalEnergyWh.toFixed(2)}Wh`);
     
@@ -288,6 +364,49 @@ export async function closeRuntimeSession(
     }
   } catch (err) {
     console.error('[SUPABASE] closeRuntimeSession exception:', err);
+  }
+}
+
+/**
+ * Resume live runtime updaters for all open sessions.
+ * Called on page load to restore timers for existing open sessions.
+ */
+export async function resumeLiveRuntimeUpdaters(deviceId: string): Promise<void> {
+  try {
+    console.log(`[SUPABASE] Resuming live updaters for device: ${deviceId}`);
+    
+    // Find all open sessions for this device
+    const { data: openSessions, error } = await supabase
+      .from('runtime_sessions')
+      .select('id, device_id, output_key, started_at')
+      .eq('device_id', deviceId)
+      .is('ended_at', null);
+    
+    if (error) {
+      console.error('[SUPABASE] Failed to query open sessions:', error);
+      return;
+    }
+    
+    if (!openSessions || openSessions.length === 0) {
+      console.log(`[SUPABASE] No open sessions found for ${deviceId}`);
+      return;
+    }
+    
+    // Resume updater for each open session
+    for (const session of openSessions) {
+      const channel = session.output_key;
+      const key = sessionKey(deviceId, channel);
+      
+      // Store session ID
+      activeSessions.set(key, session.id);
+      
+      // Start live updater
+      startLiveRuntimeUpdater(deviceId, channel, session.id, session.started_at);
+      
+      console.log(`[SUPABASE] Resumed live updater for ${deviceId}/${channel} session=${session.id}`);
+    }
+  } catch (err) {
+    console.error('[SUPABASE] resumeLiveRuntimeUpdaters exception:', err);
   }
 }
 
