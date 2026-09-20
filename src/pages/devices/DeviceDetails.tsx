@@ -29,7 +29,7 @@ import {
   DeviceOutputMetadata,
   updateDeviceState,
 } from '../../services/deviceService';
-import { ensureTodayWindow } from '../../services/analyticsService';
+import { ensureTodayWindow, resetCorruptedAnalyticsIfNeeded } from '../../services/analyticsService';
 import { canUserControlDevice } from '../../services/memberService';
 import { useAuth } from '../../context/AuthContext';
 import { useDeviceStatus } from '../../hooks/useDeviceStatus';
@@ -57,7 +57,21 @@ function fmtHeap(b: number): string {
 }
 
 function fmtRuntime(h: number): string {
+  // CRITICAL FIX: Validate input before formatting
+  if (!isFinite(h) || h < 0) {
+    console.warn(`[DeviceDetails] Invalid runtime value for formatting: ${h}`);
+    return '0s';
+  }
+  
   if (!h || h <= 0) return '0s';
+  
+  // CRITICAL FIX: Cap display at 24h per channel (physical impossibility)
+  const MAX_DISPLAY_HOURS = 24;
+  if (h > MAX_DISPLAY_HOURS) {
+    console.warn(`[DeviceDetails] Runtime exceeds 24h for display: ${h}h, capping to 24h`);
+    h = MAX_DISPLAY_HOURS;
+  }
+  
   const totalSec = Math.round(h * 3600);
   if (totalSec < 60) return `${totalSec}s`;
   const hh = Math.floor(h);
@@ -675,7 +689,10 @@ export default function DeviceDetails() {
   useEffect(() => {
     if (!device) return;
     const did = device.deviceId;
-    ensureTodayWindow(did).catch(err => console.warn('[DeviceDetails] ensureTodayWindow failed:', err));
+    // CRITICAL: Order matters - day rollover MUST complete before corruption check
+    ensureTodayWindow(did)
+      .then(() => resetCorruptedAnalyticsIfNeeded(did))
+      .catch(err => console.warn('[DeviceDetails] Cleanup failed:', err));
     const u1 = subscribeToOutputs(did, (out) => {
       setOutputs(out);
       // Sync brightness/speed defaults from RTDB (fallback to 100 if not set)

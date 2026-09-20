@@ -3,18 +3,34 @@
     ".read":  false,
     ".write": false,
 
+    "deviceAccess": {
+      // Mirror of Firestore ownership/membership for RTDB security rules
+      // Synced automatically by Cloud Functions
+      // CRITICAL: Users cannot modify this - only Cloud Functions can write
+      ".read": false,
+      ".write": false,
+      
+      "$deviceId": {
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".validate": "newData.isBoolean() && newData.val() == true"
+        }
+      }
+    },
+
     "devices": {
       "$deviceId": {
-        // Web dashboard reads device data (auth required).
-        // ESP32 writes using its own Firebase anonymous/custom auth token.
-        // Both paths require authentication — no public access.
-        ".read": "auth != null",
+        // AUTHORIZATION: Only device owner/members can access
+        // Verified via deviceAccess mirror (synced from Firestore by Cloud Functions)
+        ".read": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+        ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
 
         "outputs": {
           // Web app writes outputs (device control commands).
           // ESP32 reads outputs to execute them.
-          ".read":  "auth != null",
-          ".write": "auth != null",
+          // SECURITY: Only authorized users can control device
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
 
           // Field-level validation — prevents garbage writes
           "oledMessage": {
@@ -37,8 +53,9 @@
 
         "health": {
           // ESP32 writes health metrics; web reads them.
-          ".read":  "auth != null",
-          ".write": "auth != null",
+          // ESP32 uses Firebase Admin SDK (service account) - bypasses user auth rules
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null",  // Allow ESP32 service account + authorized users
           "lastSeen":       { ".validate": "newData.isNumber() && newData.val() > 0" },
           "rssi":           { ".validate": "newData.isNumber()" },
           "heap":           { ".validate": "newData.isNumber() && newData.val() >= 0" },
@@ -50,8 +67,11 @@
         },
 
         "analytics": {
-          ".read":  "auth != null",
-          ".write": "auth != null",
+          // CRITICAL: Only web app + Cloud Functions write analytics (NOT ESP32)
+          // Web: trackOutputChange, ensureTodayWindow, resetCorruptedAnalytics
+          // Cloud: automaticDailyRollover, periodicEnergyAccumulation
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
           "light1Runtime": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 24" },
           "light2Runtime": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 24" },
           "light3Runtime": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 24" },
@@ -61,35 +81,63 @@
           "energyUsage":   { ".validate": "newData.isNumber() && newData.val() >= 0" }
         },
 
+        "currentSense": {
+          // ESP32 writes current sensor readings (ACS712); web + Cloud Functions read
+          // ESP32 uses Firebase Admin SDK (service account) - bypasses user auth rules
+          // FIXED: Correct field names (light2Current not light2)
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null",  // Allow ESP32 service account + authorized users (for testing)
+          "light2Current":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 30" },
+          "light3Current":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 30" },
+          "fan1Current":     { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 30" },
+          "customCurrent":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 30" },
+          "light2Mismatch":  { ".validate": "newData.isBoolean()" },
+          "light3Mismatch":  { ".validate": "newData.isBoolean()" },
+          "fan1Mismatch":    { ".validate": "newData.isBoolean()" },
+          "customMismatch":  { ".validate": "newData.isBoolean()" }
+        },
+
+        "energyTick": {
+          // Tracks last energy accumulation timestamp per channel
+          // Web: trackOutputChange writes on OFF event
+          // Cloud: periodicEnergyAccumulation writes every 60s
+          // Value: unix timestamp in milliseconds (or 'PROCESSED' sentinel)
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          "$channel": {
+            ".validate": "(newData.isNumber() && newData.val() > 0) || newData.val() == 'PROCESSED'"
+          }
+        },
+
         "onAt": {
-          ".read":  "auth != null",
-          ".write": "auth != null"
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true"
         },
 
         "analyticsDate": {
-          ".read":  "auth != null",
-          ".write": "auth != null",
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)"
         },
 
         "status": {
-          ".read":  "auth != null",
-          ".write": "auth != null",
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null",  // Allow ESP32 service account
           ".validate": "newData.isString() && (newData.val() == 'online' || newData.val() == 'offline')"
         },
 
         "lastSeen": {
-          ".read":  "auth != null",
-          ".write": "auth != null",
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null",  // Allow ESP32 service account
           ".validate": "newData.isNumber() && newData.val() > 0"
         },
 
         "metadata": {
-          ".read":  "auth != null",
-          ".write": "auth != null",
+          ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+          ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
           "names": {
-            ".read":  "auth != null",
-            ".write": "auth != null",
+            ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+            ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
             "light1":  { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
             "light2":  { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
             "light3":  { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
@@ -98,8 +146,8 @@
             "custom1": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" }
           },
           "outputs": {
-            ".read":  "auth != null",
-            ".write": "auth != null",
+            ".read":  "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
+            ".write": "auth != null && root.child('deviceAccess').child($deviceId).child(auth.uid).val() == true",
             "light1": {
               "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
               "icon": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" }

@@ -231,12 +231,19 @@ export async function trackOutputChange(
     // Turning ON — record start timestamp
     await update(rtdbOnAt(deviceId), { [key]: Date.now() });
     
+    console.log(`[SUPABASE DEBUG] Output change detected: deviceId=${deviceId}, channel=${key}, state=ON`);
+    
     // Start Supabase runtime session (non-blocking, non-fatal)
     import('./supabaseAnalytics').then(({ startRuntimeSession }) => {
-      startRuntimeSession(deviceId, key).catch(err => {
+      console.log(`[SUPABASE DEBUG] startRuntimeSession called for ${deviceId}/${key}`);
+      startRuntimeSession(deviceId, key).then(sessionId => {
+        console.log(`[SUPABASE DEBUG] startRuntimeSession SUCCESS: sessionId=${sessionId}`);
+      }).catch(err => {
+        console.error('[SUPABASE DEBUG] startRuntimeSession FAILED:', err);
         console.warn('[trackOutputChange] Supabase session start failed (non-fatal):', err);
       });
     }).catch(err => {
+      console.error('[SUPABASE DEBUG] Supabase import FAILED:', err);
       console.warn('[trackOutputChange] Supabase import failed:', err);
     });
   } else {
@@ -335,11 +342,20 @@ export async function trackOutputChange(
 
         // Persist to Supabase (non-blocking, non-fatal)
         const today = todayStr();
+        console.log(`[SUPABASE DEBUG] Output change detected: deviceId=${deviceId}, channel=${key}, state=OFF, elapsed=${elapsed}h, energyDelta=${energyDelta}kWh`);
+        
         import('./supabaseAnalytics').then(({ closeRuntimeSession, upsertDailyRuntime, hoursToSeconds, kwhToWh }) => {
+          console.log(`[SUPABASE DEBUG] closeRuntimeSession called for ${deviceId}/${key}`);
+          
           // Close session
           const runtimeSeconds = hoursToSeconds(elapsed);
           const energyWh = kwhToWh(energyDelta);
-          closeRuntimeSession(deviceId, key, runtimeSeconds, energyWh).catch(err => {
+          console.log(`[SUPABASE DEBUG] Converted: ${elapsed}h → ${runtimeSeconds}s, ${energyDelta}kWh → ${energyWh}Wh`);
+          
+          closeRuntimeSession(deviceId, key, runtimeSeconds, energyWh).then(() => {
+            console.log(`[SUPABASE DEBUG] closeRuntimeSession SUCCESS`);
+          }).catch(err => {
+            console.error('[SUPABASE DEBUG] closeRuntimeSession FAILED:', err);
             console.warn('[trackOutputChange] Supabase session close failed (non-fatal):', err);
           });
           
@@ -348,10 +364,16 @@ export async function trackOutputChange(
           const newEnergy = (cur.energyUsage || 0) + energyDelta;
           const totalRuntimeSeconds = hoursToSeconds(newRuntime);
           const totalEnergyWh = kwhToWh(newEnergy);
-          upsertDailyRuntime(deviceId, key, today, totalRuntimeSeconds, totalEnergyWh).catch(err => {
+          console.log(`[SUPABASE DEBUG] upsertDailyRuntime called: ${deviceId}/${key}/${today}, totalRuntime=${totalRuntimeSeconds}s, totalEnergy=${totalEnergyWh}Wh`);
+          
+          upsertDailyRuntime(deviceId, key, today, totalRuntimeSeconds, totalEnergyWh).then(() => {
+            console.log(`[SUPABASE DEBUG] upsertDailyRuntime SUCCESS`);
+          }).catch(err => {
+            console.error('[SUPABASE DEBUG] upsertDailyRuntime FAILED:', err);
             console.warn('[trackOutputChange] Supabase daily runtime upsert failed (non-fatal):', err);
           });
         }).catch(err => {
+          console.error('[SUPABASE DEBUG] Supabase import FAILED:', err);
           console.warn('[trackOutputChange] Supabase import failed:', err);
         });
 

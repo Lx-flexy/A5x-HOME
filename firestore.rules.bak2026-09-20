@@ -1,0 +1,189 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function validStr(field, maxLen) {
+      return field is string && field.size() > 0 && field.size() <= maxLen;
+    }
+
+    // Returns true if the current user owns the Firestore device_meta document
+    // identified by its docId (autoId, not deviceId).
+    function ownsDeviceMeta(docId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/devices_meta/$(docId)).data.ownerId
+          == request.auth.uid;
+    }
+
+    // Returns true if the current user is a member of the given deviceId
+    function isMemberByDeviceId(deviceId) {
+      return isSignedIn() && exists(
+        /databases/$(database)/documents/members/$(request.auth.uid + '_' + deviceId)
+      );
+    }
+
+    // ── users/{uid} ──────────────────────────────────────────────────────────
+    // Users can only read and write their own profile.
+    // uid, userId, createdAt, and provider are immutable after creation.
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && validStr(request.resource.data.name, 100)
+        && validStr(request.resource.data.email, 254)
+        && request.resource.data.uid == uid;
+
+      allow update: if isOwner(uid)
+        && request.resource.data.uid       == resource.data.uid
+        && request.resource.data.userId    == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.provider  == resource.data.provider
+        && (!('name'  in request.resource.data) || validStr(request.resource.data.name, 100))
+        && (!('email' in request.resource.data) || validStr(request.resource.data.email, 254))
+        && (!('photoURL' in request.resource.data)
+            || request.resource.data.photoURL is string
+            && request.resource.data.photoURL.size() <= 2000);
+
+      allow delete: if false;
+    }
+
+    // ── devices_meta/{docId} ─────────────────────────────────────────────────
+    // Owner: full CRUD.
+    // Members: read-only via the members collection.
+    // ownerId and deviceId are immutable after creation.
+
+    match /devices_meta/{docId} {
+      allow read: if isSignedIn()
+        && (resource.data.ownerId == request.auth.uid
+            || exists(/databases/$(database)/documents/members/$(docId)));
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && validStr(request.resource.data.deviceId, 32)
+        && validStr(request.resource.data.name, 100)
+        && validStr(request.resource.data.room, 100);
+
+      allow update: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId  == resource.data.ownerId
+        && request.resource.data.deviceId == resource.data.deviceId;
+
+      allow delete: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    // ── members/{docId} ──────────────────────────────────────────────────────
+    // A member record is readable by the member themselves or the device owner.
+    // Only authenticated users can create (device owner check is in app layer
+    // because Firestore rules can't do count queries for the 5-member cap).
+    // deviceId, uid, userId are immutable — only role can be updated.
+    // Only the device owner (enforced at app layer) or self can delete.
+
+    match /members/{docId} {
+      allow read: if isSignedIn()
+        && (resource.data.uid == request.auth.uid
+            || resource.data.deviceId != ''
+               && get(/databases/$(database)/documents/devices_meta/$(docId)).data.ownerId
+                  == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && validStr(request.resource.data.deviceId, 32)
+        && validStr(request.resource.data.userId, 14)
+        && validStr(request.resource.data.uid, 128)
+        && request.resource.data.role in ['owner', 'member'];
+
+      allow update: if isSignedIn()
+        && request.resource.data.deviceId == resource.data.deviceId
+        && request.resource.data.uid      == resource.data.uid
+        && request.resource.data.userId   == resource.data.userId
+        && request.resource.data.role in ['owner', 'member'];
+
+      allow delete: if isSignedIn()
+        && (resource.data.uid == request.auth.uid
+            || get(/databases/$(database)/documents/devices_meta/$(resource.data.deviceId)).data.ownerId
+               == request.auth.uid);
+    }
+
+    // ── activity_logs/{docId} ────────────────────────────────────────────────
+    // Logs are readable only by users who own the referenced device.
+    // Any authenticated user can create a log entry (app service layer writes them).
+    // No updates or deletes — logs are append-only.
+
+    match /activity_logs/{docId} {
+      allow read: if isSignedIn();  // narrowed at query level by deviceId filter
+
+      allow create: if isSignedIn()
+        && validStr(request.resource.data.deviceId,    32)
+        && validStr(request.resource.data.action,      200)
+        && validStr(request.resource.data.performedBy, 100);
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── device_analytics/{docId} ─────────────────────────────────────────────
+    // Readable and writable by any authenticated user (scoped at query level).
+    // deviceId and date are immutable.  No deletes.
+
+    match /device_analytics/{docId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && validStr(request.resource.data.deviceId, 32)
+        && validStr(request.resource.data.date, 10)
+        && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+      allow update: if isSignedIn()
+        && request.resource.data.deviceId == resource.data.deviceId
+        && request.resource.data.date     == resource.data.date;
+
+      allow delete: if false;
+    }
+
+    // ── dex_bots/{dexBotId} ──────────────────────────────────────────────────
+    // Only the bot's owner can read, write, update, or delete.
+    // ownerId and dexBotId are immutable after creation.
+    // currentMessage max 128 chars; currentEmotion must be in whitelist.
+
+    match /dex_bots/{dexBotId} {
+      allow read: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && validStr(request.resource.data.dexBotId, 32);
+
+      allow update: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId  == resource.data.ownerId
+        && request.resource.data.dexBotId == resource.data.dexBotId
+        && (!('currentMessage' in request.resource.data)
+            || (request.resource.data.currentMessage is string
+                && request.resource.data.currentMessage.size() <= 128))
+        && (!('currentEmotion' in request.resource.data)
+            || request.resource.data.currentEmotion in [
+                'happy','normal','cool','sleep','surprise',
+                'angry','robot','neutral','sad','thinking','excited','alert'
+              ]);
+
+      allow delete: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    // ── Deny everything else ──────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

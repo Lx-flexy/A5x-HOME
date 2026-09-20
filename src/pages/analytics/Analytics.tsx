@@ -7,21 +7,24 @@ import {
   subscribeToOnAt,
   subscribeToLastSeen,
   subscribeToCurrentSense,
+  subscribeToOutputMetadata,
   Device,
   DeviceAnalyticsData,
   DeviceCurrentSense,
+  DeviceOutputMetadata,
 } from '../../services/deviceService';
 import { calcIsOnline } from '../../hooks/useDeviceStatus';
 import {
   ensureTodayWindow,
   resetCorruptedAnalyticsIfNeeded,
   getActivityLogs,
-  getDailyAnalytics,
+  getMultiDeviceAnalyticsFromSupabase,
   aggregateDailyRecords,
   DailyAnalytics,
   ActivityLog,
   todayStr,
 } from '../../services/analyticsService';
+import { CURRENT_SENSOR_CONFIG } from '../../config/sensorConfig';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
 
@@ -30,7 +33,21 @@ type TabKey = 'today' | '7d' | '30d';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtRuntime(h: number): string {
+  // CRITICAL FIX: Validate input before formatting
+  if (!isFinite(h) || h < 0) {
+    console.warn(`[Analytics] Invalid runtime value for formatting: ${h}`);
+    return '0s';
+  }
+  
   if (!h || h <= 0) return '0s';
+  
+  // CRITICAL FIX: Cap display at 24h per channel (physical impossibility)
+  const MAX_DISPLAY_HOURS = 24;
+  if (h > MAX_DISPLAY_HOURS) {
+    console.warn(`[Analytics] Runtime exceeds 24h for display: ${h}h, capping to 24h`);
+    h = MAX_DISPLAY_HOURS;
+  }
+  
   const totalSec = Math.round(h * 3600);
   if (totalSec < 60) return `${totalSec}s`;
   const hh = Math.floor(h);
@@ -41,8 +58,25 @@ function fmtRuntime(h: number): string {
 }
 
 function fmtCurrent(amps: number): string {
+  // CRITICAL FIX: Validate current sensor readings
+  // Reject invalid values (NaN, Infinity, negative)
+  if (!isFinite(amps) || amps < 0) {
+    console.warn(`[Analytics] Invalid current reading: ${amps}A`);
+    return '0.00 A';
+  }
+  
   // Clamp near-zero readings to exactly 0 (sensor noise floor)
   if (amps < 0.01) return '0.00 A';
+  
+  // CRITICAL FIX: Cap unrealistic current readings
+  // ACS712-30A max = 30A, but household circuits typically 10-16A
+  // Values > 15A are likely sensor errors (wrong calibration/RMS calculation)
+  const MAX_REALISTIC_CURRENT = 15;
+  if (amps > MAX_REALISTIC_CURRENT) {
+    console.warn(`[Analytics] Unrealistic current reading: ${amps}A, capping to ${MAX_REALISTIC_CURRENT}A`);
+    amps = MAX_REALISTIC_CURRENT;
+  }
+  
   // Format to 2 decimal places
   return `${amps.toFixed(2)} A`;
 }
@@ -98,6 +132,8 @@ export default function Analytics() {
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
   // Current sense data — live current readings and mismatch flags
   const [currentSenseMap, setCurrentSenseMap] = useState<Record<string, DeviceCurrentSense>>({});
+  // Output metadata — custom names for channels
+  const [outputMetadataMap, setOutputMetadataMap] = useState<Record<string, DeviceOutputMetadata>>({});
   const [now, setNow]                 = useState(Date.now());
   const [logs, setLogs]               = useState<ActivityLog[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -127,10 +163,14 @@ export default function Analytics() {
     const unsubs: (() => void)[] = [];
 
     devices.forEach(dev => {
-      // First: wipe any corrupted legacy data (values > 24h impossible in one day)
-      resetCorruptedAnalyticsIfNeeded(dev.deviceId).catch(() => {});
-      // Then: trigger day-rollover check and clean window
-      ensureTodayWindow(dev.deviceId).catch(() => {});
+      // CRITICAL: Order matters - day rollover MUST complete before corruption check
+      // 1. First: Handle legitimate day rollover (midnight boundary crossing)
+      ensureTodayWindow(dev.deviceId)
+        .then(() => {
+          // 2. Then: Check for same-day corruption (values > 24h from old bugs)
+          return resetCorruptedAnalyticsIfNeeded(dev.deviceId);
+        })
+        .catch(err => console.warn(`[Analytics] Cleanup failed for ${dev.deviceId}:`, err));
 
       // Subscribe to stored analytics (accumulated off-time runtime)
       const u1 = subscribeToAnalytics(dev.deviceId, data => {
@@ -152,27 +192,43 @@ export default function Analytics() {
         setCurrentSenseMap(prev => ({ ...prev, [dev.deviceId]: currentSense }));
       });
 
-      unsubs.push(u1, u2, u3, u4);
+      // Subscribe to outputMetadata — custom names for channels
+      const u5 = subscribeToOutputMetadata(dev.deviceId, metadata => {
+        setOutputMetadataMap(prev => ({ ...prev, [dev.deviceId]: metadata }));
+      });
+
+      unsubs.push(u1, u2, u3, u4, u5);
     });
 
     return () => unsubs.forEach(u => u());
   }, [devices]);
 
   // Load Firestore history when tab changes to 7d/30d
+  // UPDATED: Now fetches from Supabase PostgreSQL for better performance and scalability
+  // Falls back to Firestore if Supabase unavailable
   useEffect(() => {
     if (tab === 'today' || !devices.length) return;
     const days = tab === '7d' ? 7 : 30;
     setHistLoading(true);
-    Promise.all(
-      devices.map(dev =>
-        getDailyAnalytics(dev.deviceId, days).then(records => ({ deviceId: dev.deviceId, records }))
-      )
-    ).then(results => {
-      const map: Record<string, DailyAnalytics[]> = {};
-      results.forEach(r => { map[r.deviceId] = r.records; });
-      setHistoryMap(map);
-      setHistLoading(false);
-    });
+    
+    // Use Supabase for multi-device analytics (optimized query)
+    getMultiDeviceAnalyticsFromSupabase(devices.map(d => d.deviceId), days)
+      .then(allRecords => {
+        // Group by device ID
+        const map: Record<string, DailyAnalytics[]> = {};
+        allRecords.forEach(record => {
+          if (!map[record.deviceId]) {
+            map[record.deviceId] = [];
+          }
+          map[record.deviceId].push(record);
+        });
+        setHistoryMap(map);
+        setHistLoading(false);
+      })
+      .catch(err => {
+        console.error('[Analytics] Failed to load historical data:', err);
+        setHistLoading(false);
+      });
   }, [tab, devices]);
 
   // Activity logs — realtime
@@ -186,10 +242,43 @@ export default function Analytics() {
   // ── Live runtime for a single channel ────────────────────────────────────
   // Adds the live delta (device currently ON) to the stored accumulated value.
   // This is the same logic DeviceDetails uses for its live clock.
+  // CRITICAL FIX: Validate stored values and cap total at 24h per channel per day
   const liveRuntime = (deviceId: string, key: string, stored: number): number => {
+    // Validate stored value (reject corrupt/impossible data)
+    if (!isFinite(stored) || stored < 0) {
+      console.warn(`[Analytics] Invalid stored runtime for ${deviceId}/${key}: ${stored}`);
+      stored = 0;
+    }
+    
+    // IMPORTANT: RTDB analytics/ stores HOURS (not seconds) - see analyticsService.ts line 8
+    // The stored value is already in hours, no conversion needed
+    const storedHours = stored;
+    
+    const MAX_DAILY_HOURS = 24;
+    // If stored value already exceeds 24h, cap it (corruption from old code)
+    if (storedHours > MAX_DAILY_HOURS) {
+      console.warn(`[Analytics] Stored runtime exceeds 24h for ${deviceId}/${key}: ${storedHours.toFixed(2)}h, capping to 24h`);
+      return MAX_DAILY_HOURS;
+    }
+    
     const onAtMs = onAtMap[deviceId]?.[key] || 0;
-    const liveHours = onAtMs > 0 ? (now - onAtMs) / 3_600_000 : 0;
-    return stored + liveHours;
+    if (onAtMs <= 0) {
+      // Device is OFF — return stored value only (in hours)
+      return storedHours;
+    }
+    
+    // Device is ON — calculate live delta and validate
+    const liveHours = (now - onAtMs) / 3_600_000;
+    
+    // Validate live calculation
+    if (!isFinite(liveHours) || liveHours < 0) {
+      console.warn(`[Analytics] Invalid live delta for ${deviceId}/${key}: ${liveHours}h`);
+      return storedHours;
+    }
+    
+    // Cap total at 24h (physical impossibility check)
+    const total = storedHours + liveHours;
+    return Math.min(total, MAX_DAILY_HOURS);
   };
 
   // ── Compute totals for current tab ────────────────────────────────────────
@@ -214,12 +303,35 @@ export default function Analytics() {
   };
 
   const totals = computeTotals();
-  const totalRuntime = totals.light2Runtime + totals.light3Runtime +
-                       totals.fan1Runtime + totals.customRuntime;
+  
+  // APPROXIMATION: True device uptime is not currently tracked (health.uptime resets
+  // only on reboot, not daily — see investigation dated 2026-09-11). Using max() across
+  // channels as a best-effort proxy for "device was active at least this long today,"
+  // instead of naively summing parallel channels (which double-counts simultaneous
+  // runtime and incorrectly triggers the 24h clamp). Replace with real device-level
+  // daily uptime tracking when available (see project backlog).
+  const totalRuntime = Math.max(
+    totals.light2Runtime,
+    totals.light3Runtime,
+    totals.fan1Runtime,
+    totals.customRuntime,
+    0
+  );
   const maxRuntime = Math.max(
     totals.light2Runtime, totals.light3Runtime,
     totals.fan1Runtime, totals.customRuntime, 0.001
   );
+
+  // Get aggregated metadata (from first device with metadata, or defaults)
+  const firstDeviceWithMetadata = devices.find(d => outputMetadataMap[d.deviceId]);
+  const aggregatedMetadata = firstDeviceWithMetadata 
+    ? outputMetadataMap[firstDeviceWithMetadata.deviceId]
+    : {
+        light2: { name: 'Light 2', icon: 'lightbulb', color: '#fbbf24', visible: true },
+        light3: { name: 'Light 3', icon: 'lightbulb', color: '#f59e0b', visible: true },
+        fan1: { name: 'Fan 1', icon: 'wind', color: '#60a5fa', visible: true },
+        custom1: { name: 'Custom', icon: 'zap', color: '#a78bfa', visible: true },
+      };
 
   const today = todayStr();
   const tabLabel = tab === 'today' ? 'Today' : tab === '7d' ? 'Last 7 Days' : 'Last 30 Days';
@@ -236,7 +348,7 @@ export default function Analytics() {
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
             {tab === 'today'
               ? `Today · ${today} · Live from RTDB`
-              : `${tabLabel} · Historical from Firestore`}
+              : `${tabLabel} · Historical from Supabase`}
           </p>
         </div>
         <div className="flex rounded-xl p-1 gap-1 w-full sm:w-auto" style={{ background: 'var(--bg-secondary)' }}>
@@ -332,13 +444,11 @@ export default function Analytics() {
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Live Current Monitor</h3>
                 <span className="ml-auto text-xs" style={{ color: 'var(--text-tertiary)' }}>Real-time</span>
               </div>
+              <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                ACS712 current sensors on GPIO 34, 35, 32, 39 for real-time load monitoring.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {[
-                  { key: 'light2', label: 'Light 2', color: '#fbbf24' },
-                  { key: 'light3', label: 'Light 3', color: '#f59e0b' },
-                  { key: 'fan1', label: 'Fan 1', color: '#60a5fa' },
-                  { key: 'custom1', label: 'Custom', color: '#a78bfa' },
-                ].map(channel => {
+                {CURRENT_SENSOR_CONFIG.map(channel => {
                   // Aggregate current across all devices for this channel
                   let totalCurrent = 0;
                   let hasMismatch = false;
@@ -418,19 +528,25 @@ export default function Analytics() {
               </div>
               <div className="space-y-4 sm:space-y-3.5">
                 {[
-                  { label: 'Light 2', value: totals.light2Runtime, color: '#fbbf24' },
-                  { label: 'Light 3', value: totals.light3Runtime, color: '#f59e0b'  },
-                  { label: 'Fan 1',   value: totals.fan1Runtime,   color: '#60a5fa'   },
-                  { label: 'Custom',  value: totals.customRuntime, color: '#a78bfa' },
-                ].map(item => (
-                  <div key={item.label} className="flex items-center gap-3">
-                    <span className="text-sm sm:text-xs font-medium w-16 sm:w-14 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
-                    <RuntimeBar value={item.value} max={maxRuntime} color={item.color} />
-                    <span className="text-sm sm:text-xs font-semibold w-20 sm:w-16 text-right flex-shrink-0" style={{ color: 'var(--text-primary)' }}>
-                      {fmtRuntime(item.value)}
-                    </span>
-                  </div>
-                ))}
+                  { key: 'light2', value: totals.light2Runtime, channelKey: 'light2' as keyof DeviceOutputMetadata },
+                  { key: 'light3', value: totals.light3Runtime, channelKey: 'light3' as keyof DeviceOutputMetadata },
+                  { key: 'fan1',   value: totals.fan1Runtime,   channelKey: 'fan1' as keyof DeviceOutputMetadata },
+                  { key: 'custom', value: totals.customRuntime, channelKey: 'custom1' as keyof DeviceOutputMetadata },
+                ].map(item => {
+                  const metadata = aggregatedMetadata[item.channelKey];
+                  const label = metadata?.name || item.key;
+                  const color = metadata?.color || '#7c3aed';
+                  
+                  return (
+                    <div key={item.key} className="flex items-center gap-3">
+                      <span className="text-sm sm:text-xs font-medium w-16 sm:w-14 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                      <RuntimeBar value={item.value} max={maxRuntime} color={color} />
+                      <span className="text-sm sm:text-xs font-semibold w-20 sm:w-16 text-right flex-shrink-0" style={{ color: 'var(--text-primary)' }}>
+                        {fmtRuntime(item.value)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </Card>
 
@@ -446,11 +562,15 @@ export default function Analytics() {
                 <div className="space-y-4 sm:space-y-3">
                   {devices.map(device => {
                     const a = todayRtdb[device.deviceId];
+                    // APPROXIMATION: use max() instead of sum (see totalRuntime comment above)
                     const deviceRuntime = a
-                      ? liveRuntime(device.deviceId, 'light2', a.light2Runtime || 0)
-                        + liveRuntime(device.deviceId, 'light3', a.light3Runtime || 0)
-                        + liveRuntime(device.deviceId, 'fan1',   a.fan1Runtime   || 0)
-                        + liveRuntime(device.deviceId, 'custom1',a.customRuntime || 0)
+                      ? Math.max(
+                          liveRuntime(device.deviceId, 'light2', a.light2Runtime || 0),
+                          liveRuntime(device.deviceId, 'light3', a.light3Runtime || 0),
+                          liveRuntime(device.deviceId, 'fan1',   a.fan1Runtime   || 0),
+                          liveRuntime(device.deviceId, 'custom1',a.customRuntime || 0),
+                          0
+                        )
                       : tab !== 'today'
                         ? aggregateDailyRecords(historyMap[device.deviceId] || []).energyUsage
                         : 0;

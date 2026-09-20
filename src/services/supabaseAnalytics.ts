@@ -85,6 +85,8 @@ export async function startRuntimeSession(
   channel: string
 ): Promise<number | null> {
   try {
+    console.log(`[SUPABASE] startRuntimeSession: deviceId=${deviceId}, channel=${channel}`);
+    
     const key = sessionKey(deviceId, channel);
     
     // Check if session already exists (prevent duplicates)
@@ -103,7 +105,7 @@ export async function startRuntimeSession(
       energy_wh: null,
     };
 
-    console.log(`[SUPABASE] Starting session for ${deviceId}/${channel}`);
+    console.log(`[SUPABASE] Inserting session:`, session);
     
     const { data, error } = await supabase
       .from('runtime_sessions')
@@ -120,6 +122,8 @@ export async function startRuntimeSession(
     if (sessionId) {
       activeSessions.set(key, sessionId);
       console.log(`[SUPABASE] Session started: ID ${sessionId}`);
+    } else {
+      console.warn(`[SUPABASE] Session insert succeeded but no ID returned`);
     }
     
     return sessionId;
@@ -144,6 +148,8 @@ export async function closeRuntimeSession(
   energyWh: number
 ): Promise<void> {
   try {
+    console.log(`[SUPABASE] closeRuntimeSession: deviceId=${deviceId}, channel=${channel}, runtime=${runtimeSeconds}s, energy=${energyWh}Wh`);
+    
     const key = sessionKey(deviceId, channel);
     const sessionId = activeSessions.get(key);
     
@@ -154,7 +160,7 @@ export async function closeRuntimeSession(
     
     const cappedRuntime = Math.min(Math.round(runtimeSeconds), 86400); // 24h max
     
-    console.log(`[SUPABASE] Closing session ${sessionId}: ${cappedRuntime}s, ${energyWh.toFixed(2)}Wh`);
+    console.log(`[SUPABASE] Updating session ${sessionId}: runtime=${cappedRuntime}s, energy=${energyWh}Wh`);
     
     const { error } = await supabase
       .from('runtime_sessions')
@@ -197,6 +203,8 @@ export async function upsertDailyRuntime(
   energyWh: number
 ): Promise<void> {
   try {
+    console.log(`[SUPABASE] upsertDailyRuntime: deviceId=${deviceId}, channel=${channel}, date=${localDate}, runtime=${runtimeSeconds}s, energy=${energyWh}Wh`);
+    
     const cappedRuntime = Math.min(Math.round(runtimeSeconds), 86400); // 24h max
     
     const record: DailyRuntime = {
@@ -209,7 +217,7 @@ export async function upsertDailyRuntime(
       calc_version: 1,
     };
 
-    console.log(`[SUPABASE] Upserting daily_runtime: ${deviceId}/${channel}/${localDate} = ${cappedRuntime}s, ${energyWh.toFixed(2)}Wh`);
+    console.log(`[SUPABASE] Upserting daily_runtime:`, record);
     
     const { error } = await supabase
       .from('daily_runtime')

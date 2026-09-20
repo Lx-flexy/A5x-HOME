@@ -181,6 +181,18 @@ service cloud.firestore {
         && resource.data.ownerId == request.auth.uid;
     }
 
+    // ── user_notifications/{uid} ──────────────────────────────────────────────
+    // User notification state (read/deleted tracking)
+    match /user_notifications/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── notification_pause/{uid} ──────────────────────────────────────────────
+    // Temporary notification pause (snooze)
+    match /notification_pause/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
     // ── Deny everything else ──────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

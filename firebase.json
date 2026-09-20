@@ -2,7 +2,7 @@
   "functions": [
     {
       "source": "functions",
-      "codebase": "default",
+      "codebase": "a5x-home",
       "disallowLegacyRuntimeConfig": true,
       "ignore": [
         "node_modules",
