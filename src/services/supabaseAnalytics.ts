@@ -34,6 +34,10 @@ function sessionKey(deviceId: string, channel: string): string {
 
 /**
  * runtime_sessions table
+ * 
+ * Lifecycle:
+ * - ON event: INSERT with runtime_seconds=0, energy_wh=0, ended_at=null
+ * - OFF event: UPDATE with calculated runtime_seconds, energy_wh, ended_at
  */
 export interface RuntimeSession {
   id?: number;
@@ -41,8 +45,8 @@ export interface RuntimeSession {
   output_key: string; // 'light2' | 'light3' | 'fan1' | 'custom1'
   started_at: string; // ISO timestamp
   ended_at?: string | null;
-  runtime_seconds?: number | null;
-  energy_wh?: number | null;
+  runtime_seconds?: number | null;  // 0 on INSERT, calculated on UPDATE
+  energy_wh?: number | null;        // 0 on INSERT, calculated on UPDATE
   created_at?: string;
 }
 
@@ -105,8 +109,8 @@ export async function startRuntimeSession(
       output_key: channel,
       started_at: new Date().toISOString(),
       ended_at: null,
-      runtime_seconds: null,
-      energy_wh: null,
+      runtime_seconds: 0,  // REQUIRED: Initialize to 0, will be calculated on OFF
+      energy_wh: 0,        // REQUIRED: Initialize to 0, will be calculated on OFF
     };
 
     console.log(`[SUPABASE] Inserting session:`, session);
@@ -119,8 +123,6 @@ export async function startRuntimeSession(
 
     if (error) {
       console.error(`[SUPABASE] Session start FAILED:`, {
-        status: error.status,
-        statusText: error.status === 401 ? 'Unauthorized' : 'Error',
         code: error.code,
         message: error.message,
         details: error.details,
@@ -128,25 +130,22 @@ export async function startRuntimeSession(
         fullError: error,
       });
       
-      // Specific diagnosis for 401 errors
-      if (error.status === 401) {
-        console.error('[SUPABASE] 401 Unauthorized - Possible causes:');
-        
-        if (error.code === 'PGRST301') {
-          console.error('  - PGRST301: JWT token is invalid or could not be decoded');
-          console.error('  - Check: Is the Authorization header being set incorrectly?');
-          console.error('  - Check: Is Firebase Auth trying to override Supabase auth?');
-        } else {
-          console.error('  - API key may be invalid or expired');
-          console.error('  - Check: VITE_SUPABASE_PUBLISHABLE_KEY in Vercel environment variables');
-          console.error('  - Check: Project URL matches the API key');
-        }
-        
-        console.error('[SUPABASE] Debug: Check Network tab for /rest/v1/runtime_sessions:');
-        console.error('  - Verify "apikey" header is present');
-        console.error('  - Verify "Authorization" header is NOT overriding the API key');
-        console.error('  - Verify request URL uses correct Supabase project URL');
+      // Specific diagnosis for common error codes
+      if (error.code === 'PGRST301') {
+        console.error('[SUPABASE] PGRST301: JWT token is invalid or could not be decoded');
+        console.error('  - Check: Is the Authorization header being set incorrectly?');
+        console.error('  - Check: Is Firebase Auth trying to override Supabase auth?');
+      } else if (error.code === '23502') {
+        console.error('[SUPABASE] 23502: NOT NULL constraint violation');
+        console.error('  - Check: Are all required fields being sent in INSERT?');
+      } else if (error.code === '42501' || error.message?.includes('policy')) {
+        console.error('[SUPABASE] RLS POLICY ERROR: Check if runtime_sessions allows INSERT for anon role');
       }
+      
+      console.error('[SUPABASE] Debug: Check Network tab for /rest/v1/runtime_sessions:');
+      console.error('  - Verify "apikey" header is present');
+      console.error('  - Verify "Authorization" header is NOT overriding the API key');
+      console.error('  - Verify request URL uses correct Supabase project URL');
       
       return null;
     }
@@ -169,7 +168,9 @@ export async function startRuntimeSession(
 
 /**
  * Close a runtime session (OFF event).
- * Calculates runtime from session start timestamp if runtimeSeconds is 0.
+ * - Calculates runtime from session start timestamp if runtimeSeconds is 0
+ * - Updates runtime_sessions table with final values
+ * - Updates daily_runtime table with accumulated totals
  * 
  * @param deviceId Device ID
  * @param channel Channel name
@@ -229,8 +230,6 @@ export async function closeRuntimeSession(
 
     if (error) {
       console.error(`[SUPABASE] Session close FAILED:`, {
-        status: error.status,
-        statusText: error.status === 401 ? 'Unauthorized' : 'Error',
         code: error.code,
         message: error.message,
         details: error.details,
@@ -239,8 +238,8 @@ export async function closeRuntimeSession(
         fullError: error,
       });
       
-      // Specific diagnosis for 401 errors
-      if (error.status === 401 && error.code === 'PGRST301') {
+      // Specific diagnosis for common error codes
+      if (error.code === 'PGRST301') {
         console.error('[SUPABASE] PGRST301: JWT token is invalid or could not be decoded');
         console.error('[SUPABASE] Check: Is Authorization header being set incorrectly?');
       }
@@ -250,6 +249,15 @@ export async function closeRuntimeSession(
     
     activeSessions.delete(key);
     console.log(`[SUPABASE] Session closed successfully: ID ${sessionId}`);
+    
+    // Update daily_runtime with the session data
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      await upsertDailyRuntime(deviceId, channel, today, cappedRuntime, energyWh);
+      console.log(`[SUPABASE] Daily runtime updated for ${deviceId}/${channel}/${today}`);
+    } catch (dailyErr) {
+      console.error('[SUPABASE] Failed to update daily_runtime (non-fatal):', dailyErr);
+    }
   } catch (err) {
     console.error('[SUPABASE] closeRuntimeSession exception:', err);
   }
@@ -299,8 +307,6 @@ export async function upsertDailyRuntime(
 
     if (error) {
       console.error(`[SUPABASE] Daily runtime upsert FAILED:`, {
-        status: error.status,
-        statusText: error.status === 401 ? 'Unauthorized' : 'Error',
         code: error.code,
         message: error.message,
         details: error.details,
@@ -308,8 +314,8 @@ export async function upsertDailyRuntime(
         fullError: error,
       });
       
-      // Specific diagnosis for 401 errors
-      if (error.status === 401 && error.code === 'PGRST301') {
+      // Specific diagnosis for common error codes
+      if (error.code === 'PGRST301') {
         console.error('[SUPABASE] PGRST301: JWT token is invalid or could not be decoded');
         console.error('[SUPABASE] Check: Is Authorization header being set incorrectly?');
       }

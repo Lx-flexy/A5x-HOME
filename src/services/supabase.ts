@@ -71,28 +71,31 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
 console.log('[Supabase] Client initialized. Testing connectivity...');
 
 // Test a simple query to verify auth works
-supabase.from('runtime_sessions').select('id').limit(1).then(({ data, error }) => {
-  if (error) {
-    console.error('[Supabase] Initial connectivity test FAILED:', {
-      status: error.status,
-      code: error.code,
-      message: error.message,
-    });
+(async () => {
+  try {
+    const { error } = await supabase.from('runtime_sessions').select('id').limit(1);
     
-    if (error.status === 401) {
-      console.error('[Supabase] 401 UNAUTHORIZED detected at initialization!');
-      console.error('[Supabase] This means the API key is invalid or the table does not allow anon access');
-      console.error('[Supabase] Check:');
-      console.error('  1. Is VITE_SUPABASE_PUBLISHABLE_KEY correct in Vercel?');
-      console.error('  2. Does runtime_sessions table have RLS policies for anon role?');
-      console.error('  3. Is the Supabase project URL correct?');
+    if (error) {
+      console.error('[Supabase] Initial connectivity test FAILED:', {
+        code: error.code,
+        message: error.message,
+      });
+      
+      if (error.code === '42501' || error.message?.includes('policy')) {
+        console.error('[SUPABASE] RLS POLICY ERROR: Check if runtime_sessions allows anon access');
+      }
+      
+      console.log('[Supabase] Check:');
+      console.log('  1. Is VITE_SUPABASE_PUBLISHABLE_KEY correct in Vercel?');
+      console.log('  2. Does runtime_sessions table have RLS policies for anon role?');
+      console.log('  3. Is the Supabase project URL correct?');
+    } else {
+      console.log('[Supabase] Initial connectivity test OK');
     }
-  } else {
-    console.log('[Supabase] Initial connectivity test OK');
+  } catch (err) {
+    console.error('[Supabase] Initial connectivity test exception:', err);
   }
-}).catch(err => {
-  console.error('[Supabase] Initial connectivity test exception:', err);
-});
+})();
 
 // ── Helper: Check Supabase connectivity ───────────────────────────────────────
 export async function checkSupabaseConnection(): Promise<boolean> {
@@ -133,7 +136,6 @@ export async function diagnoseSupabaseRLS(): Promise<void> {
       console.error(`[Supabase] ${table} SELECT failed:`, {
         code: selectError.code,
         message: selectError.message,
-        status: selectError.status,
       });
     } else {
       console.log(`[Supabase] ${table} SELECT OK (rows: ${selectData?.length || 0})`);
