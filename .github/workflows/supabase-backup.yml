@@ -15,10 +15,10 @@ jobs:
 
       - name: Dump critical tables
         env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           mkdir -p backup
-          pg_dump "$DB_URL" \
+          pg_dump "postgresql://postgres:${DB_PASSWORD}@db.mzmskujwpqmokbrdbwbh.supabase.co:5432/postgres" \
             --data-only \
             -t public.devices -t public.device_channels -t public.device_members \
             -t public.device_events \
