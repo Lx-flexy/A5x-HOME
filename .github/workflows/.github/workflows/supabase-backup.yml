@@ -1,32 +1,18 @@
-name: Supabase Weekly Backup
-on:
-  schedule:
-    - cron: '0 3 * * 0'   # har Sunday, 03:00 UTC
-  workflow_dispatch: {}
+- name: Dump critical tables
+  env:
+    PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    PGHOST: aws-0-ap-northeast-2.pooler.supabase.com
+    PGPORT: 5432
+    PGUSER: postgres.mzmskujwpqmokbrdbwbh
+    PGDATABASE: postgres
+    PGSSLMODE: require
+  run: |
+    mkdir -p backup
 
-jobs:
-  backup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install Supabase CLI
-        run: |
-          curl -sL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz | tar xz
-          sudo mv supabase /usr/local/bin/
-
-      - name: Dump critical tables
-        env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          mkdir -p backup
-          pg_dump "$DB_URL" \
-            --data-only \
-            -t public.devices -t public.device_channels -t public.device_members \
-            -t public.device_events \
-            -f backup/a5x-home-backup-$(date +%F).sql
-
-      - name: Upload as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: supabase-backup-${{ github.run_id }}
-          path: backup/*.sql
-          retention-days: 90
+    pg_dump \
+      --data-only \
+      -t public.devices \
+      -t public.device_channels \
+      -t public.device_members \
+      -t public.device_events \
+      -f backup/a5x-home-backup-$(date +%F).sql
