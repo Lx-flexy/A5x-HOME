@@ -18,7 +18,8 @@ jobs:
           DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           mkdir -p backup
-          pg_dump "postgresql://postgres.mzmskujwpqmokbrdbwbh:${DB_PASSWORD}@<pooler-host-yaha-daalo>:5432/postgres" \
+          pg_dump "postgresql://postgres.mzmskujwpqmokbrdbwbh:${DB_PASSWORD}@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres" \
+            --data-only \
             -t public.devices -t public.device_channels -t public.device_members \
             -t public.device_events \
             -f backup/a5x-home-backup-$(date +%F).sql
