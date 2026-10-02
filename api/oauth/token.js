@@ -5,7 +5,7 @@
  * Supports both authorization code exchange and refresh token flows.
  */
 
-import { validateAuthCode, generateTokens, refreshAccessToken, validateOAuthClient } from '../lib/oauth.js';
+import { validateAuthCode, generateTokens, refreshAccessToken, validateClientCredentials } from '../lib/oauth.js';
 
 /**
  * Parse request body from stream (supports both application/x-www-form-urlencoded and application/json)
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
       });
     }
     
-    const { 
+    let { 
       grant_type, 
       client_id, 
       client_secret,
@@ -102,13 +102,27 @@ export default async function handler(req, res) {
       refresh_token 
     } = req.body;
 
+    // Extract credentials from HTTP Basic Auth header if not in body (RFC 6749 Section 2.3.1)
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Basic ')) {
+      const base64Credentials = authHeader.slice(6);
+      const credentials = Buffer.from(base64Credentials, 'base64').toString('utf8');
+      const [headerClientId, headerClientSecret] = credentials.split(':', 2);
+      
+      // Prefer header credentials over body
+      if (headerClientId && !client_id) client_id = headerClientId;
+      if (headerClientSecret && !client_secret) client_secret = headerClientSecret;
+      
+      console.log('[OAuth Token] Credentials extracted from Basic Auth header');
+    }
+
     console.log('[OAuth Token] POST received:', {
       grant_type,
-      client_id,
-      code: code ? code.substring(0, 8) + '...' : undefined,
-      redirect_uri,
-      refresh_token: refresh_token ? refresh_token.substring(0, 8) + '...' : undefined,
-      has_client_secret: !!client_secret
+      has_client_id: !!client_id,
+      has_client_secret: !!client_secret,
+      has_code: !!code,
+      has_redirect_uri: !!redirect_uri,
+      has_refresh_token: !!refresh_token
     });
 
     // Validate required parameters
@@ -120,10 +134,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // Validate client credentials
+    // Validate client credentials (client_secret is REQUIRED)
     try {
       console.log('[OAuth Token] Validating client credentials');
-      validateOAuthClient(client_id, client_secret);
+      validateClientCredentials(client_id, client_secret);
       console.log('[OAuth Token] Client validation passed');
     } catch (error) {
       console.error('[OAuth Token] Client validation failed:', error.message);
@@ -153,6 +167,8 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('[OAuth Token] Error:', error);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
     res.status(500).json({
       error: 'server_error',
       error_description: 'Internal server error'
@@ -191,13 +207,9 @@ async function handleAuthorizationCodeGrant(req, res, params) {
     const tokens = await generateTokens(codeData.uid, codeData.scope);
 
     console.log('[OAuth Token] Authorization code exchanged successfully for user UID:', codeData.uid);
-    console.log('[OAuth Token] Token response:', {
-      access_token: tokens.access_token.substring(0, 8) + '...',
-      refresh_token: tokens.refresh_token.substring(0, 8) + '...',
-      token_type: tokens.token_type,
-      expires_in: tokens.expires_in
-    });
 
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
     res.status(200).json(tokens);
 
   } catch (error) {
@@ -236,6 +248,8 @@ async function handleRefreshTokenGrant(req, res, params) {
 
     console.log('[OAuth Token] Access token refreshed successfully');
 
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
     res.status(200).json(newTokens);
 
   } catch (error) {

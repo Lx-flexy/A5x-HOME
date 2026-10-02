@@ -11,7 +11,7 @@
  * 4. Redirect back to Google with code and state
  */
 
-import { generateAuthCode, validateOAuthClient, validateRedirectUri } from '../lib/oauth.js';
+import { generateAuthCode, validateClientId, validateRedirectUri } from '../lib/oauth.js';
 import { verifyAuthToken, getUserByUid } from '../lib/firebaseAdmin.js';
 
 /**
@@ -95,7 +95,6 @@ async function handleAuthorizationRequest(req, res) {
   } = req.query;
 
   console.log('[OAuth Authorize] GET received');
-  console.log('[OAuth Authorize] client_id_length:', client_id ? client_id.length : 0);
   console.log('[OAuth Authorize] redirect_uri:', redirect_uri || 'missing');
   console.log('[OAuth Authorize] response_type:', response_type || 'missing');
   console.log('[OAuth Authorize] state_present:', !!state);
@@ -126,11 +125,38 @@ async function handleAuthorizationRequest(req, res) {
     });
   }
 
+  // Validate state parameter (RFC 6749 allows a-z A-Z 0-9 . _ ~ + / = -)
+  if (state) {
+    if (state.length > 512) {
+      console.error('[OAuth Authorize] State parameter too long');
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'State parameter exceeds maximum length'
+      });
+    }
+    if (!/^[A-Za-z0-9._~+/=-]+$/.test(state)) {
+      console.error('[OAuth Authorize] State parameter contains invalid characters');
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'State parameter contains invalid characters'
+      });
+    }
+  }
+
+  // Validate scope parameter (allowlist)
+  const allowedScopes = ['openid', 'profile', 'email'];
+  if (scope && !allowedScopes.includes(scope)) {
+    console.error('[OAuth Authorize] Invalid scope:', scope);
+    return res.status(400).json({
+      error: 'invalid_scope',
+      error_description: 'Requested scope is not supported'
+    });
+  }
+
   try {
     // Validate client credentials
     console.log('[OAuth Authorize] Validating client_id');
-    console.log('[OAuth Authorize] GOOGLE_OAUTH_CLIENT_ID env var:', process.env.GOOGLE_OAUTH_CLIENT_ID ? 'SET' : 'NOT SET');
-    validateOAuthClient(client_id);
+    validateClientId(client_id);
     console.log('[OAuth Authorize] ✓ Client validation passed');
     
     // Validate redirect URI
@@ -154,6 +180,7 @@ async function handleAuthorizationRequest(req, res) {
     });
 
     res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'no-store');
     res.status(200).send(loginPageHtml);
     console.log('[OAuth Authorize] ✓ Login page sent successfully');
 
@@ -217,7 +244,7 @@ async function handleAuthorizationGrant(req, res) {
   try {
     // Validate client and redirect URI
     console.log('[OAuth Authorize] Validating client_id');
-    validateOAuthClient(client_id);
+    validateClientId(client_id);
     console.log('[OAuth Authorize] ✓ Client validated');
     
     console.log('[OAuth Authorize] Validating redirect_uri');
@@ -260,6 +287,32 @@ async function handleAuthorizationGrant(req, res) {
 }
 
 /**
+ * Safely serialize JSON for embedding in HTML script context
+ * Prevents XSS by escaping dangerous characters
+ */
+function safeJsonStringify(obj) {
+  const json = JSON.stringify(obj);
+  return json
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+/**
+ * HTML-escape a string for safe use in HTML attributes/text
+ */
+function htmlEscape(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+/**
  * Generate HTML login page for OAuth authorization
  * Uses environment variables for Firebase configuration (client-safe public config)
  */
@@ -276,6 +329,14 @@ function generateLoginPage(context) {
     messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
     appId: process.env.FIREBASE_APP_ID || ''
   };
+  
+  // Safely serialize OAuth context as JSON for script consumption
+  const oauthContext = safeJsonStringify({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    state: state,
+    scope: scope
+  });
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -364,6 +425,9 @@ function generateLoginPage(context) {
         // Firebase configuration (public client config from environment)
         const firebaseConfig = ${JSON.stringify(firebaseConfig, null, 2)};
         
+        // OAuth context (safely serialized)
+        const oauthContext = ${oauthContext};
+        
         // Validate Firebase config
         if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
             document.getElementById('error-message').textContent = 'Firebase configuration missing. Please contact administrator.';
@@ -408,10 +472,10 @@ function generateLoginPage(context) {
                     
                     // Submit authorization request to server
                     const params = {
-                        client_id: '${clientId}',
-                        redirect_uri: '${redirectUri}',
-                        state: '${state}',
-                        scope: '${scope}',
+                        client_id: oauthContext.client_id,
+                        redirect_uri: oauthContext.redirect_uri,
+                        state: oauthContext.state,
+                        scope: oauthContext.scope,
                         id_token: idToken
                     };
                     
