@@ -99,10 +99,11 @@ export function getAdminDatabase() {
 
 /**
  * Verify Firebase Auth ID token and return user UID
+ * Checks token signature, expiry, and revocation status
  */
 export async function verifyAuthToken(idToken) {
   try {
-    const decodedToken = await getAdminAuth().verifyIdToken(idToken);
+    const decodedToken = await getAdminAuth().verifyIdToken(idToken, true);
     return decodedToken.uid;
   } catch (error) {
     console.error('[Firebase Admin] Token verification failed:', error);

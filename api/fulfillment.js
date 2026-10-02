@@ -9,6 +9,7 @@
  */
 
 import { validateAccessToken } from './lib/oauth.js';
+import { deleteAllTokensForUser } from './lib/tokenStore.js';
 import { 
   getUserDevices, 
   getDeviceState, 
@@ -326,22 +327,24 @@ async function handleExecute(uid, payload) {
 
 /**
  * DISCONNECT Intent - Handle account unlinking
+ * Revokes all OAuth tokens for the user
  * @param {string} uid - Firebase Auth UID
  */
 async function handleDisconnect(uid) {
   try {
-    // In production, you might want to:
-    // 1. Revoke all tokens for this user
-    // 2. Log the disconnection event
-    // 3. Clean up any user-specific data
+    console.log(`[Disconnect] User UID ${uid} disconnecting Google Home`);
     
-    console.log(`[Disconnect] User UID ${uid} disconnected Google Home`);
+    // Delete all access and refresh tokens for this user
+    await deleteAllTokensForUser(uid);
+    
+    console.log(`[Disconnect] All tokens revoked for user UID: ${uid}`);
     
     return {}; // Empty response for successful disconnection
     
   } catch (error) {
-    console.error('[Disconnect] Error:', error);
-    throw new Error('Failed to disconnect');
+    console.error(`[Disconnect] Error revoking tokens for user UID ${uid}:`, error);
+    // Return empty response even on error (Google expects a response)
+    return {};
   }
 }
 

@@ -1,6 +1,9 @@
 /**
  * Persistent token storage using Firebase Firestore
  * Replaces in-memory Map() to work correctly on Vercel serverless
+ * 
+ * SECURITY: All tokens and auth codes are hashed (SHA-256) before storage.
+ * The raw token is never stored in the database.
  */
 
 import { getAdminFirestore } from './firebaseAdmin.js';
@@ -16,6 +19,15 @@ const AUTH_CODES_COLLECTION = 'oauth_auth_codes';
 const TOKENS_COLLECTION = 'oauth_tokens';
 
 /**
+ * Hash a token using SHA-256 to use as Firestore document ID
+ * @param {string} token - Raw token string
+ * @returns {string} Hex-encoded hash (64 characters)
+ */
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
  * Generate cryptographically secure random string
  */
 export function generateSecureToken(length = 32) {
@@ -24,27 +36,31 @@ export function generateSecureToken(length = 32) {
 
 /**
  * Store authorization code in Firestore
+ * Code is hashed before storage for security
  */
 export async function storeAuthCode(code, data) {
   const db = getAdminFirestore();
   const expiresAt = Date.now() + AUTH_CODE_EXPIRY_MS;
+  const codeHash = hashToken(code);
   
-  await db.collection(AUTH_CODES_COLLECTION).doc(code).set({
+  await db.collection(AUTH_CODES_COLLECTION).doc(codeHash).set({
     ...data,
     expiresAt,
     used: false,
     createdAt: Date.now()
   });
   
-  console.log('[TokenStore] Authorization code stored:', code.substring(0, 8) + '...');
+  console.log('[TokenStore] Authorization code stored (hash):', codeHash.substring(0, 12) + '...');
 }
 
 /**
  * Retrieve and consume authorization code from Firestore
+ * Code is hashed to look up the document
  */
 export async function consumeAuthCode(code) {
   const db = getAdminFirestore();
-  const docRef = db.collection(AUTH_CODES_COLLECTION).doc(code);
+  const codeHash = hashToken(code);
+  const docRef = db.collection(AUTH_CODES_COLLECTION).doc(codeHash);
   
   const doc = await docRef.get();
   
@@ -69,7 +85,7 @@ export async function consumeAuthCode(code) {
   // Mark as used and delete immediately
   await docRef.delete();
   
-  console.log('[TokenStore] Authorization code consumed:', code.substring(0, 8) + '...');
+  console.log('[TokenStore] Authorization code consumed (hash):', codeHash.substring(0, 12) + '...');
   
   return {
     uid: data.uid,
@@ -81,28 +97,32 @@ export async function consumeAuthCode(code) {
 
 /**
  * Store access or refresh token in Firestore
+ * Token is hashed before storage for security
  */
 export async function storeToken(token, data) {
   const db = getAdminFirestore();
   
   const expiryMs = data.type === 'access_token' ? ACCESS_TOKEN_EXPIRY_MS : REFRESH_TOKEN_EXPIRY_MS;
   const expiresAt = Date.now() + expiryMs;
+  const tokenHash = hashToken(token);
   
-  await db.collection(TOKENS_COLLECTION).doc(token).set({
+  await db.collection(TOKENS_COLLECTION).doc(tokenHash).set({
     ...data,
     expiresAt,
     createdAt: Date.now()
   });
   
-  console.log('[TokenStore] Token stored:', data.type, token.substring(0, 8) + '...');
+  console.log('[TokenStore] Token stored:', data.type, '(hash):', tokenHash.substring(0, 12) + '...');
 }
 
 /**
  * Retrieve token from Firestore
+ * Token is hashed to look up the document
  */
 export async function getToken(token) {
   const db = getAdminFirestore();
-  const docRef = db.collection(TOKENS_COLLECTION).doc(token);
+  const tokenHash = hashToken(token);
+  const docRef = db.collection(TOKENS_COLLECTION).doc(tokenHash);
   
   const doc = await docRef.get();
   
@@ -123,11 +143,54 @@ export async function getToken(token) {
 
 /**
  * Delete token from Firestore
+ * Token is hashed to look up the document
  */
 export async function deleteToken(token) {
   const db = getAdminFirestore();
-  await db.collection(TOKENS_COLLECTION).doc(token).delete();
-  console.log('[TokenStore] Token deleted:', token.substring(0, 8) + '...');
+  const tokenHash = hashToken(token);
+  await db.collection(TOKENS_COLLECTION).doc(tokenHash).delete();
+  console.log('[TokenStore] Token deleted (hash):', tokenHash.substring(0, 12) + '...');
+}
+
+/**
+ * Delete all tokens for a specific user (used for DISCONNECT)
+ * @param {string} uid - Firebase Auth UID
+ */
+export async function deleteAllTokensForUser(uid) {
+  const db = getAdminFirestore();
+  const tokensQuery = db.collection(TOKENS_COLLECTION).where('uid', '==', uid);
+  
+  const snapshot = await tokensQuery.get();
+  
+  if (snapshot.empty) {
+    console.log('[TokenStore] No tokens found for user:', uid);
+    return;
+  }
+  
+  // Batch delete in chunks of 400 (Firestore batch limit is 500)
+  const chunks = [];
+  let currentChunk = [];
+  
+  snapshot.docs.forEach(doc => {
+    currentChunk.push(doc.ref);
+    if (currentChunk.length === 400) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+    }
+  });
+  
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk);
+  }
+  
+  // Execute batch deletes
+  for (const chunk of chunks) {
+    const batch = db.batch();
+    chunk.forEach(ref => batch.delete(ref));
+    await batch.commit();
+  }
+  
+  console.log(`[TokenStore] Deleted ${snapshot.size} tokens for user: ${uid}`);
 }
 
 /**

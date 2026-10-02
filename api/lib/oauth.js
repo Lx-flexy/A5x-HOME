@@ -73,6 +73,28 @@ export async function validateAuthCode(code, clientId, redirectUri) {
 }
 
 /**
+ * Generate access token only (for refresh token flow)
+ * @param {string} uid - Firebase Auth UID
+ */
+export async function generateAccessToken(uid, scope = 'openid') {
+  const accessToken = generateSecureToken(32);
+  
+  // Store access token
+  await storeToken(accessToken, {
+    uid,
+    scope,
+    type: 'access_token'
+  });
+  
+  return {
+    access_token: accessToken,
+    token_type: 'Bearer',
+    expires_in: Math.floor(ACCESS_TOKEN_EXPIRY_MS / 1000),
+    scope
+  };
+}
+
+/**
  * Generate access and refresh tokens
  * @param {string} uid - Firebase Auth UID
  */
@@ -129,84 +151,95 @@ export async function refreshAccessToken(refreshToken) {
     throw new Error('Token is not a refresh token');
   }
   
-  // Generate new access token
-  const newTokens = await generateTokens(tokenData.uid, tokenData.scope);
+  // Generate new access token ONLY (no new refresh token)
+  const newAccessToken = await generateAccessToken(tokenData.uid, tokenData.scope);
   
-  return {
-    access_token: newTokens.access_token,
-    token_type: 'Bearer',
-    expires_in: Math.floor(ACCESS_TOKEN_EXPIRY_MS / 1000),
-    scope: tokenData.scope
-  };
+  return newAccessToken;
 }
 
 /**
- * Validate OAuth client credentials
+ * Validate OAuth client ID only (used by authorize endpoint)
  */
-export function validateOAuthClient(clientId, clientSecret = null) {
-  // In production, validate against registered Google Home client credentials
+export function validateClientId(clientId) {
   const validClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const validClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  
-  // Safe diagnostic logging using fingerprints
-  console.log('[OAuth Validation] Environment check:');
-  console.log('[OAuth Validation] GOOGLE_OAUTH_CLIENT_ID is:', validClientId ? 'SET' : 'NOT SET');
-  console.log('[OAuth Validation] GOOGLE_OAUTH_CLIENT_SECRET is:', validClientSecret ? 'SET' : 'NOT SET');
-  
-  console.log('[OAuth Validation] Checking client_id');
-  console.log('[OAuth Validation] Received length:', clientId ? clientId.length : 0);
-  console.log('[OAuth Validation] Expected length:', validClientId ? validClientId.length : 0);
-  console.log('[OAuth Validation] Received fingerprint:', createFingerprint(clientId));
-  console.log('[OAuth Validation] Expected fingerprint:', createFingerprint(validClientId));
   
   if (!validClientId) {
     console.error('[OAuth Validation] ERROR: GOOGLE_OAUTH_CLIENT_ID not set in Vercel environment');
     console.error('[OAuth Validation] This must be configured in Vercel Dashboard → Settings → Environment Variables');
-    console.error('[OAuth Validation] FATAL: Set GOOGLE_OAUTH_CLIENT_ID in Vercel Production env vars — this must exactly match the client_id configured in Google Actions Console account linking settings.');
     throw new Error('OAuth client not configured');
   }
   
-  // Simple client ID comparison with whitespace safety
-  if (clientId.trim() !== validClientId.trim()) {
+  if (!clientId || clientId.trim() !== validClientId.trim()) {
     console.error('[OAuth Validation] ERROR: Client ID mismatch detected');
-    console.error('[OAuth Validation] The client_id from Google does not match GOOGLE_OAUTH_CLIENT_ID');
-    console.error('[OAuth Validation] Received length:', clientId ? clientId.length : 0);
-    console.error('[OAuth Validation] Expected length:', validClientId ? validClientId.length : 0);
-    console.error('[OAuth Validation] Received fingerprint:', createFingerprint(clientId));
-    console.error('[OAuth Validation] Expected fingerprint:', createFingerprint(validClientId));
-    
-    // Check for common issues
-    if (clientId && validClientId) {
-      if (clientId.toLowerCase() === validClientId.toLowerCase()) {
-        console.error('[OAuth Validation] HINT: Values match case-insensitively - check capitalization');
-      }
-    }
-    
     throw new Error('Invalid client ID');
   }
   
   console.log('[OAuth Validation] ✓ Client ID validated successfully');
-  
-  if (clientSecret && clientSecret !== validClientSecret) {
-    console.error('[OAuth Validation] Client secret mismatch');
-    throw new Error('Invalid client secret');
-  }
-  
   return true;
 }
 
 /**
- * Validate redirect URI against allowed list
+ * Validate OAuth client credentials (used by token endpoint)
+ * Requires both client_id and client_secret
+ */
+export function validateClientCredentials(clientId, clientSecret) {
+  const validClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const validClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  
+  if (!validClientId || !validClientSecret) {
+    console.error('[OAuth Validation] ERROR: OAuth credentials not configured');
+    throw new Error('OAuth client not configured');
+  }
+  
+  // Client ID validation
+  if (!clientId || clientId.trim() !== validClientId.trim()) {
+    console.error('[OAuth Validation] ERROR: Client ID invalid');
+    throw new Error('Invalid client credentials');
+  }
+  
+  // Client secret validation - REQUIRED
+  if (!clientSecret) {
+    console.error('[OAuth Validation] ERROR: Client secret missing');
+    throw new Error('Invalid client credentials');
+  }
+  
+  // Timing-safe comparison using SHA-256 to normalize lengths
+  const hashReceived = crypto.createHash('sha256').update(clientSecret).digest();
+  const hashExpected = crypto.createHash('sha256').update(validClientSecret).digest();
+  
+  if (!crypto.timingSafeEqual(hashReceived, hashExpected)) {
+    console.error('[OAuth Validation] ERROR: Client secret mismatch');
+    throw new Error('Invalid client credentials');
+  }
+  
+  console.log('[OAuth Validation] ✓ Client credentials validated successfully');
+  return true;
+}
+
+/**
+ * Validate redirect URI against exact-match allowlist
+ * Pins to the configured Google Home project ID
  */
 export function validateRedirectUri(redirectUri) {
-  // Google Home redirect URIs typically follow this pattern
-  const allowedPatterns = [
-    /^https:\/\/oauth-redirect\.googleusercontent\.com\/r\/.+$/,
-    /^https:\/\/oauth-redirect-sandbox\.googleusercontent\.com\/r\/.+$/,
-    // Add your test redirect URIs for development
-    /^https:\/\/localhost:3000\/oauth\/callback$/,
-    /^http:\/\/localhost:3000\/oauth\/callback$/
+  const projectId = process.env.GOOGLE_HOME_PROJECT_ID;
+  
+  if (!projectId) {
+    console.error('[OAuth Validation] ERROR: GOOGLE_HOME_PROJECT_ID not set');
+    console.error('[OAuth Validation] This must be set to your Google Actions project ID');
+    return false;
+  }
+  
+  // Exact-match allowlist pinned to the configured project
+  const allowedUris = [
+    `https://oauth-redirect.googleusercontent.com/r/${projectId}`,
+    `https://oauth-redirect-sandbox.googleusercontent.com/r/${projectId}`
   ];
   
-  return allowedPatterns.some(pattern => pattern.test(redirectUri));
+  // Allow localhost only in non-production environments
+  if (process.env.VERCEL_ENV !== 'production') {
+    allowedUris.push('https://localhost:3000/oauth/callback');
+    allowedUris.push('http://localhost:3000/oauth/callback');
+  }
+  
+  return allowedUris.includes(redirectUri);
 }
