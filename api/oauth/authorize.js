@@ -127,7 +127,7 @@ async function handleAuthorizationRequest(req, res) {
 
   // Validate state parameter (RFC 6749 allows a-z A-Z 0-9 . _ ~ + / = -)
   if (state) {
-    if (state.length > 512) {
+    if (state.length > 2048) {
       console.error('[OAuth Authorize] State parameter too long');
       return res.status(400).json({
         error: 'invalid_request',
