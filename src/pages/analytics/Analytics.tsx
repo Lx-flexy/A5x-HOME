@@ -248,45 +248,34 @@ export default function Analytics() {
   const { totalCurrent, totalPower } = calculateSystemMetrics();
 
   // ── Live runtime for a single channel ────────────────────────────────────
-  // Adds the live delta (device currently ON) to the stored accumulated value.
-  // This is the same logic DeviceDetails uses for its live clock.
-  // CRITICAL FIX: Validate stored values and cap total at 24h per channel per day
-  const liveRuntime = (deviceId: string, key: string, stored: number): number => {
-    // Validate stored value (reject corrupt/impossible data)
-    if (!isFinite(stored) || stored < 0) {
-      console.warn(`[Analytics] Invalid stored runtime for ${deviceId}/${key}: ${stored}`);
-      stored = 0;
-    }
-    
-    // IMPORTANT: RTDB analytics/ stores HOURS (not seconds) - see analyticsService.ts line 8
-    // The stored value is already in hours, no conversion needed
-    const storedHours = stored;
-    
-    const MAX_DAILY_HOURS = 24;
-    // If stored value already exceeds 24h, cap it (corruption from old code)
-    if (storedHours > MAX_DAILY_HOURS) {
-      console.warn(`[Analytics] Stored runtime exceeds 24h for ${deviceId}/${key}: ${storedHours.toFixed(2)}h, capping to 24h`);
-      return MAX_DAILY_HOURS;
-    }
+  // FOR TODAY TAB: Only shows runtime since device was turned ON (from onAt timestamp)
+  // IGNORES Firebase analytics/ node (that's lifetime total, not today's runtime)
+  // 
+  // Firebase analytics/ stores LIFETIME total runtime in seconds (never resets)
+  // For "Today" view, we only care about current session runtime from onAt/ timestamps
+  const liveRuntime = (deviceId: string, key: string, _stored: number): number => {
+    // IGNORE stored value completely for TODAY tab
+    // Firebase analytics/ contains LIFETIME runtime, not today's runtime
+    // The firmware accumulates runtime in NVS and never resets it daily
     
     const onAtMs = onAtMap[deviceId]?.[key] || 0;
     if (onAtMs <= 0) {
-      // Device is OFF — return stored value only (in hours)
-      return storedHours;
+      // Device is OFF or never turned ON today — return 0
+      return 0;
     }
     
-    // Device is ON — calculate live delta and validate
+    // Device is ON — calculate runtime since it was turned ON
     const liveHours = (now - onAtMs) / 3_600_000;
     
     // Validate live calculation
     if (!isFinite(liveHours) || liveHours < 0) {
       console.warn(`[Analytics] Invalid live delta for ${deviceId}/${key}: ${liveHours}h`);
-      return storedHours;
+      return 0;
     }
     
-    // Cap total at 24h (physical impossibility check)
-    const total = storedHours + liveHours;
-    return Math.min(total, MAX_DAILY_HOURS);
+    // Cap at 24h (physical impossibility check)
+    const MAX_DAILY_HOURS = 24;
+    return Math.min(liveHours, MAX_DAILY_HOURS);
   };
 
   // ── Compute totals for current tab ────────────────────────────────────────
