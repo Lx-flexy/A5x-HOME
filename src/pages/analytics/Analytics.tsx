@@ -60,29 +60,7 @@ function fmtRuntime(h: number): string {
   return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
 }
 
-function fmtCurrent(amps: number): string {
-  // CRITICAL FIX: Validate current sensor readings
-  // Reject invalid values (NaN, Infinity, negative)
-  if (!isFinite(amps) || amps < 0) {
-    console.warn(`[Analytics] Invalid current reading: ${amps}A`);
-    return '0.00 A';
-  }
-  
-  // Clamp near-zero readings to exactly 0 (sensor noise floor)
-  if (amps < 0.01) return '0.00 A';
-  
-  // CRITICAL FIX: Cap unrealistic current readings
-  // ACS712-30A max = 30A, but household circuits typically 10-16A
-  // Values > 15A are likely sensor errors (wrong calibration/RMS calculation)
-  const MAX_REALISTIC_CURRENT = 15;
-  if (amps > MAX_REALISTIC_CURRENT) {
-    console.warn(`[Analytics] Unrealistic current reading: ${amps}A, capping to ${MAX_REALISTIC_CURRENT}A`);
-    amps = MAX_REALISTIC_CURRENT;
-  }
-  
-  // Format to 2 decimal places
-  return `${amps.toFixed(2)} A`;
-}
+// Removed - duplicate of LivePowerCard's fmtCurrent
 
 function timeAgo(timestamp: unknown): string {
   if (!timestamp) return '';
@@ -500,7 +478,6 @@ export default function Analytics() {
                   let channelRuntime = 0;
                   let isChannelOn = false;
                   let hasChannelMismatch = false;
-                  let hasData = false;
 
                   devices.forEach(dev => {
                     const cs = currentSenseMap[dev.deviceId];
@@ -514,7 +491,6 @@ export default function Analytics() {
                       const mismatch = cs[mismatchField] as boolean;
                       
                       if (typeof current === 'number') {
-                        hasData = true;
                         channelCurrent += current;
                       }
                       if (mismatch === true) {

@@ -20,7 +20,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { supabase } from './supabase';
+import { supabase, isSupabaseAvailable } from './supabase';
 
 // ═══ In-Memory Session Tracking ═══════════════════════════════════════════
 // Maps "${deviceId}:${channel}" → session_id
@@ -164,6 +164,12 @@ export async function startRuntimeSession(
   deviceId: string,
   channel: string
 ): Promise<number | null> {
+  // Skip if Supabase not configured
+  if (!supabase) {
+    console.warn('[Analytics] Supabase not configured - session tracking disabled');
+    return null;
+  }
+  
   try {
     console.log(`[SUPABASE] startRuntimeSession: deviceId=${deviceId}, channel=${channel}`);
     
@@ -258,6 +264,11 @@ export async function closeRuntimeSession(
   runtimeSeconds: number,
   energyWh: number
 ): Promise<void> {
+  // Skip if Supabase not configured
+  if (!supabase) {
+    return;
+  }
+  
   try {
     console.log(`[SUPABASE] Closing session for ${deviceId}/${channel}`);
     
