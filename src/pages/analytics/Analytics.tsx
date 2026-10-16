@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Lightbulb, Wind, Zap, Activity, Clock, BarChart3, AlertTriangle } from 'lucide-react';
+import { Lightbulb, Wind, Zap, Activity, Clock, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   subscribeToUserDevices,
@@ -25,6 +25,9 @@ import {
   todayStr,
 } from '../../services/analyticsService';
 import { CURRENT_SENSOR_CONFIG } from '../../config/sensorConfig';
+import { getIconById } from '../../components/ui/IconPicker';
+import SystemLoadGauge from '../../components/analytics/SystemLoadGauge';
+import LivePowerCard from '../../components/analytics/LivePowerCard';
 import Card from '../../components/ui/Card';
 import Loader from '../../components/ui/Loader';
 
@@ -239,6 +242,33 @@ export default function Analytics() {
 
   const isDeviceOnline = (deviceId: string) => calcIsOnline(lastSeenMap[deviceId] || 0);
 
+  // ── Calculate system-wide real-time metrics ───────────────────────────────
+  const calculateSystemMetrics = () => {
+    let totalCurrent = 0;
+    let totalPower = 0;
+    
+    devices.forEach(dev => {
+      const cs = currentSenseMap[dev.deviceId];
+      if (cs && isDeviceOnline(dev.deviceId)) {
+        CURRENT_SENSOR_CONFIG.forEach(channel => {
+          const currentField = `${channel.key}Current` as keyof DeviceCurrentSense;
+          const current = cs[currentField] as number;
+          if (typeof current === 'number' && isFinite(current) && current > 0) {
+            totalCurrent += current;
+            totalPower += current * 230 * 0.9; // V × I × PF
+          }
+        });
+      }
+    });
+    
+    return { 
+      totalCurrent: Math.max(0, totalCurrent), 
+      totalPower: Math.max(0, totalPower) 
+    };
+  };
+
+  const { totalCurrent, totalPower } = calculateSystemMetrics();
+
   // ── Live runtime for a single channel ────────────────────────────────────
   // Adds the live delta (device currently ON) to the stored accumulated value.
   // This is the same logic DeviceDetails uses for its live clock.
@@ -436,26 +466,47 @@ export default function Analytics() {
             ))}
           </div>
 
-          {/* ── Live Current Monitoring (Today only) ── */}
+          {/* ── System Load Gauge (Today only - Real-time) ── */}
           {tab === 'today' && devices.length > 0 && (
-            <Card>
-              <div className="flex items-center gap-2 mb-5">
-                <Zap size={18} className="sm:w-4 sm:h-4" style={{ color: '#2563eb' }} />
-                <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Live Current Monitor</h3>
-                <span className="ml-auto text-xs" style={{ color: 'var(--text-tertiary)' }}>Real-time</span>
+            <SystemLoadGauge
+              totalCurrent={totalCurrent}
+              totalPower={totalPower}
+              maxCurrent={16}
+              maxPower={3680}
+            />
+          )}
+
+          {/* ── Live Power Monitoring Cards (Today only - Real-time) ── */}
+          {tab === 'today' && devices.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Activity size={18} className="sm:w-4 sm:h-4" style={{ color: '#ef4444' }} />
+                  <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Live Power Monitor</h3>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-xs font-medium" style={{ color: '#ef4444' }}>LIVE</span>
+                  </div>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  ACS712 sensors • Real-time data
+                </p>
               </div>
-              <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>
-                ACS712 current sensors on GPIO 34, 35, 32, 39 for real-time load monitoring.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {CURRENT_SENSOR_CONFIG.map(channel => {
-                  // Aggregate current across all devices for this channel
-                  let totalCurrent = 0;
-                  let hasMismatch = false;
+                  // Aggregate data across all devices for this channel
+                  let channelCurrent = 0;
+                  let channelEnergy = 0;
+                  let channelRuntime = 0;
+                  let isChannelOn = false;
+                  let hasChannelMismatch = false;
                   let hasData = false;
 
                   devices.forEach(dev => {
                     const cs = currentSenseMap[dev.deviceId];
+                    const analytics = todayRtdb[dev.deviceId];
+                    const onAt = onAtMap[dev.deviceId];
+                    
                     if (cs) {
                       const currentField = `${channel.key}Current` as keyof DeviceCurrentSense;
                       const mismatchField = `${channel.key}Mismatch` as keyof DeviceCurrentSense;
@@ -464,57 +515,49 @@ export default function Analytics() {
                       
                       if (typeof current === 'number') {
                         hasData = true;
-                        totalCurrent += current;
+                        channelCurrent += current;
                       }
                       if (mismatch === true) {
-                        hasMismatch = true;
+                        hasChannelMismatch = true;
                       }
+                    }
+                    
+                    if (analytics) {
+                      const runtimeKey = channel.key === 'custom1' ? 'customRuntime' : `${channel.key}Runtime`;
+                      const storedRuntime = analytics[runtimeKey as keyof DeviceAnalyticsData] as number || 0;
+                      channelRuntime += liveRuntime(dev.deviceId, channel.key, storedRuntime);
+                      channelEnergy += analytics.energyUsage || 0;
+                    }
+                    
+                    if (onAt && onAt[channel.key] && onAt[channel.key] > 0) {
+                      isChannelOn = true;
                     }
                   });
 
+                  const metadata = aggregatedMetadata[channel.key as keyof DeviceOutputMetadata];
+                  const iconComponent = metadata?.icon ? getIconById(metadata.icon) : undefined;
+
                   return (
-                    <div 
-                      key={channel.key} 
-                      className="p-3 rounded-lg border"
-                      style={{ 
-                        background: hasMismatch ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-secondary)',
-                        borderColor: hasMismatch ? '#ef4444' : 'var(--border-color)'
-                      }}
-                    >
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div 
-                          className="w-2 h-2 rounded-full flex-shrink-0" 
-                          style={{ background: channel.color }}
-                        />
-                        <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                          {channel.label}
-                        </p>
-                      </div>
-                      {hasData ? (
-                        <>
-                          <p className="text-lg font-bold mb-1" style={{ color: hasMismatch ? '#ef4444' : 'var(--text-primary)' }}>
-                            {fmtCurrent(totalCurrent)}
-                          </p>
-                          {hasMismatch && (
-                            <div className="flex items-start gap-1 mt-2 pt-2 border-t" style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-                              <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
-                              <p className="text-xs leading-tight" style={{ color: '#ef4444' }}>
-                                Not responding — check switch or bulb
-                              </p>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No data</p>
-                      )}
-                    </div>
+                    <LivePowerCard
+                      key={channel.key}
+                      label={metadata?.name || channel.label}
+                      current={channelCurrent}
+                      voltage={230}
+                      powerFactor={0.9}
+                      isOn={isChannelOn}
+                      mismatch={hasChannelMismatch}
+                      runtime={channelRuntime}
+                      energy={channelEnergy / Math.max(devices.length, 1)}
+                      color={metadata?.color || channel.color}
+                      icon={iconComponent}
+                    />
                   );
                 })}
               </div>
-              <p className="text-xs mt-4" style={{ color: 'var(--text-tertiary)' }}>
-                Current sensing requires compatible hardware. Older devices may show "No data".
+              <p className="text-xs mt-4 text-center" style={{ color: 'var(--text-tertiary)' }}>
+                💡 Power = Current × 230V × 0.9 (Power Factor) • Updates every second • GPIO: 34, 35, 32, 39
               </p>
-            </Card>
+            </div>
           )}
 
           {/* ── Channel runtimes + Devices overview ── */}
