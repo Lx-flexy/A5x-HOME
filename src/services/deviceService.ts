@@ -418,7 +418,20 @@ export function subscribeToAnalytics(
 ): () => void {
   const r = rtdbAnalytics(deviceId);
   const handler = (snap: DataSnapshot) => {
-    callback((snap.val() as DeviceAnalyticsData) || defaultAnalytics());
+    const rawData = (snap.val() as DeviceAnalyticsData) || defaultAnalytics();
+    
+    // CRITICAL FIX: ESP32 firmware sends runtime in SECONDS (uint32_t)
+    // Convert to HOURS for web app display
+    // See firmware: device_state.h line 37-40 (uint32_t light2Runtime)
+    const convertedData: DeviceAnalyticsData = {
+      light2Runtime: (rawData.light2Runtime || 0) / 3600,  // seconds → hours
+      light3Runtime: (rawData.light3Runtime || 0) / 3600,
+      fan1Runtime: (rawData.fan1Runtime || 0) / 3600,
+      customRuntime: (rawData.customRuntime || 0) / 3600,
+      energyUsage: rawData.energyUsage || 0,  // kWh, no conversion needed
+    };
+    
+    callback(convertedData);
   };
   onValue(r, handler);
   return () => off(r, 'value', handler);
