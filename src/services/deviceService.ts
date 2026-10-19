@@ -683,13 +683,19 @@ export async function setOutput(
   // SESSION TRACKING: Track ON/OFF transitions for today's runtime calculation
   // This allows analytics page to show "today's runtime" without firmware changes
   if (typeof safeValue === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
-    const { trackDeviceOn, trackDeviceOff } = await import('./sessionTracker');
-    const channel = key as 'light2'|'light3'|'fan1'|'custom1';
-    
-    if (safeValue) {
-      trackDeviceOn(deviceId, channel);
-    } else {
-      trackDeviceOff(deviceId, channel);
+    try {
+      const { trackDeviceOn, trackDeviceOff } = await import('./sessionTracker');
+      const channel = key as 'light2'|'light3'|'fan1'|'custom1';
+      
+      console.log(`[setOutput] Session tracking: ${deviceId}/${channel} -> ${safeValue ? 'ON' : 'OFF'}`);
+      
+      if (safeValue) {
+        trackDeviceOn(deviceId, channel);
+      } else {
+        trackDeviceOff(deviceId, channel);
+      }
+    } catch (err) {
+      console.error('[setOutput] Session tracking failed:', err);
     }
   }
 
@@ -858,16 +864,21 @@ export async function updateDeviceState(
   const trackable: TK[] = ['light2','light3','fan1','custom1'];
   
   // Track session changes
-  const { trackDeviceOn, trackDeviceOff } = await import('./sessionTracker');
-  for (const k of trackable) {
-    if (k in data && typeof (data as Record<string, unknown>)[k] === 'boolean') {
-      const isOn = (data as Record<string, unknown>)[k] as boolean;
-      if (isOn) {
-        trackDeviceOn(deviceId, k);
-      } else {
-        trackDeviceOff(deviceId, k);
+  try {
+    const { trackDeviceOn, trackDeviceOff } = await import('./sessionTracker');
+    for (const k of trackable) {
+      if (k in data && typeof (data as Record<string, unknown>)[k] === 'boolean') {
+        const isOn = (data as Record<string, unknown>)[k] as boolean;
+        console.log(`[updateDeviceState] Session tracking: ${deviceId}/${k} -> ${isOn ? 'ON' : 'OFF'}`);
+        if (isOn) {
+          trackDeviceOn(deviceId, k);
+        } else {
+          trackDeviceOff(deviceId, k);
+        }
       }
     }
+  } catch (err) {
+    console.error('[updateDeviceState] Session tracking failed:', err);
   }
 
   // ANALYTICS INTEGRATION: Track bulk output changes for runtime/energy analytics
