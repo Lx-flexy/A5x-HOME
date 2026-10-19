@@ -7,7 +7,8 @@ interface LivePowerCardProps {
   powerFactor?: number;
   isOn: boolean;
   mismatch: boolean;
-  runtime: number;
+  sessionRuntime: number;    // Today's runtime (client-side tracking)
+  lifetimeRuntime: number;   // Total accumulated runtime (from Firebase)
   energy: number;
   color: string;
   icon?: React.ReactNode;
@@ -15,7 +16,7 @@ interface LivePowerCardProps {
 
 /**
  * LivePowerCard - Real-time power monitoring card
- * Shows current, power, runtime, and energy with live updates
+ * Shows current, power, session runtime (today), lifetime runtime, and energy
  */
 export default function LivePowerCard({
   label,
@@ -24,7 +25,8 @@ export default function LivePowerCard({
   powerFactor = 0.9,
   isOn,
   mismatch,
-  runtime,
+  sessionRuntime,
+  lifetimeRuntime,
   energy,
   color,
   icon,
@@ -125,16 +127,24 @@ export default function LivePowerCard({
           </p>
         </div>
         
-        {/* Runtime */}
+        {/* Session Runtime (Today) */}
         <div>
-          <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Runtime</p>
+          <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Today</p>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {fmtRuntime(runtime)}
+            {fmtRuntime(sessionRuntime)}
           </p>
         </div>
         
-        {/* Energy */}
+        {/* Lifetime Runtime */}
         <div>
+          <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Lifetime</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+            {fmtRuntime(lifetimeRuntime)}
+          </p>
+        </div>
+        
+        {/* Energy (spans 2 columns) */}
+        <div className="col-span-2">
           <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Energy</p>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
             {energy.toFixed(3)} kWh

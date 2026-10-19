@@ -680,6 +680,19 @@ export async function setOutput(
   // Write to RTDB — ESP32 onValue listener picks this up instantly
   await update(rtdbOutputs(deviceId), { [key]: safeValue });
 
+  // SESSION TRACKING: Track ON/OFF transitions for today's runtime calculation
+  // This allows analytics page to show "today's runtime" without firmware changes
+  if (typeof safeValue === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
+    const { trackDeviceOn, trackDeviceOff } = await import('./sessionTracker');
+    const channel = key as 'light2'|'light3'|'fan1'|'custom1';
+    
+    if (safeValue) {
+      trackDeviceOn(deviceId, channel);
+    } else {
+      trackDeviceOff(deviceId, channel);
+    }
+  }
+
   // ANALYTICS INTEGRATION: Track output changes for runtime/energy analytics
   // Analytics are persisted to Supabase (NOT Firebase)
   // This is event-driven: we pass the state change to analyticsService
@@ -839,11 +852,27 @@ export async function updateDeviceState(
   
   console.log('[updateDeviceState] RTDB update completed successfully');
 
+  // SESSION TRACKING: Track ON/OFF transitions for today's runtime calculation
+  // This allows analytics page to show "today's runtime" without firmware changes
+  type TK = 'light2'|'light3'|'fan1'|'custom1';
+  const trackable: TK[] = ['light2','light3','fan1','custom1'];
+  
+  // Track session changes
+  const { trackDeviceOn, trackDeviceOff } = await import('./sessionTracker');
+  for (const k of trackable) {
+    if (k in data && typeof (data as Record<string, unknown>)[k] === 'boolean') {
+      const isOn = (data as Record<string, unknown>)[k] as boolean;
+      if (isOn) {
+        trackDeviceOn(deviceId, k);
+      } else {
+        trackDeviceOff(deviceId, k);
+      }
+    }
+  }
+
   // ANALYTICS INTEGRATION: Track bulk output changes for runtime/energy analytics
   // Analytics are persisted to Supabase (NOT Firebase)
   // This is event-driven: we pass the state changes to analyticsService
-  type TK = 'light2'|'light3'|'fan1'|'custom1';
-  const trackable: TK[] = ['light2','light3','fan1','custom1'];
   const changes: Partial<Record<TK, boolean>> = {};
   for (const k of trackable) {
     if (k in data && typeof (data as Record<string, unknown>)[k] === 'boolean') {

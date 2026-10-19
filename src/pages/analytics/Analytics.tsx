@@ -24,6 +24,10 @@ import {
   ActivityLog,
   todayStr,
 } from '../../services/analyticsService';
+import { 
+  getSessionRuntime, 
+  startMidnightReset 
+} from '../../services/sessionTracker';
 import { CURRENT_SENSOR_CONFIG } from '../../config/sensorConfig';
 import { getIconById } from '../../components/ui/IconPicker';
 import SystemLoadGauge from '../../components/analytics/SystemLoadGauge';
@@ -125,6 +129,10 @@ export default function Analytics() {
   // 1-second ticker for live runtime updates
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
+    
+    // Start midnight reset checker for session tracking
+    startMidnightReset();
+    
     return () => clearInterval(t);
   }, []);
 
@@ -247,41 +255,40 @@ export default function Analytics() {
 
   const { totalCurrent, totalPower } = calculateSystemMetrics();
 
-  // ── Live runtime for a single channel ────────────────────────────────────
-  // FIRMWARE LIMITATION: ESP32 doesn't write onAt/ timestamps to Firebase
-  // So we can't calculate live runtime for devices that are currently ON
-  // 
-  // WORKAROUND: Show "ON" status but runtime from last known Firebase analytics value
-  // This is the lifetime total runtime (best we can do without firmware changes)
-  const liveRuntime = (deviceId: string, key: string, stored: number): number => {
-    // Since firmware doesn't provide onAt timestamps, we can only show:
-    // - Stored lifetime runtime from Firebase analytics/ (in hours after conversion)
-    // - This is accumulated total, not today's runtime
-    
+  // ── Session runtime (today's runtime from localStorage) ──────────────────
+  // Client-side tracking: when user turns device ON, we store timestamp in localStorage
+  // This gives us accurate "today's runtime" without firmware changes
+  const sessionRuntime = (deviceId: string, key: string): number => {
+    const channel = key === 'custom1' ? 'custom1' : key as 'light2' | 'light3' | 'fan1';
+    return getSessionRuntime(deviceId, channel);
+  };
+  
+  // ── Lifetime runtime (from Firebase analytics) ────────────────────────────
+  // Firebase analytics/ stores accumulated total runtime since device was first used
+  // This is useful for device usage statistics
+  const lifetimeRuntime = (deviceId: string, _key: string, stored: number): number => {
     // Validate stored value
     if (!isFinite(stored) || stored < 0) {
-      console.warn(`[Analytics] Invalid stored runtime for ${deviceId}/${key}: ${stored}`);
+      console.warn(`[Analytics] Invalid lifetime runtime for ${deviceId}: ${stored}`);
       return 0;
     }
     
     // Return stored value as-is (already converted from seconds to hours in deviceService)
-    // Note: This is LIFETIME total runtime, not today's runtime
-    // To get today's runtime, firmware needs to write onAt/ timestamps
     return stored;
   };
 
   // ── Compute totals for current tab ────────────────────────────────────────
   const computeTotals = () => {
     if (tab === 'today') {
-      // Sum stored + live delta across all devices
+      // Sum session runtime (today's) across all devices
       return devices.reduce((acc, dev) => {
         const a = todayRtdb[dev.deviceId];
         if (!a) return acc;
         return {
-          light2Runtime: acc.light2Runtime + liveRuntime(dev.deviceId, 'light2', a.light2Runtime || 0),
-          light3Runtime: acc.light3Runtime + liveRuntime(dev.deviceId, 'light3', a.light3Runtime || 0),
-          fan1Runtime:   acc.fan1Runtime   + liveRuntime(dev.deviceId, 'fan1',   a.fan1Runtime   || 0),
-          customRuntime: acc.customRuntime + liveRuntime(dev.deviceId, 'custom1',a.customRuntime || 0),
+          light2Runtime: acc.light2Runtime + sessionRuntime(dev.deviceId, 'light2'),
+          light3Runtime: acc.light3Runtime + sessionRuntime(dev.deviceId, 'light3'),
+          fan1Runtime:   acc.fan1Runtime   + sessionRuntime(dev.deviceId, 'fan1'),
+          customRuntime: acc.customRuntime + sessionRuntime(dev.deviceId, 'custom1'),
           energyUsage:   acc.energyUsage   + (a.energyUsage || 0),
         };
       }, { light2Runtime:0, light3Runtime:0, fan1Runtime:0, customRuntime:0, energyUsage:0 });
@@ -479,15 +486,28 @@ export default function Analytics() {
                       }
                     }
                     
+                    // Get session runtime (today's) from localStorage
+                    const channelKey = channel.key === 'custom1' ? 'custom1' : channel.key as 'light2' | 'light3' | 'fan1';
+                    const sessionRt = sessionRuntime(dev.deviceId, channelKey);
+                    channelRuntime += sessionRt;
+                    
                     if (analytics) {
-                      const runtimeKey = channel.key === 'custom1' ? 'customRuntime' : `${channel.key}Runtime`;
-                      const storedRuntime = analytics[runtimeKey as keyof DeviceAnalyticsData] as number || 0;
-                      channelRuntime += liveRuntime(dev.deviceId, channel.key, storedRuntime);
                       channelEnergy += analytics.energyUsage || 0;
                     }
                     
                     if (onAt && onAt[channel.key] && onAt[channel.key] > 0) {
                       isChannelOn = true;
+                    }
+                  });
+                  
+                  // Get lifetime runtime from Firebase for this channel
+                  let channelLifetime = 0;
+                  devices.forEach(dev => {
+                    const analytics = todayRtdb[dev.deviceId];
+                    if (analytics) {
+                      const runtimeKey = channel.key === 'custom1' ? 'customRuntime' : `${channel.key}Runtime`;
+                      const storedRuntime = analytics[runtimeKey as keyof DeviceAnalyticsData] as number || 0;
+                      channelLifetime += lifetimeRuntime(dev.deviceId, channel.key, storedRuntime);
                     }
                   });
 
@@ -503,7 +523,8 @@ export default function Analytics() {
                       powerFactor={0.9}
                       isOn={isChannelOn}
                       mismatch={hasChannelMismatch}
-                      runtime={channelRuntime}
+                      sessionRuntime={channelRuntime}
+                      lifetimeRuntime={channelLifetime}
                       energy={channelEnergy / Math.max(devices.length, 1)}
                       color={metadata?.color || channel.color}
                       icon={iconComponent}
@@ -565,10 +586,10 @@ export default function Analytics() {
                     // APPROXIMATION: use max() instead of sum (see totalRuntime comment above)
                     const deviceRuntime = a
                       ? Math.max(
-                          liveRuntime(device.deviceId, 'light2', a.light2Runtime || 0),
-                          liveRuntime(device.deviceId, 'light3', a.light3Runtime || 0),
-                          liveRuntime(device.deviceId, 'fan1',   a.fan1Runtime   || 0),
-                          liveRuntime(device.deviceId, 'custom1',a.customRuntime || 0),
+                          sessionRuntime(device.deviceId, 'light2'),
+                          sessionRuntime(device.deviceId, 'light3'),
+                          sessionRuntime(device.deviceId, 'fan1'),
+                          sessionRuntime(device.deviceId, 'custom1'),
                           0
                         )
                       : tab !== 'today'
