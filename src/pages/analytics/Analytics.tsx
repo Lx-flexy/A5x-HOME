@@ -8,10 +8,12 @@ import {
   subscribeToLastSeen,
   subscribeToCurrentSense,
   subscribeToOutputMetadata,
+  subscribeToOutputs,
   Device,
   DeviceAnalyticsData,
   DeviceCurrentSense,
   DeviceOutputMetadata,
+  DeviceOutputs,
 } from '../../services/deviceService';
 import { calcIsOnline } from '../../hooks/useDeviceStatus';
 import {
@@ -119,6 +121,8 @@ export default function Analytics() {
   const [currentSenseMap, setCurrentSenseMap] = useState<Record<string, DeviceCurrentSense>>({});
   // Output metadata — custom names for channels
   const [outputMetadataMap, setOutputMetadataMap] = useState<Record<string, DeviceOutputMetadata>>({});
+  // Actual relay states (outputs/)
+  const [outputsMap, setOutputsMap] = useState<Record<string, DeviceOutputs>>({});
   const [now, setNow]                 = useState(Date.now());
   const [logs, setLogs]               = useState<ActivityLog[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -186,7 +190,12 @@ export default function Analytics() {
         setOutputMetadataMap(prev => ({ ...prev, [dev.deviceId]: metadata }));
       });
 
-      unsubs.push(u1, u2, u3, u4, u5);
+      // Subscribe to outputs — actual relay states for ON/OFF status
+      const u6 = subscribeToOutputs(dev.deviceId, outputs => {
+        setOutputsMap(prev => ({ ...prev, [dev.deviceId]: outputs }));
+      });
+
+      unsubs.push(u1, u2, u3, u4, u5, u6);
     });
 
     return () => unsubs.forEach(u => u());
@@ -470,7 +479,7 @@ export default function Analytics() {
                   devices.forEach(dev => {
                     const cs = currentSenseMap[dev.deviceId];
                     const analytics = todayRtdb[dev.deviceId];
-                    const onAt = onAtMap[dev.deviceId];
+                    const outputs = outputsMap[dev.deviceId]; // Get actual relay states
                     
                     if (cs) {
                       const currentField = `${channel.key}Current` as keyof DeviceCurrentSense;
@@ -495,7 +504,8 @@ export default function Analytics() {
                       channelEnergy += analytics.energyUsage || 0;
                     }
                     
-                    if (onAt && onAt[channel.key] && onAt[channel.key] > 0) {
+                    // Check actual relay state from outputs/, not onAt/
+                    if (outputs && outputs[channel.key]) {
                       isChannelOn = true;
                     }
                   });
