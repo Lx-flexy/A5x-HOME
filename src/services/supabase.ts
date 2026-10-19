@@ -56,9 +56,11 @@ if (isSupabaseConfigured) {
       },
     });
 
-    console.log('[Supabase] Client initialized. Testing connectivity...');
+    console.log('[Supabase] Client initialized. Connectivity test disabled.');
 
-    // Test connectivity (non-blocking)
+    // Test connectivity (DISABLED - avoids unnecessary errors when Supabase not used)
+    // Uncomment if you need to verify Supabase connection on page load
+    /*
     (async () => {
       try {
         const { error } = await supabaseClient!.from('runtime_sessions').select('id').limit(1);
@@ -68,9 +70,10 @@ if (isSupabaseConfigured) {
           console.log('[Supabase] Connectivity test OK');
         }
       } catch (err) {
-        console.error('[Supabase] Connectivity test exception:', err);
+        console.error('[Supabase] Connectivity test failed:', err);
       }
     })();
+    */
   }
 }
 
