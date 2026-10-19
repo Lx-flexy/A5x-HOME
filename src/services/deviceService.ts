@@ -699,9 +699,10 @@ export async function setOutput(
     }
   }
 
-  // ANALYTICS INTEGRATION: Track output changes for runtime/energy analytics
+  // ANALYTICS INTEGRATION: Disabled - using localStorage session tracking instead
   // Analytics are persisted to Supabase (NOT Firebase)
-  // This is event-driven: we pass the state change to analyticsService
+  // Commented out to avoid unnecessary Supabase errors
+  /*
   if (typeof safeValue === 'boolean' && TRACKABLE_KEYS.has(key as string)) {
     const { trackOutputChange } = await import('./analyticsService');
     await trackOutputChange({
@@ -713,6 +714,7 @@ export async function setOutput(
       console.warn('[setOutput] trackOutputChange failed:', err)
     );
   }
+  */
 
   if (label) {
     // Pass the output ID for trackable boolean keys to enable color-matched notifications
@@ -881,9 +883,9 @@ export async function updateDeviceState(
     console.error('[updateDeviceState] Session tracking failed:', err);
   }
 
-  // ANALYTICS INTEGRATION: Track bulk output changes for runtime/energy analytics
-  // Analytics are persisted to Supabase (NOT Firebase)
-  // This is event-driven: we pass the state changes to analyticsService
+  // ANALYTICS INTEGRATION: Disabled - using localStorage session tracking instead
+  // Supabase analytics commented out to avoid unnecessary errors
+  /*
   const changes: Partial<Record<TK, boolean>> = {};
   for (const k of trackable) {
     if (k in data && typeof (data as Record<string, unknown>)[k] === 'boolean') {
@@ -897,6 +899,7 @@ export async function updateDeviceState(
       console.warn('[updateDeviceState] trackBulkOutputChange failed:', err)
     );
   }
+  */
 
   if (label) await logActivity(deviceId, label, performedBy);
 }

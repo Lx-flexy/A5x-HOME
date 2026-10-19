@@ -29,6 +29,7 @@ import {
   DeviceOutputMetadata,
   updateDeviceState,
 } from '../../services/deviceService';
+import { getSessionRuntime } from '../../services/sessionTracker';
 import { ensureTodayWindow, resetCorruptedAnalyticsIfNeeded } from '../../services/analyticsService';
 import { canUserControlDevice } from '../../services/memberService';
 import { useAuth } from '../../context/AuthContext';
@@ -607,6 +608,7 @@ export default function DeviceDetails() {
   const [now, setNow]             = useState<number>(Date.now());
   const [loading, setLoading]     = useState(true);
   const [resetting, setResetting] = useState(false);
+  const [tick, setTick]           = useState(0); // Force re-render for session runtime updates
 
   const [oledDraft, setOledDraft]     = useState('');
   const [sendingOled, setSendingOled] = useState(false);
@@ -712,7 +714,10 @@ export default function DeviceDetails() {
   }, [device]);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => {
+      setNow(Date.now());
+      setTick(prev => prev + 1); // Force re-render to update session runtime display
+    }, 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -951,16 +956,17 @@ export default function DeviceDetails() {
   const h  = health;
   const an = analytics;
 
-  const liveRuntime = (key: string, stored: number, isOn: boolean | undefined) => {
-    const onAtMs = onAt[key] || 0;
-    const extra  = (isOn && onAtMs > 0) ? (now - onAtMs) / 3_600_000 : 0;
-    return stored + extra;
+  // Get session runtime (today's runtime) from localStorage
+  // Note: getSessionRuntime() returns HOURS directly, not seconds
+  const sessionRuntime = (channel: string) => {
+    if (!device) return 0;
+    return getSessionRuntime(device.deviceId, channel as 'light2'|'light3'|'fan1'|'custom1');
   };
 
-  const liveLight2  = liveRuntime('light2',  an?.light2Runtime  || 0, o?.light2);
-  const liveLight3  = liveRuntime('light3',  an?.light3Runtime  || 0, o?.light3);
-  const liveFan1    = liveRuntime('fan1',    an?.fan1Runtime    || 0, o?.fan1);
-  const liveCustom  = liveRuntime('custom1', an?.customRuntime  || 0, o?.custom1);
+  const liveLight2  = sessionRuntime('light2');
+  const liveLight3  = sessionRuntime('light3');
+  const liveFan1    = sessionRuntime('fan1');
+  const liveCustom  = sessionRuntime('custom1');
 
   const totalRuntime = liveLight2 + liveLight3 + liveFan1 + liveCustom;
   const maxRuntime   = Math.max(liveLight2, liveLight3, liveFan1, liveCustom, 0.001);
@@ -1128,7 +1134,8 @@ export default function DeviceDetails() {
               return (
                 <>
                   {visibleOutputs.map(item => {
-                    const liveExtra = (o?.[item.key] && onAt[item.key]) ? (now - onAt[item.key]) / 3_600_000 : 0;
+                    // Get today's session runtime in hours
+                    const sessionHours = sessionRuntime(item.outputId);
                     const metadata = outputMetadata ? getOutputMetadata(outputMetadata, item.outputId) : { 
                       name: item.key === 'custom1' ? 'Custom Device' : item.key === 'fan1' ? 'Fan' : 'Light', 
                       icon: item.key === 'custom1' ? 'zap' : item.key === 'fan1' ? 'wind' : 'lightbulb', 
@@ -1141,7 +1148,7 @@ export default function DeviceDetails() {
                         icon={getIconById(metadata.icon)}
                         customColor={metadata.color}
                         label={metadata.name}
-                        runtime={item.stored + liveExtra}
+                        runtime={sessionHours}
                         checked={Boolean(o?.[item.key]) || false}
                         onChange={v => toggle(item.key, v, `${metadata.name} turned ${v ? 'ON' : 'OFF'}`)}
                         disabled={isOffline}
