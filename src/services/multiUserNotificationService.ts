@@ -26,27 +26,37 @@ class MultiUserNotificationService {
    * Initialize notification listeners for user's devices
    */
   async initialize(userId: string) {
+    console.log('[MultiUserNotification] Initialize called with userId:', userId);
+    
     if (this.initialized && this.userId === userId) {
       console.log('[MultiUserNotification] Already initialized for user:', userId);
       return;
     }
 
-    console.log('[MultiUserNotification] Initializing for user:', userId);
+    console.log('[MultiUserNotification] Starting initialization...');
     this.userId = userId;
 
     // Clear existing listeners
     this.cleanup();
 
     // Get user's devices (owned + shared)
+    console.log('[MultiUserNotification] Fetching user devices...');
     const devices = await this.getUserDevices(userId);
-    console.log('[MultiUserNotification] Found devices:', devices.length);
+    console.log('[MultiUserNotification] Found devices:', devices.length, devices);
+
+    if (devices.length === 0) {
+      console.warn('[MultiUserNotification] No devices found for user');
+      return;
+    }
 
     // Setup listeners for each device
     devices.forEach((device) => {
+      console.log('[MultiUserNotification] Setting up listeners for device:', device.name);
       this.setupDeviceListeners(device.id, device.name);
     });
 
     this.initialized = true;
+    console.log('[MultiUserNotification] Initialization complete! Monitoring', devices.length, 'devices');
   }
 
   /**
@@ -290,3 +300,9 @@ class MultiUserNotificationService {
 
 // Export singleton instance
 export const multiUserNotificationService = new MultiUserNotificationService();
+
+// Expose to window for debugging (development only)
+if (import.meta.env.DEV) {
+  (window as any).multiUserNotificationService = multiUserNotificationService;
+  console.log('[MultiUserNotification] Service exposed to window for debugging');
+}
