@@ -62,6 +62,7 @@ export const db = initializeFirestore(app, {
 // whitelisted in CSP because the subdomain changes dynamically.
 // With forceLongPolling:false, RTDB uses WebSocket which works fine with CSP.
 export const rtdb = getDatabase(app);
+export const database = rtdb; // Alias for convenience
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 export const storage = getStorage(app);

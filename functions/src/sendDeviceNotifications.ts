@@ -22,7 +22,7 @@ export const onOutputChange = onValueUpdated(
       
       const deviceName = deviceData.name || 'Unknown Device';
       const outputs = deviceData.outputs || [];
-      const outputInfo = outputs.find((o: any) => o.id === outputId);
+      const outputInfo = outputs.find((o: {id: string; name?: string}) => o.id === outputId);
       const outputName = outputInfo?.name || `Output ${outputId}`;
       
       const members: string[] = [deviceData.ownerId];

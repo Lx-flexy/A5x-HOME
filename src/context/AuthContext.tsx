@@ -3,6 +3,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { getUserData } from '../services/authService';
 import { initializeFCM, requestNotificationPermission, onForegroundMessage } from '../services/fcmService';
+import { multiUserNotificationService } from '../services/multiUserNotificationService';
 
 export interface UserData {
   userId: string;
@@ -84,6 +85,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             onForegroundMessage((payload) => {
               console.log('[AuthContext] Foreground message:', payload);
             });
+            
+            // Initialize multi-user notification listeners
+            await multiUserNotificationService.initialize(firebaseUser.uid);
+            console.log('[AuthContext] Multi-user notifications initialized');
           } catch (error) {
             console.warn('[AuthContext] FCM initialization failed:', error);
           }
@@ -103,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       clearTimeout(timeout);
       unsub();
+      // Cleanup multi-user notification listeners
+      multiUserNotificationService.cleanup();
     };
   }, []);
 
