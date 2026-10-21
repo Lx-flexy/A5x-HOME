@@ -20,8 +20,6 @@ const db = admin.firestore();
 export {
   onOutputChange,
   onDeviceStatusChange,
-  onOledChange,
-  onBuzzerChange,
 } from './sendDeviceNotifications';
 
 // IST offset: UTC +5:30 = 19800 seconds (matching web app)
