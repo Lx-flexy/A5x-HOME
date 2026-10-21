@@ -264,12 +264,24 @@ export default function Analytics() {
 
   const { totalCurrent, totalPower } = calculateSystemMetrics();
 
-  // ── Session runtime (today's runtime from localStorage) ──────────────────
-  // Client-side tracking: when user turns device ON, we store timestamp in localStorage
-  // This gives us accurate "today's runtime" without firmware changes
+  // ── Session runtime (today's runtime from RTDB analytics) ────────────────
+  // FIXED: Read directly from RTDB analytics instead of localStorage
+  // This ensures all members see the same data
   const sessionRuntime = (deviceId: string, key: string): number => {
-    const channel = key === 'custom1' ? 'custom1' : key as 'light2' | 'light3' | 'fan1';
-    return getSessionRuntime(deviceId, channel);
+    const a = todayRtdb[deviceId];
+    if (!a) return 0;
+    
+    // Get runtime from RTDB analytics
+    const field = key === 'custom1' ? 'customRuntime' : `${key}Runtime`;
+    const value = (a as any)[field] || 0;
+    
+    // Validate
+    if (!isFinite(value) || value < 0) {
+      console.warn(`[Analytics] Invalid runtime for ${deviceId}/${key}: ${value}`);
+      return 0;
+    }
+    
+    return value;
   };
   
   // ── Lifetime runtime (from Firebase analytics) ────────────────────────────
