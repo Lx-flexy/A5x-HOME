@@ -11,11 +11,25 @@ export default defineConfig({
     include: ['lucide-react'],
   },
   server: {
+    host: true, // Network pe expose karo
     headers: {
       // Allow Firebase OAuth popups (Google/Facebook signInWithPopup) to work
       // without Cross-Origin-Opener-Policy blocking window.closed checks.
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
       'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Service worker should be in root for Firebase Messaging
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name === 'firebase-messaging-sw.js') {
+            return 'firebase-messaging-sw.js';
+          }
+          return 'assets/[name]-[hash][extname]';
+        },
+      },
     },
   },
 });

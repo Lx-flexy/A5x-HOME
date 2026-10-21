@@ -119,7 +119,7 @@ export default function Dashboard() {
           iconBg="bg-primary-50" icon={<Cpu size={20} className="text-primary-600" />}
         />
         <StatCard
-          label="Online" value={onlineCount} sublabel="Live from RTDB"
+          label="Online" value={onlineCount} sublabel="Connected devices"
           iconBg="bg-success-50" icon={<Wifi size={20} className="text-success-600" />}
         />
         <StatCard

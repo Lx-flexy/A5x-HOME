@@ -242,13 +242,13 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           userId={user.uid}
         />
 
-        {/* Avatar */}
+        {/* Avatar with Initials */}
         <div
           className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center cursor-pointer touch-manipulation"
           style={{
             background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
             boxShadow: '3px 3px 8px rgba(37,99,235,0.3), -1px -1px 4px rgba(255,255,255,0.3)',
-            minWidth: '44px', // Touch-friendly size
+            minWidth: '44px',
             minHeight: '44px',
           }}
           role="button"

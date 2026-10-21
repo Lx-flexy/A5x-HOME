@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
+import { getMessaging, isSupported } from 'firebase/messaging';
 
 // ── Validate all required env vars at startup ─────────────────────────────────
 const REQUIRED = [
@@ -64,5 +65,19 @@ export const rtdb = getDatabase(app);
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 export const storage = getStorage(app);
+
+// ── Cloud Messaging ───────────────────────────────────────────────────────────
+// Messaging is initialized lazily in fcmService.ts to avoid blocking app startup
+export let messaging: any = null;
+
+// Initialize messaging in background (non-blocking)
+isSupported().then((supported) => {
+  if (supported) {
+    messaging = getMessaging(app);
+    console.log('[Firebase] Cloud Messaging initialized');
+  }
+}).catch((error) => {
+  console.warn('[Firebase] Cloud Messaging not supported:', error);
+});
 
 export default app;

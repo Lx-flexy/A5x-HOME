@@ -31,7 +31,7 @@ import {
 } from '../../services/deviceService';
 import { getSessionRuntime } from '../../services/sessionTracker';
 import { ensureTodayWindow, resetCorruptedAnalyticsIfNeeded } from '../../services/analyticsService';
-import { canUserControlDevice } from '../../services/memberService';
+import { canUserControlDevice, subscribeToUserAccess } from '../../services/memberService';
 import { useAuth } from '../../context/AuthContext';
 import { useDeviceStatus } from '../../hooks/useDeviceStatus';
 import Button from '../../components/ui/Button';
@@ -560,7 +560,7 @@ function SectionHeader({
 // ─── Mini pill toggle button ──────────────────────────────────────────────────
 
 function PillBtn({
-  label, active, activeColor, activeBg, activeGlow, onClick,
+  label, active, activeColor, activeBg, activeGlow, onClick, disabled,
 }: {
   label: string;
   active: boolean;
@@ -568,11 +568,13 @@ function PillBtn({
   activeBg: string;
   activeGlow: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="px-3 py-1 text-xs font-bold rounded-xl transition-all duration-200"
+      disabled={disabled}
+      className="px-3 py-1 text-xs font-bold rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
       style={
         active
           ? {
@@ -688,6 +690,26 @@ export default function DeviceDetails() {
     checkAccess();
   }, [device, userData?.userId]);
 
+  // ── Real-time subscription to user access status ──────────────────────────
+  useEffect(() => {
+    if (!device || !userData?.userId) return;
+    
+    const unsubscribe = subscribeToUserAccess(
+      device.deviceId, 
+      userData.userId, 
+      (access) => {
+        setUserAccess(access);
+        
+        // Show modal if user gets blocked in real-time
+        if (!access.canControl) {
+          setShowBlockedModal(true);
+        }
+      }
+    );
+    
+    return unsubscribe;
+  }, [device, userData?.userId]);
+
   useEffect(() => {
     if (!device) return;
     const did = device.deviceId;
@@ -704,6 +726,17 @@ export default function DeviceDetails() {
       });
       setFanSpeed({
         fan1Speed: out.fan1Speed ?? 100,
+      });
+      // Sync localStorage session tracker with actual Firebase state
+      // This prevents stale timestamps from counting runtime when device is OFF
+      const channels: Array<'light2' | 'light3' | 'fan1' | 'custom1'> = ['light2', 'light3', 'fan1', 'custom1'];
+      channels.forEach(ch => {
+        if (!out[ch]) {
+          // Device is OFF in Firebase - clear any stale localStorage timestamp
+          import('../../services/sessionTracker').then(({ trackDeviceOff }) => {
+            trackDeviceOff(did, ch);
+          });
+        }
       });
     });
     const u2 = subscribeToHealth(did, setHealth);
@@ -734,6 +767,27 @@ export default function DeviceDetails() {
       }
     }
   }, [outputs?.buzzer, buzzerMode]);
+
+  // Force reset buzzer state on mount (fix stuck disabled state)
+  // Also clears any stuck "buzzer: true" in Firebase so buttons are never permanently disabled
+  useEffect(() => {
+    console.log('[DeviceDetails] Component mounted - resetting buzzer state to idle');
+    setBuzzerMode('idle');
+    if (buzzerTimer.current) {
+      clearTimeout(buzzerTimer.current);
+      buzzerTimer.current = null;
+    }
+    // Clear stuck buzzer flag in Firebase
+    if (device?.deviceId) {
+      import('firebase/database').then(({ ref, update }) => {
+        import('../../services/firebase').then(({ rtdb }) => {
+          update(ref(rtdb, `devices/${device.deviceId}/outputs`), { buzzer: false })
+            .then(() => console.log('[DeviceDetails] Cleared stuck buzzer flag in Firebase'))
+            .catch((e: unknown) => console.warn('[DeviceDetails] Could not clear buzzer flag:', e));
+        });
+      });
+    }
+  }, [device?.deviceId]);
   useEffect(() => () => { Object.values(sliderDebounce.current).forEach(clearTimeout); }, []);
 
   const toggle = useCallback(
@@ -794,6 +848,13 @@ export default function DeviceDetails() {
       value: number,
       setFn: React.Dispatch<React.SetStateAction<Record<string, number>>>
     ) => {
+      // Check access control
+      if (!userAccess.canControl) {
+        console.warn('[handleSlider] Access denied');
+        setShowBlockedModal(true);
+        return;
+      }
+      
       // Instant local update for smooth UI
       setFn(prev => ({ ...prev, [key]: value }));
       // Debounce RTDB write by 120ms
@@ -802,11 +863,19 @@ export default function DeviceDetails() {
         if (device) setOutputValue(device.deviceId, key, value).catch(console.warn);
       }, 120);
     },
-    [device]
+    [device, userAccess]
   );
 
   async function handleSendOled() {
     if (!device || !oledDraft.trim()) return;
+    
+    // Check access control
+    if (!userAccess.canControl) {
+      console.warn('[handleSendOled] Access denied');
+      setShowBlockedModal(true);
+      return;
+    }
+    
     setSendingOled(true);
     await setOutput(device.deviceId, 'oledMessage', oledDraft.trim(), performer, `OLED: "${oledDraft.trim()}"`);
     setSendingOled(false);
@@ -814,20 +883,45 @@ export default function DeviceDetails() {
 
   async function handleClearOled() {
     if (!device) return;
+    
+    // Check access control
+    if (!userAccess.canControl) {
+      console.warn('[handleClearOled] Access denied');
+      setShowBlockedModal(true);
+      return;
+    }
+    
     await setOutput(device.deviceId, 'oledMessage', '', performer, 'OLED cleared');
     setOledDraft('');
   }
 
   async function handleResetAnalytics() {
     if (!device) return;
+    
+    // Check access control
+    if (!userAccess.canControl) {
+      console.warn('[handleResetAnalytics] Access denied');
+      setShowBlockedModal(true);
+      return;
+    }
+    
     setResetting(true);
     await resetAnalytics(device.deviceId);
     setResetting(false);
   }
 
   async function triggerBuzzer(mode: 'single' | 'double' | 'alarm') {
+    console.log('[triggerBuzzer] Button clicked!', { mode, buzzerMode, hasDevice: !!device });
+    
     if (!device || buzzerMode !== 'idle') {
       console.warn('[triggerBuzzer] Blocked:', { deviceExists: !!device, buzzerMode, mode });
+      return;
+    }
+
+    // Check access control
+    if (!userAccess.canControl) {
+      console.warn('[triggerBuzzer] Access denied');
+      setShowBlockedModal(true);
       return;
     }
 
@@ -898,14 +992,29 @@ export default function DeviceDetails() {
   const handleMetadataChange = useCallback(
     async (outputId: keyof DeviceOutputMetadata, name: string, icon: string, color: string) => {
       if (!device || !userData) return;
+      
+      // Check access control
+      if (!userAccess.canControl) {
+        console.warn('[handleMetadataChange] Access denied');
+        setShowBlockedModal(true);
+        return;
+      }
+      
       await updateOutputMetadata(device.deviceId, outputId, name, icon, color, userData.name || 'User');
     },
-    [device, userData]
+    [device, userData, userAccess]
   );
 
   const handleShowNextOutput = useCallback(
     async () => {
       if (!device || !userData || !outputMetadata) return;
+      
+      // Check access control
+      if (!userAccess.canControl) {
+        console.warn('[handleShowNextOutput] Access denied');
+        setShowBlockedModal(true);
+        return;
+      }
       
       // Define the output order (hardware limit: 4 outputs max - removed X1/light1 and X5/fan2)
       const outputOrder: (keyof DeviceOutputMetadata)[] = ['light2', 'light3', 'fan1', 'custom1'];
@@ -921,22 +1030,37 @@ export default function DeviceDetails() {
         await updateOutputVisibility(device.deviceId, nextHidden, true, userData.name || 'User');
       }
     },
-    [device, userData, outputMetadata]
+    [device, userData, outputMetadata, userAccess]
   );
 
   const handleRemoveClick = useCallback((outputId: keyof DeviceOutputMetadata) => {
+    // Check access control
+    if (!userAccess.canControl) {
+      console.warn('[handleRemoveClick] Access denied');
+      setShowBlockedModal(true);
+      return;
+    }
+    
     setRemovingOutputId(outputId);
     setRemoveModal(true);
-  }, []);
+  }, [userAccess]);
 
   const handleRemoveConfirm = useCallback(async () => {
     if (!device || !userData || !removingOutputId) return;
+    
+    // Check access control
+    if (!userAccess.canControl) {
+      console.warn('[handleRemoveConfirm] Access denied');
+      setShowBlockedModal(true);
+      return;
+    }
+    
     setRemoving(true);
     await removeOutput(device.deviceId, removingOutputId, userData.name || 'User');
     setRemoving(false);
     setRemoveModal(false);
     setRemovingOutputId(null);
-  }, [device, userData, removingOutputId]);
+  }, [device, userData, removingOutputId, userAccess]);
 
   const handleRemoveCancel = useCallback(() => {
     setRemoveModal(false);
@@ -1029,7 +1153,6 @@ export default function DeviceDetails() {
                   { icon: <Bolt size={11} />,   text: `Firmware ${device.firmware || 'v1.2.4'}` },
                   { icon: <Clock size={11} />,  text: `Last seen ${lastSeenLabel}`              },
                   { icon: <MapPin size={11} />, text: `${device.room} · ${device.location}`     },
-                  { icon: <Cpu size={11} />,    text: 'ESP32 · Controller'                      },
                 ].map((item, i) => (
                   <span
                     key={i}
@@ -1101,6 +1224,7 @@ export default function DeviceDetails() {
                     activeBg="linear-gradient(135deg,#f59e0b,#fbbf24)"
                     activeGlow="rgba(245,158,11,0.35)"
                     onClick={() => toggleAllLights(!allLightsOn)}
+                    disabled={!userAccess.canControl}
                   />
                 </div>
               }
@@ -1134,8 +1258,18 @@ export default function DeviceDetails() {
               return (
                 <>
                   {visibleOutputs.map(item => {
-                    // Get today's session runtime in hours
-                    const sessionHours = sessionRuntime(item.outputId);
+                    // Use Firebase analytics runtime (accurate, cross-device)
+                    // Firebase stores runtime in seconds, convert to hours for display
+                    const firebaseRuntimeHours = (item.stored || 0) / 3600;
+                    // If device is currently ON, add live elapsed time since last Firebase push (updates every 60s)
+                    const isOn = Boolean(o?.[item.key]);
+                    const onAtMs = onAt?.[item.outputId as keyof typeof onAt];
+                    const liveElapsedHours = (isOn && onAtMs && onAtMs > 0)
+                      ? (Date.now() - onAtMs) / 3_600_000
+                      : 0;
+                    const totalRuntimeHours = isOn
+                      ? firebaseRuntimeHours + liveElapsedHours
+                      : firebaseRuntimeHours;  // OFF = show only accumulated, no live count
                     const metadata = outputMetadata ? getOutputMetadata(outputMetadata, item.outputId) : { 
                       name: item.key === 'custom1' ? 'Custom Device' : item.key === 'fan1' ? 'Fan' : 'Light', 
                       icon: item.key === 'custom1' ? 'zap' : item.key === 'fan1' ? 'wind' : 'lightbulb', 
@@ -1148,10 +1282,10 @@ export default function DeviceDetails() {
                         icon={getIconById(metadata.icon)}
                         customColor={metadata.color}
                         label={metadata.name}
-                        runtime={sessionHours}
+                        runtime={totalRuntimeHours}
                         checked={Boolean(o?.[item.key]) || false}
                         onChange={v => toggle(item.key, v, `${metadata.name} turned ${v ? 'ON' : 'OFF'}`)}
-                        disabled={isOffline}
+                        disabled={isOffline || !userAccess.canControl}
                         onMetadataChange={(name, icon, color) => handleMetadataChange(item.outputId, name, icon, color)}
                         outputId={item.outputId}
                         iconId={metadata.icon}
@@ -1164,7 +1298,7 @@ export default function DeviceDetails() {
                     {canAddMore && (
                       <button
                         onClick={handleShowNextOutput}
-                        disabled={isOffline}
+                        disabled={isOffline || !userAccess.canControl}
                         className="rounded-2xl p-4 transition-all duration-300 border-2 border-dashed flex flex-col items-center justify-center gap-2 min-h-[120px] hover:border-primary-400 touch-manipulation"
                         style={{
                           background: 'var(--bg-primary)',
@@ -1373,10 +1507,10 @@ export default function DeviceDetails() {
               <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>{oledDraft.length} / 64 chars</span>
             </div>
             <div className="flex gap-2">
-              <Button className="flex-1" size="sm" onClick={handleSendOled} loading={sendingOled} disabled={!oledDraft.trim() || isOffline}>
+              <Button className="flex-1" size="sm" onClick={handleSendOled} loading={sendingOled} disabled={!oledDraft.trim() || isOffline || !userAccess.canControl}>
                 Send to Display
               </Button>
-              <Button size="sm" variant="secondary" onClick={handleClearOled} disabled={!o?.oledMessage || isOffline}>
+              <Button size="sm" variant="secondary" onClick={handleClearOled} disabled={!o?.oledMessage || isOffline || !userAccess.canControl}>
                 Clear
               </Button>
             </div>
@@ -1394,15 +1528,39 @@ export default function DeviceDetails() {
             iconColor="#ea580c"
             title="Buzzer"
             actions={
-              o?.buzzer ? (
-                <span
-                  className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full animate-pulse"
-                  style={{ background: 'rgba(234,88,12,0.1)', color: '#ea580c' }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ea580c' }} />
-                  Sounding
-                </span>
-              ) : null
+              <div className="flex items-center gap-2">
+                {o?.buzzer ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full animate-pulse"
+                    style={{ background: 'rgba(234,88,12,0.1)', color: '#ea580c' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ea580c' }} />
+                    Sounding
+                  </span>
+                ) : null}
+                {/* Emergency reset button for stuck state */}
+                {buzzerMode !== 'idle' && (
+                  <button
+                    onClick={() => {
+                      console.log('[DeviceDetails] Manual buzzer reset clicked');
+                      setBuzzerMode('idle');
+                      if (buzzerTimer.current) {
+                        clearTimeout(buzzerTimer.current);
+                        buzzerTimer.current = null;
+                      }
+                    }}
+                    className="text-[10px] px-2 py-1 rounded-lg font-semibold transition-colors touch-manipulation"
+                    style={{
+                      background: 'var(--bg-secondary)',
+                      color: '#ef4444',
+                      boxShadow: 'var(--neo-shadow)',
+                    }}
+                    title="Reset stuck buzzer state"
+                  >
+                    Reset UI
+                  </button>
+                )}
+              </div>
             }
           />
           <div className="space-y-2.5">
@@ -1414,7 +1572,7 @@ export default function DeviceDetails() {
               <button
                 key={item.mode}
                 onClick={() => triggerBuzzer(item.mode)}
-                disabled={buzzerMode !== 'idle' || isOffline}
+                disabled={buzzerMode !== 'idle' || isOffline || !userAccess.canControl}
                 className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
                 style={
                   buzzerMode === item.mode

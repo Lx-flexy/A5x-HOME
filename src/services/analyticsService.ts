@@ -251,11 +251,15 @@ export function aggregateDailyRecords(records: DailyAnalytics[]): Omit<DailyAnal
 }
 
 /**
- * Get multi-device analytics from Supabase (optimized query).
+ * Get multi-device analytics from Firebase RTDB (replacing Supabase).
+ * 
+ * Firebase RTDB stores LIFETIME accumulated analytics at: /devices/{deviceId}/analytics/
+ * Since we don't have day-by-day historical breakdown, we return lifetime totals
+ * as a single "period summary" for 7/30 days view.
  * 
  * @param deviceIds Array of device IDs
- * @param days Number of days to fetch
- * @returns Array of daily analytics for all devices
+ * @param days Number of days to fetch (used for labeling only)
+ * @returns Array of daily analytics for all devices (lifetime accumulated as single entry)
  */
 export async function getMultiDeviceAnalyticsFromSupabase(
   deviceIds: string[],
@@ -263,16 +267,74 @@ export async function getMultiDeviceAnalyticsFromSupabase(
 ): Promise<DailyAnalytics[]> {
   if (deviceIds.length === 0) return [];
   
+  console.log(`[Analytics] Fetching Firebase lifetime data for ${deviceIds.length} devices (${days} days view)`);
+  
   try {
-    // Fetch from Supabase for each device (parallel)
+    // Import Firebase get function
+    const { get, ref } = await import('firebase/database');
+    const { rtdb } = await import('./firebase'); // FIXED: Use 'rtdb' not 'database'
+    
+    // Fetch analytics from Firebase for each device
     const results = await Promise.all(
-      deviceIds.map(deviceId => getDailyAnalytics(deviceId, days))
+      deviceIds.map(async (deviceId) => {
+        try {
+          const analyticsRef = ref(rtdb, `/devices/${deviceId}/analytics`);
+          const snapshot = await get(analyticsRef);
+          
+          if (!snapshot.exists()) {
+            console.log(`[Analytics] No Firebase analytics data for ${deviceId} - returning zeros`);
+            // Return zeros instead of null so device still appears
+            return {
+              id: `${deviceId}_lifetime`,
+              deviceId,
+              date: todayStr(),
+              light2Runtime: 0,
+              light3Runtime: 0,
+              fan1Runtime: 0,
+              customRuntime: 0,
+              energyUsage: 0,
+            } as DailyAnalytics;
+          }
+          
+          const data = snapshot.val();
+          console.log(`[Analytics] Firebase data for ${deviceId}:`, data);
+          
+          // Convert Firebase analytics (seconds) to DailyAnalytics format (hours)
+          // NOTE: This is LIFETIME accumulated, not daily breakdown
+          const result = {
+            id: `${deviceId}_lifetime`,
+            deviceId,
+            date: todayStr(),
+            light2Runtime: (data.light2Runtime || 0) / 3600, // seconds to hours
+            light3Runtime: (data.light3Runtime || 0) / 3600,
+            fan1Runtime: (data.fan1Runtime || 0) / 3600,
+            customRuntime: (data.customRuntime || 0) / 3600,
+            energyUsage: data.energyUsage || 0, // Already in kWh
+          } as DailyAnalytics;
+          
+          console.log(`[Analytics] Converted data for ${deviceId}:`, result);
+          return result;
+        } catch (err) {
+          console.error(`[Analytics] Failed to fetch Firebase data for ${deviceId}:`, err);
+          // Return zeros on error so UI doesn't break
+          return {
+            id: `${deviceId}_lifetime`,
+            deviceId,
+            date: todayStr(),
+            light2Runtime: 0,
+            light3Runtime: 0,
+            fan1Runtime: 0,
+            customRuntime: 0,
+            energyUsage: 0,
+          } as DailyAnalytics;
+        }
+      })
     );
     
-    // Flatten results
-    return results.flat();
+    console.log(`[Analytics] Returning ${results.length} results`);
+    return results;
   } catch (err) {
-    console.warn('[Analytics] Multi-device Supabase read failed:', err);
+    console.error('[Analytics] Multi-device Firebase read failed:', err);
     return [];
   }
 }

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { getUserData } from '../services/authService';
+import { initializeFCM, requestNotificationPermission, onForegroundMessage } from '../services/fcmService';
 
 export interface UserData {
   userId: string;
@@ -69,6 +70,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(firebaseUser);
         if (firebaseUser) {
           await loadUserData(firebaseUser.uid);
+          
+          // Initialize FCM (non-blocking, errors caught internally)
+          try {
+            await initializeFCM();
+            
+            // Auto-request notification permission if previously granted
+            if (Notification.permission === 'granted') {
+              await requestNotificationPermission(firebaseUser.uid);
+            }
+            
+            // Listen for foreground messages
+            onForegroundMessage((payload) => {
+              console.log('[AuthContext] Foreground message:', payload);
+            });
+          } catch (error) {
+            console.warn('[AuthContext] FCM initialization failed:', error);
+          }
         } else {
           setUserData(null);
         }

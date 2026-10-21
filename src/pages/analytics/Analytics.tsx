@@ -352,8 +352,8 @@ export default function Analytics() {
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Analytics</h2>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
             {tab === 'today'
-              ? `Today · ${today} · Live from RTDB`
-              : `${tabLabel} · Historical from Supabase`}
+              ? `Today · ${today}`
+              : `${tabLabel} · Historical from Firebase`}
           </p>
         </div>
         <div className="flex rounded-xl p-1 gap-1 w-full sm:w-auto" style={{ background: 'var(--bg-secondary)' }}>

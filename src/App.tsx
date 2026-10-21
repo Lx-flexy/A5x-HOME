@@ -14,6 +14,8 @@ import Members from './pages/members/Members';
 import DexBot from './pages/dexbot/DexBot';
 import Analytics from './pages/analytics/Analytics';
 import Settings from './pages/settings/Settings';
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
+import TermsAndConditions from './pages/legal/TermsAndConditions';
 import { useAuth } from './context/AuthContext';
 import Loader from './components/ui/Loader';
 
@@ -35,6 +37,10 @@ export default function App() {
       <BrowserRouter>
         <ToastContainer />
         <Routes>
+          {/* Public legal pages — accessible to everyone */}
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
+
           {/* Guest-only routes — redirect to dashboard if already logged in */}
           <Route
             path="/login"

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { User, Shield, Bell, LogOut, Eye, EyeOff, Check, Copy } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { logout, updateUserProfile, updateNotificationPreferences } from '../../services/authService';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import PushNotificationSettings from '../../components/settings/PushNotificationSettings';
 
 type Section = 'profile' | 'security' | 'notifications';
 
@@ -44,7 +45,6 @@ export default function Settings() {
     if (!user) return;
     setSavingProfile(true);
     try {
-      // Save to both Firebase Auth AND Firestore users/{uid}
       await updateUserProfile(user.uid, { name: profileForm.name });
       await refreshUserData();
       setProfileSaved(true);
@@ -134,6 +134,7 @@ export default function Settings() {
             <Card>
               <h3 className="text-sm font-semibold text-neutral-900 mb-5">Profile Information</h3>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6 pb-6 border-b border-neutral-100">
+                {/* Avatar with Initials */}
                 <div className="w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-xl font-bold text-white">
                     {(userData?.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
@@ -284,44 +285,70 @@ export default function Settings() {
           )}
 
           {section === 'notifications' && (
-            <Card>
-              <h3 className="text-sm font-semibold text-neutral-900 mb-5">Notification Preferences</h3>
-              <div className="space-y-1">
-                {([
-                  { key: 'deviceOnline', label: 'Device comes online', desc: 'Get notified when a device connects' },
-                  { key: 'deviceOffline', label: 'Device goes offline', desc: 'Get notified when a device disconnects' },
-                  { key: 'memberAdded', label: 'Member added', desc: 'Get notified when a new member joins' },
-                  { key: 'activityLog', label: 'Activity log updates', desc: 'Get notified for device state changes' },
-                ] as { key: keyof typeof notifications; label: string; desc: string }[]).map(item => (
-                  <div key={item.key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-4 border-b border-neutral-100 last:border-0">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-neutral-900">{item.label}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5 break-words">{item.desc}</p>
-                    </div>
-                    <label className="toggle-switch flex-shrink-0 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notifications[item.key]}
-                        onChange={async e => {
-                          const updated = { ...notifications, [item.key]: e.target.checked };
-                          setNotifications(updated);
-                          if (user) {
-                            await updateNotificationPreferences(user.uid, updated).catch(() => {});
-                          }
-                        }}
-                        style={{ touchAction: 'manipulation' }}
-                      />
-                      <div className="toggle-track">
-                        <div className="toggle-thumb" />
+            <>
+              <Card>
+                <h3 className="text-sm font-semibold text-neutral-900 mb-5">Push Notifications</h3>
+                <PushNotificationSettings />
+              </Card>
+
+              <Card>
+                <h3 className="text-sm font-semibold text-neutral-900 mb-5">Notification Preferences</h3>
+                <div className="space-y-1">
+                  {([
+                    { key: 'deviceOnline', label: 'Device comes online', desc: 'Get notified when a device connects' },
+                    { key: 'deviceOffline', label: 'Device goes offline', desc: 'Get notified when a device disconnects' },
+                    { key: 'memberAdded', label: 'Member added', desc: 'Get notified when a new member joins' },
+                    { key: 'activityLog', label: 'Activity log updates', desc: 'Get notified for device state changes' },
+                  ] as { key: keyof typeof notifications; label: string; desc: string }[]).map(item => (
+                    <div key={item.key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-4 border-b border-neutral-100 last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-neutral-900">{item.label}</p>
+                        <p className="text-xs text-neutral-400 mt-0.5 break-words">{item.desc}</p>
                       </div>
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </Card>
+                      <label className="toggle-switch flex-shrink-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notifications[item.key]}
+                          onChange={async e => {
+                            const updated = { ...notifications, [item.key]: e.target.checked };
+                            setNotifications(updated);
+                            if (user) {
+                              await updateNotificationPreferences(user.uid, updated).catch(() => {});
+                            }
+                          }}
+                          style={{ touchAction: 'manipulation' }}
+                        />
+                        <div className="toggle-track">
+                          <div className="toggle-thumb" />
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
           )}
         </div>
       </div>
+
+      {/* Legal Footer */}
+      <Card>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-sm text-neutral-500">
+          <Link 
+            to="/terms" 
+            className="hover:text-primary-600 transition-colors underline"
+          >
+            Terms & Conditions
+          </Link>
+          <span className="hidden sm:inline text-neutral-300">•</span>
+          <Link 
+            to="/privacy" 
+            className="hover:text-primary-600 transition-colors underline"
+          >
+            Privacy Policy
+          </Link>
+        </div>
+      </Card>
 
       <Modal open={logoutModal} onClose={() => setLogoutModal(false)} title="Logout">
         <p className="text-sm text-neutral-600 mb-5">Are you sure you want to logout?</p>

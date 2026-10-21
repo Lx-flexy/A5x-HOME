@@ -178,6 +178,58 @@ export async function canUserControlDevice(deviceId: string, userId: string): Pr
   }
 }
 
+// ─── Real-time subscription to user access status ──────────────────────────────
+
+export function subscribeToUserAccess(
+  deviceId: string, 
+  userId: string, 
+  callback: (access: { canControl: boolean; status?: string; message?: string }) => void
+) {
+  const q = query(
+    collection(db, 'members'),
+    where('deviceId', '==', deviceId),
+    where('userId', '==', userId)
+  );
+  
+  return onSnapshot(
+    q,
+    (snap) => {
+      if (snap.empty) {
+        // User is not a member, might be owner - allow by default
+        callback({ canControl: true });
+        return;
+      }
+      
+      const memberData = snap.docs[0].data();
+      const status = memberData.status || 'active';
+      
+      if (status === 'blocked') {
+        callback({ 
+          canControl: false, 
+          status: 'blocked',
+          message: 'You are blocked from accessing this device' 
+        });
+        return;
+      }
+      
+      if (status === 'restricted') {
+        callback({ 
+          canControl: false, 
+          status: 'restricted',
+          message: 'Your access to this device is restricted' 
+        });
+        return;
+      }
+      
+      callback({ canControl: true, status: 'active' });
+    },
+    (error) => {
+      console.warn('[subscribeToUserAccess] Failed:', error);
+      callback({ canControl: true }); // Fail open
+    }
+  );
+}
+
 // ─── Get total member count across all user's devices ─────────────────────────
 
 export async function getTotalMembersForUser(deviceIds: string[]): Promise<number> {
