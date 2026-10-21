@@ -204,7 +204,7 @@ class MultiUserNotificationService {
   }
 
   /**
-   * Show browser notification
+   * Show browser notification (works in foreground and background)
    */
   private showNotification(title: string, body: string, options: NotificationOptions = {}) {
     // Check notification permission
@@ -213,10 +213,42 @@ class MultiUserNotificationService {
       return;
     }
 
-    // Show notification
+    // Use Service Worker to show notification if available (works in background too)
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification(title, {
+          body,
+          icon: '/logo.png',
+          badge: '/logo.png',
+          tag: options.tag || 'default',
+          requireInteraction: false,
+          vibrate: [200, 100, 200],
+          ...options,
+        }).catch((error) => {
+          console.error('[MultiUserNotification] Service Worker notification failed:', error);
+          // Fallback to regular notification
+          this.showRegularNotification(title, body, options);
+        });
+      }).catch((error) => {
+        console.error('[MultiUserNotification] Service Worker not ready:', error);
+        // Fallback to regular notification
+        this.showRegularNotification(title, body, options);
+      });
+    } else {
+      // Fallback to regular notification API
+      this.showRegularNotification(title, body, options);
+    }
+  }
+
+  /**
+   * Fallback: Show regular browser notification (foreground only)
+   */
+  private showRegularNotification(title: string, body: string, options: NotificationOptions = {}) {
     try {
       const notification = new Notification(title, {
         body,
+        icon: '/logo.png',
+        badge: '/logo.png',
         ...options,
       });
 
