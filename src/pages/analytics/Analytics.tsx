@@ -235,6 +235,28 @@ export default function Analytics() {
     getActivityLogs(devices.map(d => d.deviceId), 30).then(setLogs);
   }, [devices]);
 
+  // Real-time runtime update - force re-render every second for live runtime
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    // Only update when viewing "Today" tab and devices have outputs ON
+    if (tab !== 'today' || !devices.length) return;
+    
+    const interval = setInterval(() => {
+      // Check if any device has outputs ON
+      const hasActiveOutputs = devices.some(dev => {
+        const outputs = outputsMap[dev.deviceId];
+        if (!outputs) return false;
+        return Object.values(outputs).some(state => state === true);
+      });
+      
+      if (hasActiveOutputs) {
+        forceUpdate(prev => prev + 1); // Trigger re-render
+      }
+    }, 1000); // Update every second
+    
+    return () => clearInterval(interval);
+  }, [tab, devices, outputsMap]);
+
   const isDeviceOnline = (deviceId: string) => calcIsOnline(lastSeenMap[deviceId] || 0);
 
   // ── Calculate system-wide real-time metrics ───────────────────────────────
@@ -265,23 +287,42 @@ export default function Analytics() {
   const { totalCurrent, totalPower } = calculateSystemMetrics();
 
   // ── Session runtime (today's runtime from RTDB analytics) ────────────────
-  // FIXED: Read directly from RTDB analytics instead of localStorage
-  // This ensures all members see the same data
+  // FIXED: Read directly from RTDB analytics + calculate live runtime for ON devices
+  // This ensures all members see the same data in real-time
   const sessionRuntime = (deviceId: string, key: string): number => {
     const a = todayRtdb[deviceId];
     if (!a) return 0;
     
-    // Get runtime from RTDB analytics
+    // Get stored runtime from RTDB analytics
     const field = key === 'custom1' ? 'customRuntime' : `${key}Runtime`;
-    const value = (a as any)[field] || 0;
+    let storedRuntime = (a as any)[field] || 0;
     
-    // Validate
-    if (!isFinite(value) || value < 0) {
-      console.warn(`[Analytics] Invalid runtime for ${deviceId}/${key}: ${value}`);
-      return 0;
+    // Validate stored value
+    if (!isFinite(storedRuntime) || storedRuntime < 0) {
+      console.warn(`[Analytics] Invalid runtime for ${deviceId}/${key}: ${storedRuntime}`);
+      storedRuntime = 0;
     }
     
-    return value;
+    // ADD LIVE RUNTIME: If device is currently ON, calculate elapsed time
+    const onAt = onAtMap[deviceId];
+    const outputs = outputsMap[deviceId];
+    
+    if (onAt && outputs) {
+      const onTimestamp = (onAt as any)[key];
+      const isOn = (outputs as any)[key];
+      
+      if (isOn && onTimestamp && onTimestamp > 0) {
+        // Device is ON - calculate elapsed time since turned ON
+        const elapsedMs = Date.now() - onTimestamp;
+        const elapsedHours = elapsedMs / 3_600_000;
+        
+        // Add live elapsed time to stored runtime
+        return storedRuntime + elapsedHours;
+      }
+    }
+    
+    // Device is OFF - return stored runtime only
+    return storedRuntime;
   };
   
   // ── Lifetime runtime (from Firebase analytics) ────────────────────────────
