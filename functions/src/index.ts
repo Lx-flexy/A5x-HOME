@@ -3,6 +3,7 @@
  * 
  * - Scheduled periodic energy accumulation (runs every 60 seconds)
  * - Scheduled cleanup of old analytics data (runs daily at 2 AM IST)
+ * - Push notifications for device control actions
  */
 
 import {onSchedule} from 'firebase-functions/v2/scheduler';
@@ -14,6 +15,14 @@ admin.initializeApp();
 
 const rtdb = admin.database();
 const db = admin.firestore();
+
+// Export notification functions
+export {
+  onOutputChange,
+  onDeviceStatusChange,
+  onOledChange,
+  onBuzzerChange,
+} from './sendDeviceNotifications';
 
 // IST offset: UTC +5:30 = 19800 seconds (matching web app)
 const IST_OFFSET_MS = 19800 * 1000;
