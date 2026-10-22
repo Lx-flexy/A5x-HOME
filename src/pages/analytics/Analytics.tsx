@@ -236,26 +236,38 @@ export default function Analytics() {
   }, [devices]);
 
   // Real-time runtime update - force re-render every second for live runtime
+  // OPTIMIZED: Only update when there are active ON devices
   const [, forceUpdate] = useState(0);
   useEffect(() => {
     // Only update when viewing "Today" tab and devices have outputs ON
     if (tab !== 'today' || !devices.length) return;
     
-    const interval = setInterval(() => {
-      // Check if any device has outputs ON
-      const hasActiveOutputs = devices.some(dev => {
-        const outputs = outputsMap[dev.deviceId];
-        if (!outputs) return false;
-        return Object.values(outputs).some(state => state === true);
-      });
+    // Check if any device has outputs ON
+    const hasActiveOutputs = devices.some(dev => {
+      const outputs = outputsMap[dev.deviceId];
+      const onAt = onAtMap[dev.deviceId];
+      if (!outputs || !onAt) return false;
       
-      if (hasActiveOutputs) {
-        forceUpdate(prev => prev + 1); // Trigger re-render
-      }
-    }, 1000); // Update every second
+      // Check each trackable output
+      return ['light2', 'light3', 'fan1', 'custom1'].some(key => {
+        const isOn = (outputs as any)[key];
+        const timestamp = (onAt as any)[key];
+        return isOn === true && timestamp && timestamp > 0;
+      });
+    });
+    
+    if (!hasActiveOutputs) {
+      // No active outputs - don't update
+      return;
+    }
+    
+    // Update every second only when there are active outputs
+    const interval = setInterval(() => {
+      forceUpdate(prev => prev + 1);
+    }, 1000);
     
     return () => clearInterval(interval);
-  }, [tab, devices, outputsMap]);
+  }, [tab, devices, outputsMap, onAtMap]);
 
   const isDeviceOnline = (deviceId: string) => calcIsOnline(lastSeenMap[deviceId] || 0);
 
@@ -311,13 +323,23 @@ export default function Analytics() {
       const onTimestamp = (onAt as any)[key];
       const isOn = (outputs as any)[key];
       
-      if (isOn && onTimestamp && onTimestamp > 0) {
+      // FIXED: Check if device is actually ON and has valid timestamp
+      if (isOn === true && onTimestamp && typeof onTimestamp === 'number' && onTimestamp > 0) {
         // Device is ON - calculate elapsed time since turned ON
-        const elapsedMs = Date.now() - onTimestamp;
-        const elapsedHours = elapsedMs / 3_600_000;
+        const now = Date.now();
+        const elapsedMs = now - onTimestamp;
         
-        // Add live elapsed time to stored runtime
-        return storedRuntime + elapsedHours;
+        // Validate elapsed time (must be positive and reasonable)
+        if (elapsedMs > 0 && elapsedMs < 86400000) { // Max 24 hours
+          const elapsedHours = elapsedMs / 3_600_000;
+          
+          console.log(`[Analytics] Live runtime: ${deviceId}/${key} - stored: ${storedRuntime.toFixed(4)}h, live: ${elapsedHours.toFixed(4)}h, total: ${(storedRuntime + elapsedHours).toFixed(4)}h`);
+          
+          // Add live elapsed time to stored runtime
+          return storedRuntime + elapsedHours;
+        } else {
+          console.warn(`[Analytics] Invalid elapsed time for ${deviceId}/${key}: ${elapsedMs}ms`);
+        }
       }
     }
     
