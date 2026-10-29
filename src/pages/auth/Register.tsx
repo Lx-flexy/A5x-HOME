@@ -189,9 +189,13 @@ export default function Register() {
               />
               <span>
                 I agree to the{' '}
-                <button type="button" className="text-primary-600 hover:text-primary-700 font-medium">
-                  Terms &amp; Conditions
-                </button>
+                <Link to="/terms" className="text-primary-600 hover:text-primary-700 font-medium">
+                  Terms of Service
+                </Link>
+                {' '}and{' '}
+                <Link to="/privacy" className="text-primary-600 hover:text-primary-700 font-medium">
+                  Privacy Policy
+                </Link>
               </span>
             </label>
 

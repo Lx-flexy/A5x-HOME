@@ -278,6 +278,17 @@ export default function Login() {
               Register
             </Link>
           </p>
+
+          <p className="text-center text-xs text-neutral-400 mt-4">
+            By continuing, you agree to our{' '}
+            <Link to="/terms" className="text-primary-600 hover:underline">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link to="/privacy" className="text-primary-600 hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
         </div>
       </div>
     </div>
