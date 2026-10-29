@@ -16,6 +16,7 @@ import Analytics from './pages/analytics/Analytics';
 import Settings from './pages/settings/Settings';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsAndConditions from './pages/legal/TermsAndConditions';
+import LandingPage from './pages/landing/LandingPage';
 import { useAuth } from './context/AuthContext';
 import Loader from './components/ui/Loader';
 
@@ -73,11 +74,11 @@ export default function App() {
             </Route>
           </Route>
 
-          {/* Root redirect — goes to dashboard (ProtectedRoute handles auth check) */}
-          <Route path="/"   element={<Navigate to="/dashboard" replace />} />
+          {/* Root — public landing page, no login required */}
+          <Route path="/" element={<LandingPage />} />
 
-          {/* 404 — unknown paths go to dashboard (which will redirect to login if needed) */}
-          <Route path="*"   element={<Navigate to="/dashboard" replace />} />
+          {/* 404 — unknown paths go to landing page */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

@@ -67,7 +67,7 @@ export default function PrivacyPolicy() {
                 <p className="text-neutral-700"><strong>Registered Office:</strong> 270a, New Rajiv Gandhi Ward, Trimurti Nagar, Vijay Nagar Colony, Jabalpur, Madhya Pradesh 482002, India</p>
                 <p className="text-neutral-700"><strong>Website:</strong> <a href="https://a5x.in" className="text-primary-600 hover:underline" target="_blank" rel="noopener noreferrer">https://a5x.in</a></p>
                 <p className="text-neutral-700"><strong>Service:</strong> A5X Home</p>
-                <p className="text-neutral-700"><strong>Email:</strong> <a href="mailto:a5x.industries@gmail.com" className="text-primary-600 hover:underline">a5x.industries@gmail.com</a></p>
+                <p className="text-neutral-700"><strong>Email:</strong> <a href="mailto:support@a5x.in" className="text-primary-600 hover:underline">support@a5x.in</a></p>
                 <p className="text-neutral-700"><strong>Phone:</strong> <a href="tel:+918269858259" className="text-primary-600 hover:underline">+91 82698 58259</a></p>
               </div>
             </section>
@@ -231,7 +231,7 @@ export default function PrivacyPolicy() {
               </p>
               <div className="bg-primary-50 rounded-lg p-4 mb-4">
                 <p className="text-neutral-700 mb-2">
-                  <strong>Email:</strong> <a href="mailto:a5x.industries@gmail.com?subject=A5X%20Home%20—%20Account%20and%20Data%20Deletion%20Request" className="text-primary-600 hover:underline">a5x.industries@gmail.com</a>
+                  <strong>Email:</strong> <a href="mailto:support@a5x.in?subject=A5X%20Home%20—%20Account%20and%20Data%20Deletion%20Request" className="text-primary-600 hover:underline">support@a5x.in</a>
                 </p>
                 <p className="text-neutral-700">
                   <strong>Subject:</strong> "A5X Home — Account and Data Deletion Request"
@@ -338,7 +338,7 @@ export default function PrivacyPolicy() {
               <div className="text-neutral-700 space-y-2">
                 <p><strong>A5X Industries Private Limited</strong></p>
                 <p><strong>Website:</strong> <a href="https://a5x.in" className="text-primary-600 hover:underline" target="_blank" rel="noopener noreferrer">https://a5x.in</a></p>
-                <p><strong>Email:</strong> <a href="mailto:a5x.industries@gmail.com" className="text-primary-600 hover:underline">a5x.industries@gmail.com</a></p>
+                <p><strong>Email:</strong> <a href="mailto:support@a5x.in" className="text-primary-600 hover:underline">support@a5x.in</a></p>
                 <p><strong>Phone:</strong> <a href="tel:+918269858259" className="text-primary-600 hover:underline">+91 82698 58259</a></p>
                 <p><strong>Address:</strong> 270a, New Rajiv Gandhi Ward, Trimurti Nagar, Vijay Nagar Colony, Jabalpur, Madhya Pradesh 482002, India</p>
               </div>
