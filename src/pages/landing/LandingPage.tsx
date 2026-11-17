@@ -105,6 +105,69 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Smart Devices Section */}
+      <section className="py-16 px-4 bg-white border-t border-slate-200">
+        <div className="container mx-auto max-w-6xl">
+          <h3 className="text-3xl font-bold text-center text-slate-900 mb-4">
+            Smart Home Devices We Build
+          </h3>
+          <p className="text-center text-slate-600 mb-12 max-w-2xl mx-auto">
+            A5X Industries manufactures IoT-enabled smart home devices powered by ESP32 microcontrollers, 
+            designed for seamless integration with Google Home and mobile apps.
+          </p>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+              <div className="text-4xl mb-3">💡</div>
+              <h4 className="font-semibold text-slate-900 mb-2">Smart Switches</h4>
+              <p className="text-sm text-slate-600">
+                WiFi-enabled relay modules to control lights, fans, and appliances remotely
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+              <div className="text-4xl mb-3">🌡️</div>
+              <h4 className="font-semibold text-slate-900 mb-2">Sensor Modules</h4>
+              <p className="text-sm text-slate-600">
+                Temperature, humidity, and motion sensors for smart automation
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+              <div className="text-4xl mb-3">🤖</div>
+              <h4 className="font-semibold text-slate-900 mb-2">ESP32 Controllers</h4>
+              <p className="text-sm text-slate-600">
+                Custom-programmed microcontroller boards with WiFi and Bluetooth
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+              <div className="text-4xl mb-3">⚡</div>
+              <h4 className="font-semibold text-slate-900 mb-2">Power Monitoring</h4>
+              <p className="text-sm text-slate-600">
+                Energy consumption tracking and real-time usage analytics
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-xl">
+            <p className="text-sm text-blue-900 text-center">
+              <strong>Hardware Manufacturing:</strong> A5X Industries designs, assembles, and distributes IoT hardware solutions 
+              for residential and commercial smart home automation. All devices are built on ESP32 platform with cloud connectivity 
+              through Firebase and integrate with Google Home for voice control.
+            </p>
+          </div>
+
+          <div className="mt-4 p-6 bg-green-50 border border-green-200 rounded-xl">
+            <p className="text-sm text-green-900 text-center">
+              <strong>Developer & Manufacturer:</strong> A5X Industries (registered as A5X Industries Private Limited) 
+              is both the hardware manufacturer and software developer for A5X Home platform. We handle complete device 
+              manufacturing, firmware development, cloud infrastructure, mobile/web app development, and Google Home integration.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* About Section */}
       <section className="py-16 px-4 bg-slate-50">
         <div className="container mx-auto max-w-4xl">
@@ -112,8 +175,9 @@ export default function LandingPage() {
             About A5X Industries
           </h3>
           <p className="text-lg text-slate-600 text-center max-w-3xl mx-auto mb-8">
-            A5X Industries is a robotics, IoT, AI, and STEM education company based in Jabalpur, Madhya Pradesh, India. 
-            We build smart devices and platforms that make complex engineering simple and accessible for everyone.
+            A5X Industries Private Limited (CIN: U62099MP2026PTC084577) is a registered IoT and smart home device manufacturer 
+            based in Jabalpur, Madhya Pradesh, India. We specialize in developing ESP32-based smart home automation hardware, 
+            cloud platforms, robotics kits, and STEM education solutions.
           </p>
           
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
